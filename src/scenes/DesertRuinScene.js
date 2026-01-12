@@ -27,6 +27,8 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.monsterHitChance = 0.5;
     this.monsterScale = 0.7;
     this.monsterEmergingScale = 0.4;
+    this.companionDetectedDuration = 1000;
+    this.companionDetectedDelay = 200;
     this.attackCooldown = 350;
     this.lastAttackAt = 0;
     this.swordSwingId = 0;
@@ -75,17 +77,22 @@ export default class DesertRuinScene extends Phaser.Scene {
 
     const startOffsetX = 36;
     const startOffsetY = -22;
-    this.companion = this.add.circle(480 + startOffsetX, 420 + startOffsetY, 10, 0xffe35c);
+    this.companion = this.add
+      .image(480 + startOffsetX, 420 + startOffsetY, "companion-running")
+      .setOrigin(0.5);
+    this.companion.setScale(0.545);
     this.companion.setDepth(5);
     this.physics.add.existing(this.companion);
-    this.companion.body.setCircle(10);
+    this.companion.body.setCircle(12);
     this.companion.body.setCollideWorldBounds(true);
     this.companion.setData("state", "follow");
     this.companion.setData("target", null);
     this.companion.setData("offset", { x: startOffsetX, y: startOffsetY });
     this.companion.setData("nextHitAt", 0);
     this.companion.setData("retreatUntil", 0);
-    this.companion.setData("baseColor", 0xffe35c);
+    this.companion.setData("baseColor", 0xffffff);
+    this.companion.setData("animState", "running");
+    this.companion.setData("detectedUntil", 0);
     this.facing = new Phaser.Math.Vector2(1, 0);
   }
 
@@ -960,6 +967,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     }
 
     if (state === "retreating") {
+      this.setCompanionVisual("running");
       const distance = Phaser.Math.Distance.Between(
         this.companion.x,
         this.companion.y,
@@ -975,6 +983,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     }
 
     if (state === "attack-approach" || state === "attack-return") {
+      this.setCompanionVisual("attacking");
       return;
     }
 
@@ -994,8 +1003,12 @@ export default class DesertRuinScene extends Phaser.Scene {
     if (target) {
       const nextHitAt = this.companion.getData("nextHitAt") || 0;
       if (this.time.now >= nextHitAt && state !== "cooldown") {
-        this.startCompanionAttack(target);
+        this.setCompanionDetected(target);
+        if (this.canStartDetectedChase()) {
+          this.startCompanionAttack(target);
+        }
       } else {
+        this.setCompanionDetected(target);
         this.followCompanion();
       }
     } else {
@@ -1007,6 +1020,10 @@ export default class DesertRuinScene extends Phaser.Scene {
   startCompanionAttack(target) {
     this.companion.setData("state", "attack-approach");
     this.companion.setData("target", target);
+    this.setCompanionVisual("attacking");
+    if (target) {
+      this.companion.setFlipX(target.x < this.companion.x);
+    }
     if (this.companionAttackTween) {
       this.companionAttackTween.stop();
     }
@@ -1040,6 +1057,7 @@ export default class DesertRuinScene extends Phaser.Scene {
   startCompanionReturn() {
     const followPos = this.getCompanionFollowPosition();
     this.companion.setData("state", "attack-return");
+    this.setCompanionVisual("running");
     if (this.companionAttackTween) {
       this.companionAttackTween.stop();
     }
@@ -1064,8 +1082,10 @@ export default class DesertRuinScene extends Phaser.Scene {
       followPos.y
     );
     if (distance > this.helperFollowDistance) {
+      this.setCompanionVisual("running");
       this.moveCompanionToward(followPos.x, followPos.y, this.helperSpeed);
     } else {
+      this.setCompanionVisual("searching");
       this.companion.body.setVelocity(0, 0);
     }
   }
@@ -1120,12 +1140,12 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.time.delayedCall(this.helperHideDuration, () => {
       if (this.isGameOver || this.isComplete) return;
       const offset = this.companion.getData("offset") || { x: 12, y: -10 };
-      const baseColor = this.companion.getData("baseColor") || 0xffe35c;
-      this.companion.setFillStyle(baseColor);
+      this.companion.clearTint();
       this.companion.setVisible(true);
       this.companion.body.setEnable(true);
       this.companion.setPosition(this.player.x + offset.x, this.player.y + offset.y);
       this.companion.setData("state", "follow");
+      this.setCompanionVisual("running");
     });
   }
 
@@ -1141,6 +1161,40 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.companion.setData("state", "retreating");
     this.companion.setData("target", null);
     this.companion.setData("retreatUntil", 0);
+  }
+
+  setCompanionDetected(target) {
+    if (!target) return;
+    const now = this.time.now;
+    const detectedUntil = this.companion.getData("detectedUntil") || 0;
+    if (now > detectedUntil) {
+      this.companion.setData(
+        "detectedUntil",
+        now + this.companionDetectedDuration + this.companionDetectedDelay
+      );
+      this.companion.setData("detectedStart", now);
+      this.setCompanionVisual("detected");
+    }
+  }
+
+  canStartDetectedChase() {
+    const detectedStart = this.companion.getData("detectedStart") || 0;
+    return this.time.now - detectedStart >= this.companionDetectedDelay;
+  }
+
+  setCompanionVisual(state) {
+    const current = this.companion.getData("animState");
+    if (current === state) return;
+    this.companion.setData("animState", state);
+    if (state === "running") {
+      this.companion.setTexture("companion-running");
+    } else if (state === "searching") {
+      this.companion.setTexture("companion-searching");
+    } else if (state === "detected") {
+      this.companion.setTexture("companion-detected");
+    } else if (state === "attacking") {
+      this.companion.setTexture("companion-attacking");
+    }
   }
 
   flashEntity(entity, color) {
