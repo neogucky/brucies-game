@@ -43,28 +43,29 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.showStartScreen();
 
     this.cursors = this.input.keyboard.createCursorKeys();
+    this.wasd = this.input.keyboard.addKeys("W,A,S,D");
     this.input.keyboard.on("keydown-SPACE", () => this.swingSword());
     this.input.keyboard.on("keydown-ESC", () => this.scene.start("MainMenuScene"));
   }
 
   addBackground() {
-    this.add.rectangle(480, 300, 960, 600, 0xd7b779);
-    this.add.rectangle(480, 460, 960, 280, 0xcaa263).setAlpha(0.95);
-
-    this.add.rectangle(480, 520, 600, 120, 0x8c6a41).setAlpha(0.9);
-    this.add.rectangle(480, 555, 520, 80, 0x6f5336).setAlpha(0.9);
-    this.add.rectangle(480, 505, 180, 60, 0x7d5a38).setAlpha(0.9);
-    this.add.rectangle(350, 520, 120, 50, 0x6a4d31).setAlpha(0.9);
-    this.add.rectangle(610, 520, 120, 50, 0x6a4d31).setAlpha(0.9);
-
-    this.add.circle(120, 120, 60, 0xf3d497).setAlpha(0.6);
-    this.add.rectangle(800, 220, 220, 70, 0xd1b07a).setAlpha(0.5);
+    const bg = this.add.image(480, 300, "desert-bg");
+    const scale = Math.max(960 / bg.width, 600 / bg.height);
+    bg.setScale(scale);
   }
 
   createPlayer() {
-    this.player = this.add.rectangle(480, 420, 32, 48, 0x8e8e8e).setOrigin(0.5);
+    this.player = this.add.image(480, 420, "knight-standing").setOrigin(0.5);
+    this.player.setScale(0.5);
     this.physics.add.existing(this.player);
     this.player.body.setCollideWorldBounds(true);
+    this.player.body.setSize(this.player.width * 0.24, this.player.height * 0.7, true);
+    this.player.body.setOffset(
+      (this.player.width - this.player.body.width) * 0.5,
+      (this.player.height - this.player.body.height) * 0.6
+    );
+    this.player.setData("standingTexture", "knight-standing");
+    this.player.setData("hitTexture", "knight-hitting");
 
     const startOffsetX = 36;
     const startOffsetY = -22;
@@ -201,7 +202,8 @@ export default class DesertRuinScene extends Phaser.Scene {
         fontSize: "22px",
         color: "#59422a",
       })
-      .setOrigin(0, 0.5);
+      .setOrigin(0, 0.5)
+      .setStroke("#f2e3c5", 4);
 
     this.coinIcon = this.add.image(28, 60, "ui-coin").setOrigin(0.5);
     this.coinIcon.setScale(0.7);
@@ -211,7 +213,8 @@ export default class DesertRuinScene extends Phaser.Scene {
         fontSize: "18px",
         color: "#59422a",
       })
-      .setOrigin(0, 0.5);
+      .setOrigin(0, 0.5)
+      .setStroke("#f2e3c5", 3);
 
     this.createHeartsUI();
 
@@ -221,7 +224,8 @@ export default class DesertRuinScene extends Phaser.Scene {
         fontSize: "16px",
         color: "#6c5134",
       })
-      .setOrigin(0, 0.5);
+      .setOrigin(0, 0.5)
+      .setStroke("#f2e3c5", 2);
 
     this.statusText = this.add
       .text(480, 300, "", {
@@ -237,14 +241,22 @@ export default class DesertRuinScene extends Phaser.Scene {
     const promptShade = this.add.rectangle(480, 300, 960, 600, 0x2c2216, 0.65);
     const promptPanel = this.add.rectangle(480, 300, 520, 180, 0xe2c18b).setStrokeStyle(3, 0x8a6b44);
     this.promptText = this.add
-      .text(480, 300, "", {
+      .text(480, 285, "", {
         fontFamily: "Georgia, serif",
         fontSize: "22px",
         color: "#3b2a17",
         align: "center",
       })
       .setOrigin(0.5);
-    this.promptBox.add([promptShade, promptPanel, this.promptText]);
+    this.promptHint = this.add
+      .text(480, 362, "", {
+        fontFamily: "Trebuchet MS, sans-serif",
+        fontSize: "14px",
+        color: "#4b3824",
+        align: "center",
+      })
+      .setOrigin(0.5);
+    this.promptBox.add([promptShade, promptPanel, this.promptText, this.promptHint]);
   }
 
   createAudio() {
@@ -256,6 +268,9 @@ export default class DesertRuinScene extends Phaser.Scene {
       monsterDig: this.sound.add("sfx-monster-dig"),
       monsterInjured: this.sound.add("sfx-monster-injured"),
       monsterMiss: this.sound.add("sfx-monster-miss"),
+      companionFear: this.sound.add("sfx-companion-fear"),
+      gameOver: this.sound.add("sfx-gameover"),
+      success: this.sound.add("sfx-success"),
       swordSlash: this.sound.add("sfx-sword-slash"),
     };
   }
@@ -365,11 +380,21 @@ export default class DesertRuinScene extends Phaser.Scene {
   }
 
   createRuin() {
-    const ruinCenterY = 520;
-    this.add.rectangle(480, ruinCenterY, 600, 120, 0x8c6a41).setAlpha(0.9);
-    this.add.rectangle(480, ruinCenterY + 35, 520, 80, 0x6f5336).setAlpha(0.9);
+    this.ruinSprite = this.add.image(480, 600, "desert-ruin").setOrigin(0.5, 1);
+    const targetWidth = 600;
+    const scale = (targetWidth / this.ruinSprite.width) * 0.5;
+    this.ruinSprite.setScale(scale);
 
-    this.ruinEntrance = this.add.rectangle(480, 540, 600, 120, 0x000000, 0);
+    const entranceWidth = this.ruinSprite.displayWidth * 0.36;
+    const entranceHeight = this.ruinSprite.displayHeight * 0.72;
+    this.ruinEntrance = this.add.rectangle(
+      480,
+      600 - entranceHeight / 2,
+      entranceWidth,
+      entranceHeight,
+      0x000000,
+      0
+    );
     this.physics.add.existing(this.ruinEntrance, true);
   }
 
@@ -640,17 +665,25 @@ export default class DesertRuinScene extends Phaser.Scene {
     });
 
     this.isSwinging = true;
+    if (this.player) {
+      this.player.setTexture(this.player.getData("hitTexture") || "knight-hitting");
+      this.player.setScale(0.5);
+    }
     this.positionSword();
     this.swordHitbox.body.setEnable(true);
     this.swordHitbox.setVisible(true);
 
     this.time.delayedCall(140, () => {
-    this.swordHitbox.body.setEnable(false);
-    this.swordHitbox.setVisible(false);
-    this.isSwinging = false;
-    this.swordHitTargets = null;
-  });
-}
+      this.swordHitbox.body.setEnable(false);
+      this.swordHitbox.setVisible(false);
+      this.isSwinging = false;
+      this.swordHitTargets = null;
+      if (this.player) {
+        this.player.setTexture(this.player.getData("standingTexture") || "knight-standing");
+        this.player.setScale(0.5);
+      }
+    });
+  }
 
   positionSword() {
     const offset = 26;
@@ -663,8 +696,6 @@ export default class DesertRuinScene extends Phaser.Scene {
   gameOver() {
     this.isGameOver = true;
     this.player.body.setVelocity(0, 0);
-    this.statusText.setText("Enter für Neustart");
-    this.statusText.setDepth(30);
     this.lostScreen = this.add.image(480, 300, "desert-lost").setDepth(25);
     this.fitScreenImage(this.lostScreen, 1);
     this.gameOverHint = this.add
@@ -687,6 +718,9 @@ export default class DesertRuinScene extends Phaser.Scene {
       this.fruitSpawnEvent.remove(false);
     }
     this.stopAllSounds();
+    if (this.sfx) {
+      this.sfx.gameOver.play();
+    }
 
     const saveData = this.registry.get("saveData");
     const nextSave = {
@@ -718,6 +752,9 @@ export default class DesertRuinScene extends Phaser.Scene {
       this.fruitSpawnEvent.remove(false);
     }
     this.stopAllSounds();
+    if (this.sfx) {
+      this.sfx.success.play();
+    }
 
     const saveData = this.registry.get("saveData");
     const nextSave = {
@@ -742,31 +779,39 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.isPaused = true;
     this.player.body.setVelocity(0, 0);
     this.physics.world.pause();
-    this.promptText.setText("Die Ruine reparieren für 10 Münzen?\n[J]a oder [N]ein");
     this.promptBox.setVisible(true);
 
-    const onNo = () => closePrompt(true);
-    const onYes = () => {
-      if (this.coinsCollected >= 10) {
-        this.coinsCollected -= 10;
-        this.coinText.setText(`Münzen: ${this.coinsCollected}`);
-        this.ruinRepaired = true;
-        closePrompt(true);
-        this.showEndScreen();
-      } else {
-        this.promptText.setText("Nicht genug Münzen.");
-        this.time.delayedCall(900, () => closePrompt(true));
-      }
-    };
-
+    let onYes = null;
+    let onNo = null;
     const closePrompt = (resumeWorld) => {
-      this.input.keyboard.off("keydown-J", onYes);
-      this.input.keyboard.off("keydown-N", onNo);
+      if (onYes) this.input.keyboard.off("keydown-J", onYes);
+      if (onNo) this.input.keyboard.off("keydown-N", onNo);
       this.promptBox.setVisible(false);
       if (resumeWorld) {
         this.physics.world.resume();
         this.isPaused = false;
       }
+    };
+
+    if (this.coinsCollected < 10) {
+      this.promptText.setText(
+        "Leider hast du nicht genug Münzen.\nSammel 10 Stück, um die Ruine zu reparieren."
+      );
+      this.promptHint.setText("Beliebige Taste zum Weiterspielen");
+      this.input.keyboard.once("keydown", () => closePrompt(true));
+      return;
+    }
+
+    this.promptText.setText("Die Ruine reparieren für 10 Münzen?");
+    this.promptHint.setText("[J]a oder [N]ein");
+
+    onNo = () => closePrompt(true);
+    onYes = () => {
+      this.coinsCollected -= 10;
+      this.coinText.setText(`Münzen: ${this.coinsCollected}`);
+      this.ruinRepaired = true;
+      closePrompt(true);
+      this.showEndScreen();
     };
 
     this.input.keyboard.once("keydown-J", onYes);
@@ -783,12 +828,17 @@ export default class DesertRuinScene extends Phaser.Scene {
     let vx = 0;
     let vy = 0;
 
-    if (this.cursors.left.isDown) vx -= speed;
-    if (this.cursors.right.isDown) vx += speed;
-    if (this.cursors.up.isDown) vy -= speed;
-    if (this.cursors.down.isDown) vy += speed;
+    if (this.cursors.left.isDown || this.wasd.A.isDown) vx -= speed;
+    if (this.cursors.right.isDown || this.wasd.D.isDown) vx += speed;
+    if (this.cursors.up.isDown || this.wasd.W.isDown) vy -= speed;
+    if (this.cursors.down.isDown || this.wasd.S.isDown) vy += speed;
 
     this.player.body.setVelocity(vx, vy);
+    if (vx > 0) {
+      this.player.setFlipX(true);
+    } else if (vx < 0) {
+      this.player.setFlipX(false);
+    }
 
     this.updateCompanion();
 
@@ -1041,6 +1091,9 @@ export default class DesertRuinScene extends Phaser.Scene {
   damageCompanion() {
     if (!this.companion.visible || !this.companion.body.enable) return;
     this.flashEntity(this.companion, 0xff7a7a);
+    if (this.sfx) {
+      this.sfx.companionFear.play();
+    }
     if (this.companionAttackTween) {
       this.companionAttackTween.stop();
     }

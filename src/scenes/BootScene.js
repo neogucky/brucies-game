@@ -13,6 +13,10 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("ui-coin", "assets/ui/coin.png");
     this.load.image("ui-heart", "assets/ui/heart.png");
     this.load.image("ui-heart-empty", "assets/ui/heart_empty.png");
+    this.load.image("knight-standing", "assets/knight/knight_standing.png");
+    this.load.image("knight-hitting", "assets/knight/knight_hitting.png");
+    this.load.image("desert-ruin", "assets/ruin.png");
+    this.load.image("desert-bg", "assets/background/desert.png");
     this.load.audio("sfx-chest-hit", "assets/sounds/chest_hit.wav");
     this.load.audio("sfx-coin", "assets/sounds/coin.wav");
     this.load.audio("sfx-companion-hit", "assets/sounds/companion_hit.wav");
@@ -21,6 +25,9 @@ export default class BootScene extends Phaser.Scene {
     this.load.audio("sfx-monster-injured", "assets/sounds/monster_injured.wav");
     this.load.audio("sfx-monster-miss", "assets/sounds/monster_miss.wav");
     this.load.audio("sfx-sword-slash", "assets/sounds/sword_slash.wav");
+    this.load.audio("sfx-success", "assets/sounds/success.wav");
+    this.load.audio("sfx-companion-fear", "assets/sounds/companion_fear.mp3");
+    this.load.audio("sfx-gameover", "assets/sounds/gameover.wav");
   }
 
   create() {
