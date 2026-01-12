@@ -1,0 +1,25 @@
+:root {
+  color-scheme: light;
+  font-family: "Trebuchet MS", "Lucida Sans Unicode", "Lucida Grande", "Lucida Sans", Arial, sans-serif;
+  background: radial-gradient(circle at top, #f8e9c8 0%, #d3c2a2 50%, #a8916f 100%);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#game {
+  width: min(96vw, 960px);
+  height: min(90vh, 600px);
+  border: 6px solid #5b4a35;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  background: #1f1a12;
+}
+
+canvas {
+  display: block;
+}
