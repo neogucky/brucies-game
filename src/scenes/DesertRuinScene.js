@@ -273,6 +273,8 @@ export default class DesertRuinScene extends Phaser.Scene {
       success: this.sound.add("sfx-success"),
       swordSlash: this.sound.add("sfx-sword-slash"),
     };
+    this.music = this.sound.add("music-desert", { loop: true, volume: 0.35 });
+    this.music.play();
   }
 
   showStartScreen() {
@@ -281,38 +283,56 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.physics.world.pause();
     this.startScreen = this.add.image(480, 300, "desert-start").setDepth(25);
     this.fitScreenImage(this.startScreen, 1);
-    this.startHintBg = this.add.rectangle(480, 558, 320, 36, 0x1e150c, 0.6).setDepth(999);
-    this.startHint = this.add
-      .text(480, 558, "Drücke Enter zum Starten", {
+    const barWidth = 360;
+    const barHeight = 16;
+    this.startBarBg = this.add
+      .rectangle(480, 552, barWidth, barHeight, 0x1e150c, 0.6)
+      .setDepth(999);
+    this.startBarFill = this.add
+      .rectangle(480 - barWidth / 2, 552, 2, barHeight - 4, 0xf7edd6, 0.9)
+      .setOrigin(0, 0.5)
+      .setDepth(1000);
+    this.startBarLabel = this.add
+      .text(480, 530, "Bereite die Wüste vor...", {
         fontFamily: "Trebuchet MS, sans-serif",
-        fontSize: "16px",
+        fontSize: "14px",
         color: "#f7edd6",
       })
       .setOrigin(0.5)
       .setDepth(1000);
-    this.children.bringToTop(this.startHintBg);
-    this.children.bringToTop(this.startHint);
-    
+    this.children.bringToTop(this.startBarBg);
+    this.children.bringToTop(this.startBarFill);
+    this.children.bringToTop(this.startBarLabel);
+
     const resume = () => {
       if (this.startScreen) {
         this.startScreen.destroy();
         this.startScreen = null;
       }
-      if (this.startHint) {
-        this.startHint.destroy();
-        this.startHint = null;
+      if (this.startBarBg) {
+        this.startBarBg.destroy();
+        this.startBarBg = null;
       }
-      if (this.startHintBg) {
-        this.startHintBg.destroy();
-        this.startHintBg = null;
+      if (this.startBarFill) {
+        this.startBarFill.destroy();
+        this.startBarFill = null;
+      }
+      if (this.startBarLabel) {
+        this.startBarLabel.destroy();
+        this.startBarLabel = null;
       }
       this.isPaused = false;
       this.canPromptRuin = true;
       this.physics.world.resume();
     };
 
-    this.input.keyboard.once("keydown-ENTER", () => resume());
-    this.input.keyboard.once("keydown-SPACE", () => resume());
+    const duration = 5000;
+    this.tweens.add({
+      targets: this.startBarFill,
+      displayWidth: barWidth - 4,
+      duration,
+      onComplete: () => resume(),
+    });
   }
 
   createHeartsUI() {
@@ -1120,5 +1140,8 @@ export default class DesertRuinScene extends Phaser.Scene {
         sound.stop();
       }
     });
+    if (this.music && this.music.isPlaying) {
+      this.music.stop();
+    }
   }
 }
