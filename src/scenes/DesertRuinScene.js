@@ -5,28 +5,46 @@ export default class DesertRuinScene extends Phaser.Scene {
     super({ key: "DesertRuinScene" });
     this.isGameOver = false;
     this.isPaused = false;
+    this.isComplete = false;
     this.ruinRepaired = false;
+    this.canPromptRuin = true;
     this.maxHealth = 5;
     this.health = this.maxHealth;
     this.coinsCollected = 0;
+    this.helperRange = 150;
+    this.helperSpeed = 230;
+    this.helperLag = 0.08;
+    this.helperFollowDistance = 18;
+    this.helperHideDuration = 10000;
+    this.helperAttackCooldown = 1000;
+    this.helperApproachDuration = 100;
+    this.helperReturnDuration = 100;
+    this.monsterAttackCooldown = 500;
+    this.helperRetreatDistance = 40;
+    this.helperHitChance = 0.75;
+    this.monsterHitChance = 0.5;
     this.attackCooldown = 350;
     this.lastAttackAt = 0;
+    this.swordSwingId = 0;
   }
 
   create() {
+    this.resetState();
     this.addBackground();
     this.createPlayer();
     this.createRuin();
     this.createUI();
     this.createBushes();
-    this.createCoins();
+    this.createChests();
     this.createMonsters();
     this.createSword();
     this.createRespawnTimers();
+    this.createAudio();
+    this.showStartScreen();
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.input.keyboard.on("keydown-SPACE", () => this.swingSword());
-    this.input.keyboard.on("keydown-ESC", () => this.scene.start("LevelSelectScene"));
+    this.input.keyboard.on("keydown-ESC", () => this.scene.start("MainMenuScene"));
   }
 
   addBackground() {
@@ -48,8 +66,57 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.physics.add.existing(this.player);
     this.player.body.setCollideWorldBounds(true);
 
-    this.companion = this.add.circle(0, 0, 10, 0xffe35c);
+    const startOffsetX = 36;
+    const startOffsetY = -22;
+    this.companion = this.add.circle(480 + startOffsetX, 420 + startOffsetY, 10, 0xffe35c);
+    this.physics.add.existing(this.companion);
+    this.companion.body.setCircle(10);
+    this.companion.body.setCollideWorldBounds(true);
+    this.companion.setData("state", "follow");
+    this.companion.setData("target", null);
+    this.companion.setData("offset", { x: startOffsetX, y: startOffsetY });
+    this.companion.setData("nextHitAt", 0);
+    this.companion.setData("retreatUntil", 0);
+    this.companion.setData("baseColor", 0xffe35c);
     this.facing = new Phaser.Math.Vector2(1, 0);
+  }
+
+  resetState() {
+    this.isGameOver = false;
+    this.isPaused = false;
+    this.isComplete = false;
+    this.ruinRepaired = false;
+    this.canPromptRuin = true;
+    this.health = this.maxHealth;
+    this.coinsCollected = 0;
+    this.lastAttackAt = 0;
+    this.swordDidHit = false;
+    this.swordSwingId = 0;
+
+    if (this.monsterSpawnEvent) {
+      this.monsterSpawnEvent.remove(false);
+    }
+    if (this.chestSpawnEvent) {
+      this.chestSpawnEvent.remove(false);
+    }
+    if (this.fruitSpawnEvent) {
+      this.fruitSpawnEvent.remove(false);
+    }
+    if (this.companionAttackTween) {
+      this.companionAttackTween.stop();
+    }
+    if (this.monsters && this.monsters.children) {
+      this.monsters.clear(true, true);
+    }
+    if (this.chests && this.chests.children) {
+      this.chests.clear(true, true);
+    }
+    if (this.fruits && this.fruits.children) {
+      this.fruits.clear(true, true);
+    }
+    if (this.stopAllSounds) {
+      this.stopAllSounds();
+    }
   }
 
   createBushes() {
@@ -75,6 +142,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     });
 
     this.physics.add.overlap(this.player, this.fruits, (_, fruit) => {
+      if (this.health >= this.maxHealth) return;
       const slot = fruit.getData("slot");
       if (slot !== undefined) {
         this.fruitSlots[slot] = false;
@@ -92,9 +160,9 @@ export default class DesertRuinScene extends Phaser.Scene {
     }
   }
 
-  createCoins() {
-    this.coins = this.physics.add.staticGroup();
-    this.coinSpots = [
+  createChests() {
+    this.chests = this.physics.add.staticGroup();
+    this.chestSpots = [
       { x: 160, y: 280 },
       { x: 300, y: 420 },
       { x: 430, y: 210 },
@@ -102,33 +170,27 @@ export default class DesertRuinScene extends Phaser.Scene {
       { x: 700, y: 420 },
       { x: 800, y: 260 },
     ];
-    this.coinSlots = this.coinSpots.map(() => false);
+    this.chestSlots = this.chestSpots.map(() => false);
 
-    this.physics.add.overlap(this.player, this.coins, (_, coin) => {
-      const slot = coin.getData("slot");
-      if (slot !== undefined) {
-        this.coinSlots[slot] = false;
-      }
-      coin.destroy();
-      this.coinsCollected += 1;
-      this.coinText.setText(`Münzen: ${this.coinsCollected}`);
-    });
-
-    for (let i = 0; i < Math.min(4, this.coinSpots.length); i += 1) {
-      this.spawnCoin();
+    for (let i = 0; i < Math.min(4, this.chestSpots.length); i += 1) {
+      this.spawnChest();
     }
   }
 
   createMonsters() {
     this.monsters = this.physics.add.group();
     this.monsterSpawnEvent = this.time.addEvent({
-      delay: 10000,
+      delay: 8000,
       loop: true,
       callback: () => this.spawnMonster(),
     });
 
     this.physics.add.overlap(this.player, this.monsters, (player, monster) => {
       this.handlePlayerHit(player, monster);
+    });
+
+    this.physics.add.overlap(this.companion, this.monsters, (companion, monster) => {
+      this.handleCompanionInteraction(companion, monster);
     });
   }
 
@@ -141,8 +203,10 @@ export default class DesertRuinScene extends Phaser.Scene {
       })
       .setOrigin(0, 0.5);
 
+    this.coinIcon = this.add.image(28, 60, "ui-coin").setOrigin(0.5);
+    this.coinIcon.setScale(0.7);
     this.coinText = this.add
-      .text(30, 60, "Münzen: 0", {
+      .text(50, 60, "Münzen: 0", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "18px",
         color: "#59422a",
@@ -183,9 +247,62 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.promptBox.add([promptShade, promptPanel, this.promptText]);
   }
 
+  createAudio() {
+    this.sfx = {
+      chestHit: this.sound.add("sfx-chest-hit"),
+      coin: this.sound.add("sfx-coin"),
+      companionHit: this.sound.add("sfx-companion-hit"),
+      monsterAttack: this.sound.add("sfx-monster-attack"),
+      monsterDig: this.sound.add("sfx-monster-dig"),
+      monsterInjured: this.sound.add("sfx-monster-injured"),
+      monsterMiss: this.sound.add("sfx-monster-miss"),
+      swordSlash: this.sound.add("sfx-sword-slash"),
+    };
+  }
+
+  showStartScreen() {
+    this.isPaused = true;
+    this.canPromptRuin = false;
+    this.physics.world.pause();
+    this.startScreen = this.add.image(480, 300, "desert-start").setDepth(25);
+    this.fitScreenImage(this.startScreen, 1);
+    this.startHintBg = this.add.rectangle(480, 558, 320, 36, 0x1e150c, 0.6).setDepth(999);
+    this.startHint = this.add
+      .text(480, 558, "Drücke Enter zum Starten", {
+        fontFamily: "Trebuchet MS, sans-serif",
+        fontSize: "16px",
+        color: "#f7edd6",
+      })
+      .setOrigin(0.5)
+      .setDepth(1000);
+    this.children.bringToTop(this.startHintBg);
+    this.children.bringToTop(this.startHint);
+    
+    const resume = () => {
+      if (this.startScreen) {
+        this.startScreen.destroy();
+        this.startScreen = null;
+      }
+      if (this.startHint) {
+        this.startHint.destroy();
+        this.startHint = null;
+      }
+      if (this.startHintBg) {
+        this.startHintBg.destroy();
+        this.startHintBg = null;
+      }
+      this.isPaused = false;
+      this.canPromptRuin = true;
+      this.physics.world.resume();
+    };
+
+    this.input.keyboard.once("keydown-ENTER", () => resume());
+    this.input.keyboard.once("keydown-SPACE", () => resume());
+  }
+
   createHeartsUI() {
     this.hearts = [];
-    const spacing = 24;
+    const spacing = 26;
     const startX = 930 - (this.maxHealth - 1) * spacing;
 
     for (let i = 0; i < this.maxHealth; i += 1) {
@@ -197,21 +314,15 @@ export default class DesertRuinScene extends Phaser.Scene {
   }
 
   createHeartIcon(x, y) {
-    const left = this.add.circle(-6, -2, 6, 0xc23a2c);
-    const right = this.add.circle(6, -2, 6, 0xc23a2c);
-    const tip = this.add.triangle(0, 6, -12, -4, 12, -4, 0, 12, 0xc23a2c);
-    const container = this.add.container(x, y, [left, right, tip]);
-    container.setSize(20, 20);
-    container.setData("parts", [left, right, tip]);
-    return container;
+    const heart = this.add.image(x, y, "ui-heart");
+    heart.setScale(0.7);
+    return heart;
   }
 
   updateHearts() {
     this.hearts.forEach((heart, index) => {
       const filled = index < this.health;
-      const color = filled ? 0xc23a2c : 0x6b5043;
-      const parts = heart.getData("parts");
-      parts.forEach((part) => part.setFillStyle(color, filled ? 1 : 0.6));
+      heart.setTexture(filled ? "ui-heart" : "ui-heart-empty");
     });
   }
 
@@ -223,15 +334,28 @@ export default class DesertRuinScene extends Phaser.Scene {
 
     this.physics.add.overlap(this.swordHitbox, this.monsters, (_, monster) => {
       if (monster.getData("emerging")) return;
-      monster.destroy();
+      if (this.swordHitTargets && this.swordHitTargets.has(monster)) return;
+      if (this.swordHitTargets) {
+        this.swordHitTargets.add(monster);
+      }
+      this.registerSwordHit();
+      this.damageMonster(monster, 1);
+      if (this.sfx) {
+        this.sfx.monsterInjured.play();
+      }
+    });
+
+    this.physics.add.overlap(this.swordHitbox, this.chests, (_, chest) => {
+      this.registerSwordHit();
+      this.openChest(chest);
     });
   }
 
   createRespawnTimers() {
-    this.coinSpawnEvent = this.time.addEvent({
+    this.chestSpawnEvent = this.time.addEvent({
       delay: 3000,
       loop: true,
-      callback: () => this.spawnCoin(),
+      callback: () => this.spawnChest(),
     });
     this.fruitSpawnEvent = this.time.addEvent({
       delay: 20000,
@@ -245,28 +369,8 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.add.rectangle(480, ruinCenterY, 600, 120, 0x8c6a41).setAlpha(0.9);
     this.add.rectangle(480, ruinCenterY + 35, 520, 80, 0x6f5336).setAlpha(0.9);
 
-    this.ruinWalls = this.physics.add.staticGroup();
-    const wallY = 530;
-    const wallHeight = 60;
-    const entranceWidth = 80;
-    const wallWidth = (600 - entranceWidth) / 2;
-    const leftWall = this.add.rectangle(480 - entranceWidth / 2 - wallWidth / 2, wallY, wallWidth, wallHeight, 0x6a4d31);
-    const rightWall = this.add.rectangle(480 + entranceWidth / 2 + wallWidth / 2, wallY, wallWidth, wallHeight, 0x6a4d31);
-    const backWall = this.add.rectangle(480, wallY - 50, 600, 20, 0x6a4d31);
-    [leftWall, rightWall, backWall].forEach((wall) => {
-      wall.setAlpha(0.9);
-      this.physics.add.existing(wall, true);
-      this.ruinWalls.add(wall);
-    });
-
-    this.physics.add.collider(this.player, this.ruinWalls);
-
-    this.ruinEntrance = this.add.rectangle(480, 555, entranceWidth, 30, 0x000000, 0);
+    this.ruinEntrance = this.add.rectangle(480, 540, 600, 120, 0x000000, 0);
     this.physics.add.existing(this.ruinEntrance, true);
-    this.physics.add.overlap(this.player, this.ruinEntrance, () => {
-      if (this.isPaused || this.isGameOver || this.ruinRepaired) return;
-      this.openRuinPrompt();
-    });
   }
 
   spawnMonster() {
@@ -278,11 +382,21 @@ export default class DesertRuinScene extends Phaser.Scene {
     const monster = this.add.circle(x, y, 16, 0x9b5a2c);
     this.physics.add.existing(monster);
     monster.body.setCircle(16);
+    monster.setData("maxHp", 3);
+    monster.setData("hp", 3);
     monster.setData("speed", Phaser.Math.Between(60, 90));
     monster.setData("nextAttackAt", 0);
+    monster.setData("nextHelperHitAt", 0);
+    monster.setData("stunnedUntil", 0);
     monster.setData("emerging", true);
     monster.setAlpha(0.2);
     monster.setScale(0.4);
+    this.createMonsterBar(monster);
+    if (this.sfx) {
+      const digSound = this.sound.add("sfx-monster-dig", { loop: true, volume: 0.6 });
+      digSound.play();
+      monster.setData("digSound", digSound);
+    }
     this.monsters.add(monster);
 
     this.tweens.add({
@@ -293,27 +407,34 @@ export default class DesertRuinScene extends Phaser.Scene {
       onComplete: () => {
         if (monster.active) {
           monster.setData("emerging", false);
+          const digSound = monster.getData("digSound");
+          if (digSound) {
+            digSound.stop();
+            digSound.destroy();
+            monster.setData("digSound", null);
+          }
         }
       },
     });
   }
 
-  spawnCoin() {
+  spawnChest() {
     if (this.isGameOver || this.isPaused) return;
-    const maxCoins = 4;
-    if (this.coins.countActive(true) >= maxCoins) return;
-    const available = this.coinSlots
+    const maxChests = 4;
+    if (this.chests.countActive(true) >= maxChests) return;
+    const available = this.chestSlots
       .map((slot, index) => (!slot ? index : null))
       .filter((slot) => slot !== null);
     if (available.length === 0) return;
 
     const spotIndex = Phaser.Math.RND.pick(available);
-    const spot = this.coinSpots[spotIndex];
-    const coin = this.add.circle(spot.x, spot.y, 8, 0xf5d37a);
-    coin.setData("slot", spotIndex);
-    this.physics.add.existing(coin, true);
-    this.coins.add(coin);
-    this.coinSlots[spotIndex] = true;
+    const spot = this.chestSpots[spotIndex];
+    const chest = this.add.rectangle(spot.x, spot.y, 22, 16, 0x9a6a2f).setStrokeStyle(2, 0x5a3c1c);
+    chest.setData("slot", spotIndex);
+    chest.setData("opened", false);
+    this.physics.add.existing(chest, true);
+    this.chests.add(chest);
+    this.chestSlots[spotIndex] = true;
   }
 
   spawnFruit() {
@@ -334,13 +455,151 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.fruitSlots[spotIndex] = true;
   }
 
+  openChest(chest) {
+    if (!chest.active || chest.getData("opened")) return;
+    chest.setData("opened", true);
+    if (this.sfx) {
+      this.sfx.chestHit.play();
+    }
+    const slot = chest.getData("slot");
+    if (slot !== undefined) {
+      this.chestSlots[slot] = false;
+    }
+
+    this.coinsCollected += 1;
+    this.coinText.setText(`Münzen: ${this.coinsCollected}`);
+    if (this.sfx) {
+      this.sfx.coin.play();
+    }
+
+    const coin = this.add.circle(chest.x, chest.y - 8, 6, 0xf5d37a);
+    this.tweens.add({
+      targets: coin,
+      y: coin.y - 20,
+      alpha: 0,
+      duration: 450,
+      onComplete: () => coin.destroy(),
+    });
+
+    chest.destroy();
+  }
+
+  registerSwordHit() {
+    this.swordDidHit = true;
+    if (this.swordSwingSoundEvent) {
+      this.swordSwingSoundEvent.remove(false);
+      this.swordSwingSoundEvent = null;
+    }
+  }
+
   handlePlayerHit(_, monster) {
     if (this.isGameOver || this.isPaused || monster.getData("emerging")) return;
+    if (this.getMonsterTarget(monster) !== this.player) return;
     const now = this.time.now;
     if (monster.getData("nextAttackAt") > now) return;
 
-    monster.setData("nextAttackAt", now + 800);
-    this.damagePlayer(1);
+    monster.setData("nextAttackAt", now + this.monsterAttackCooldown);
+    if (Phaser.Math.FloatBetween(0, 1) <= this.monsterHitChance) {
+      this.damagePlayer(1);
+      this.flashEntity(this.player, 0xa33b2b);
+      if (this.sfx) {
+        this.sfx.monsterAttack.play();
+      }
+    } else if (this.sfx) {
+      this.sfx.monsterMiss.play();
+    }
+  }
+
+  handleCompanionInteraction(_, monster) {
+    if (this.isGameOver || this.isPaused || this.isComplete) return;
+    if (monster.getData("emerging")) return;
+
+    const now = this.time.now;
+    if (monster.getData("nextAttackAt") > now) return;
+    if (this.getMonsterTarget(monster) !== this.companion) return;
+    if (Phaser.Math.FloatBetween(0, 1) > this.monsterHitChance) {
+      monster.setData("nextAttackAt", now + this.monsterAttackCooldown);
+      if (this.sfx) {
+        this.sfx.monsterMiss.play();
+      }
+      return;
+    }
+    monster.setData("nextAttackAt", now + this.monsterAttackCooldown);
+    this.damageCompanion();
+    if (this.sfx) {
+      this.sfx.monsterAttack.play();
+    }
+  }
+
+  damageMonster(monster, amount) {
+    const currentHp = monster.getData("hp") ?? 0;
+    const nextHp = Math.max(0, currentHp - amount);
+    monster.setData("hp", nextHp);
+    this.updateMonsterBar(monster);
+    this.flashEntity(monster, 0xd06a5d);
+    if (nextHp <= 0) {
+      this.destroyMonster(monster);
+      return false;
+    }
+    return true;
+  }
+
+  destroyMonster(monster) {
+    const digSound = monster.getData("digSound");
+    if (digSound) {
+      digSound.stop();
+      digSound.destroy();
+    }
+    this.destroyMonsterBar(monster);
+    if (this.companion.getData("target") === monster) {
+      this.companion.setData("target", null);
+      this.companion.setData("state", "follow");
+    }
+    monster.destroy();
+  }
+
+  createMonsterBar(monster) {
+    const barBg = this.add.rectangle(monster.x, monster.y - 22, 30, 6, 0x2f1e14);
+    const barFill = this.add.rectangle(monster.x, monster.y - 22, 28, 4, 0xc23a2c);
+    barBg.setOrigin(0.5);
+    barFill.setOrigin(0.5);
+    barBg.setDepth(5);
+    barFill.setDepth(6);
+    monster.setData("barBg", barBg);
+    monster.setData("barFill", barFill);
+    this.updateMonsterBar(monster);
+  }
+
+  updateMonsterBar(monster) {
+    const barBg = monster.getData("barBg");
+    const barFill = monster.getData("barFill");
+    if (!barBg || !barFill) return;
+    const maxHp = monster.getData("maxHp") || 3;
+    const hp = monster.getData("hp") || 0;
+    const ratio = Phaser.Math.Clamp(hp / maxHp, 0, 1);
+    barFill.setDisplaySize(28 * ratio, 4);
+  }
+
+  destroyMonsterBar(monster) {
+    const barBg = monster.getData("barBg");
+    const barFill = monster.getData("barFill");
+    if (barBg) barBg.destroy();
+    if (barFill) barFill.destroy();
+  }
+
+  bumpMonster(monster, source) {
+    const now = this.time.now;
+    monster.setData("stunnedUntil", now + 300);
+    const direction = new Phaser.Math.Vector2(monster.x - source.x, monster.y - source.y)
+      .normalize()
+      .scale(180);
+    monster.body.setVelocity(direction.x, direction.y);
+  }
+
+  triggerHelperHit() {
+    if (this.companion.getData("state") === "hidden") return;
+    this.companion.setData("state", "retreating");
+    this.companion.setData("target", null);
   }
 
   damagePlayer(amount) {
@@ -368,6 +627,17 @@ export default class DesertRuinScene extends Phaser.Scene {
     const now = this.time.now;
     if (now - this.lastAttackAt < this.attackCooldown) return;
     this.lastAttackAt = now;
+    this.swordSwingId += 1;
+    this.swordHitTargets = new Set();
+    this.swordDidHit = false;
+    if (this.swordSwingSoundEvent) {
+      this.swordSwingSoundEvent.remove(false);
+    }
+    this.swordSwingSoundEvent = this.time.delayedCall(90, () => {
+      if (!this.swordDidHit && this.sfx) {
+        this.sfx.swordSlash.play();
+      }
+    });
 
     this.isSwinging = true;
     this.positionSword();
@@ -375,11 +645,12 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.swordHitbox.setVisible(true);
 
     this.time.delayedCall(140, () => {
-      this.swordHitbox.body.setEnable(false);
-      this.swordHitbox.setVisible(false);
-      this.isSwinging = false;
-    });
-  }
+    this.swordHitbox.body.setEnable(false);
+    this.swordHitbox.setVisible(false);
+    this.isSwinging = false;
+    this.swordHitTargets = null;
+  });
+}
 
   positionSword() {
     const offset = 26;
@@ -392,16 +663,30 @@ export default class DesertRuinScene extends Phaser.Scene {
   gameOver() {
     this.isGameOver = true;
     this.player.body.setVelocity(0, 0);
-    this.statusText.setText("Gefallen in der Wüste!\nEnter für Neustart");
+    this.statusText.setText("Enter für Neustart");
+    this.statusText.setDepth(30);
+    this.lostScreen = this.add.image(480, 300, "desert-lost").setDepth(25);
+    this.fitScreenImage(this.lostScreen, 1);
+    this.gameOverHint = this.add
+      .text(480, 545, "Enter für Neustart", {
+        fontFamily: "Trebuchet MS, sans-serif",
+        fontSize: "18px",
+        color: "#f7edd6",
+      })
+      .setOrigin(0.5)
+      .setDepth(31)
+      .setStroke("#3e6cc2", 3);
+    this.physics.world.pause();
     if (this.monsterSpawnEvent) {
       this.monsterSpawnEvent.remove(false);
     }
-    if (this.coinSpawnEvent) {
-      this.coinSpawnEvent.remove(false);
+    if (this.chestSpawnEvent) {
+      this.chestSpawnEvent.remove(false);
     }
     if (this.fruitSpawnEvent) {
       this.fruitSpawnEvent.remove(false);
     }
+    this.stopAllSounds();
 
     const saveData = this.registry.get("saveData");
     const nextSave = {
@@ -416,6 +701,43 @@ export default class DesertRuinScene extends Phaser.Scene {
     });
   }
 
+  showEndScreen() {
+    this.isComplete = true;
+    this.player.body.setVelocity(0, 0);
+    this.statusText.setText("Enter für die Levelauswahl");
+    this.endScreen = this.add.image(480, 300, "desert-end").setDepth(25);
+    this.fitScreenImage(this.endScreen, 1);
+    this.physics.world.pause();
+    if (this.monsterSpawnEvent) {
+      this.monsterSpawnEvent.remove(false);
+    }
+    if (this.chestSpawnEvent) {
+      this.chestSpawnEvent.remove(false);
+    }
+    if (this.fruitSpawnEvent) {
+      this.fruitSpawnEvent.remove(false);
+    }
+    this.stopAllSounds();
+
+    const saveData = this.registry.get("saveData");
+    const nextSave = {
+      ...saveData,
+      currentLevel: "Wuestenruine",
+      unlockedLevels: Array.from(new Set([...saveData.unlockedLevels, "Wuestenruine"])),
+    };
+    this.registry.set("saveData", nextSave);
+    saveProgress(nextSave);
+
+    this.input.keyboard.once("keydown-ENTER", () => {
+      this.scene.start("MainMenuScene");
+    });
+  }
+
+  fitScreenImage(image, marginScale) {
+    const targetScale = Math.min(960 / image.width, 600 / image.height) * marginScale;
+    image.setScale(targetScale);
+  }
+
   openRuinPrompt() {
     this.isPaused = true;
     this.player.body.setVelocity(0, 0);
@@ -423,26 +745,28 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.promptText.setText("Die Ruine reparieren für 10 Münzen?\n[J]a oder [N]ein");
     this.promptBox.setVisible(true);
 
-    const onNo = () => cleanup();
+    const onNo = () => closePrompt(true);
     const onYes = () => {
       if (this.coinsCollected >= 10) {
         this.coinsCollected -= 10;
         this.coinText.setText(`Münzen: ${this.coinsCollected}`);
         this.ruinRepaired = true;
-        this.promptText.setText("Die Ruine ist repariert!");
-        this.time.delayedCall(900, () => cleanup());
+        closePrompt(true);
+        this.showEndScreen();
       } else {
         this.promptText.setText("Nicht genug Münzen.");
-        this.time.delayedCall(900, () => cleanup());
+        this.time.delayedCall(900, () => closePrompt(true));
       }
     };
 
-    const cleanup = () => {
+    const closePrompt = (resumeWorld) => {
       this.input.keyboard.off("keydown-J", onYes);
       this.input.keyboard.off("keydown-N", onNo);
       this.promptBox.setVisible(false);
-      this.physics.world.resume();
-      this.isPaused = false;
+      if (resumeWorld) {
+        this.physics.world.resume();
+        this.isPaused = false;
+      }
     };
 
     this.input.keyboard.once("keydown-J", onYes);
@@ -450,7 +774,7 @@ export default class DesertRuinScene extends Phaser.Scene {
   }
 
   update() {
-    if (this.isGameOver || this.isPaused) {
+    if (this.isGameOver || this.isPaused || this.isComplete) {
       this.player.body.setVelocity(0, 0);
       return;
     }
@@ -466,7 +790,7 @@ export default class DesertRuinScene extends Phaser.Scene {
 
     this.player.body.setVelocity(vx, vy);
 
-    this.companion.setPosition(this.player.x + 12, this.player.y - 10);
+    this.updateCompanion();
 
     const movementLength = Math.hypot(vx, vy);
     if (movementLength > 0) {
@@ -477,17 +801,271 @@ export default class DesertRuinScene extends Phaser.Scene {
       this.positionSword();
     }
 
+    const isOnRuin = Phaser.Geom.Intersects.RectangleToRectangle(
+      this.player.getBounds(),
+      this.ruinEntrance.getBounds()
+    );
+    if (!isOnRuin) {
+      this.canPromptRuin = true;
+    } else if (this.canPromptRuin && !this.ruinRepaired) {
+      this.canPromptRuin = false;
+      this.openRuinPrompt();
+    }
+
     this.monsters.getChildren().forEach((monster) => {
+      this.updateMonsterBarPosition(monster);
       if (monster.getData("emerging")) {
         monster.body.setVelocity(0, 0);
         return;
       }
+      const stunnedUntil = monster.getData("stunnedUntil") || 0;
+      if (this.time.now < stunnedUntil) {
+        return;
+      }
       const speedValue = monster.getData("speed") || 70;
+      const target = this.getMonsterTarget(monster);
       const direction = new Phaser.Math.Vector2(
-        this.player.x - monster.x,
-        this.player.y - monster.y
+        target.x - monster.x,
+        target.y - monster.y
       ).normalize();
       monster.body.setVelocity(direction.x * speedValue, direction.y * speedValue);
+    });
+  }
+
+  getMonsterTarget(monster) {
+    if (this.companion.visible && this.companion.body.enable) {
+      const distHelper = Phaser.Math.Distance.Between(
+        monster.x,
+        monster.y,
+        this.companion.x,
+        this.companion.y
+      );
+      const distPlayer = Phaser.Math.Distance.Between(
+        monster.x,
+        monster.y,
+        this.player.x,
+        this.player.y
+      );
+      if (distHelper <= distPlayer) {
+        return this.companion;
+      }
+    }
+    return this.player;
+  }
+
+  updateMonsterBarPosition(monster) {
+    const barBg = monster.getData("barBg");
+    const barFill = monster.getData("barFill");
+    if (!barBg || !barFill) return;
+    const offsetY = monster.y - 22;
+    barBg.setPosition(monster.x, offsetY);
+    barFill.setPosition(monster.x, offsetY);
+  }
+
+  updateCompanion() {
+    const state = this.companion.getData("state");
+    if (state === "hidden") {
+      return;
+    }
+
+    if (state === "retreating") {
+      const distance = Phaser.Math.Distance.Between(
+        this.companion.x,
+        this.companion.y,
+        this.player.x,
+        this.player.y
+      );
+      if (distance <= 14) {
+        this.hideCompanion();
+        return;
+      }
+      this.moveCompanionToward(this.player.x, this.player.y, this.helperSpeed);
+      return;
+    }
+
+    if (state === "attack-approach" || state === "attack-return") {
+      return;
+    }
+
+    if (state === "cooldown") {
+      const nextHitAt = this.companion.getData("nextHitAt") || 0;
+      if (this.time.now >= nextHitAt) {
+        this.companion.setData("state", "follow");
+      }
+    }
+
+    let target = this.companion.getData("target");
+    if (!target || !target.active) {
+      target = this.findNearestMonster();
+      this.companion.setData("target", target);
+    }
+
+    if (target) {
+      const nextHitAt = this.companion.getData("nextHitAt") || 0;
+      if (this.time.now >= nextHitAt && state !== "cooldown") {
+        this.startCompanionAttack(target);
+      } else {
+        this.followCompanion();
+      }
+    } else {
+      this.companion.setData("state", "follow");
+      this.followCompanion();
+    }
+  }
+
+  startCompanionAttack(target) {
+    this.companion.setData("state", "attack-approach");
+    this.companion.setData("target", target);
+    if (this.companionAttackTween) {
+      this.companionAttackTween.stop();
+    }
+    this.companionAttackTween = this.tweens.add({
+      targets: this.companion,
+      x: target.x,
+      y: target.y,
+      duration: this.helperApproachDuration,
+      onComplete: () => {
+        this.resolveCompanionHit(target);
+        this.startCompanionReturn();
+      },
+    });
+  }
+
+  resolveCompanionHit(target) {
+    if (!target || !target.active || target.getData("emerging")) {
+      return;
+    }
+    if (Phaser.Math.FloatBetween(0, 1) <= this.helperHitChance) {
+      this.damageMonster(target, 1);
+      if (this.sfx) {
+        this.sfx.companionHit.play();
+      }
+    } else if (this.sfx) {
+      this.sfx.monsterMiss.play();
+    }
+    this.flashEntity(this.companion, 0xffb3a3);
+  }
+
+  startCompanionReturn() {
+    const followPos = this.getCompanionFollowPosition();
+    this.companion.setData("state", "attack-return");
+    if (this.companionAttackTween) {
+      this.companionAttackTween.stop();
+    }
+    this.companionAttackTween = this.tweens.add({
+      targets: this.companion,
+      x: followPos.x,
+      y: followPos.y,
+      duration: this.helperReturnDuration,
+      onComplete: () => {
+        this.companion.setData("state", "cooldown");
+        this.companion.setData("nextHitAt", this.time.now + this.helperAttackCooldown);
+      },
+    });
+  }
+
+  followCompanion() {
+    const followPos = this.getCompanionFollowPosition();
+    const distance = Phaser.Math.Distance.Between(
+      this.companion.x,
+      this.companion.y,
+      followPos.x,
+      followPos.y
+    );
+    if (distance > this.helperFollowDistance) {
+      this.moveCompanionToward(followPos.x, followPos.y, this.helperSpeed);
+    } else {
+      this.companion.body.setVelocity(0, 0);
+    }
+  }
+
+  getCompanionFollowPosition() {
+    const offset = this.companion.getData("offset") || { x: 12, y: -10 };
+    return {
+      x: this.player.x + offset.x,
+      y: this.player.y + offset.y,
+    };
+  }
+
+  moveCompanionToward(x, y, speed) {
+    const direction = new Phaser.Math.Vector2(x - this.companion.x, y - this.companion.y);
+    if (direction.lengthSq() < 1) {
+      this.companion.body.setVelocity(0, 0);
+      return;
+    }
+    direction.normalize();
+    const desiredX = direction.x * speed;
+    const desiredY = direction.y * speed;
+    const current = this.companion.body.velocity;
+    const nextX = Phaser.Math.Linear(current.x, desiredX, this.helperLag);
+    const nextY = Phaser.Math.Linear(current.y, desiredY, this.helperLag);
+    this.companion.body.setVelocity(nextX, nextY);
+  }
+
+  findNearestMonster() {
+    let nearest = null;
+    let nearestDistance = this.helperRange;
+    this.monsters.getChildren().forEach((monster) => {
+      if (!monster.active || monster.getData("emerging")) return;
+      const distance = Phaser.Math.Distance.Between(
+        this.player.x,
+        this.player.y,
+        monster.x,
+        monster.y
+      );
+      if (distance <= nearestDistance) {
+        nearest = monster;
+        nearestDistance = distance;
+      }
+    });
+    return nearest;
+  }
+
+  hideCompanion() {
+    this.companion.setData("state", "hidden");
+    this.companion.setVisible(false);
+    this.companion.body.setEnable(false);
+    this.companion.setPosition(this.player.x, this.player.y);
+    this.time.delayedCall(this.helperHideDuration, () => {
+      if (this.isGameOver || this.isComplete) return;
+      const offset = this.companion.getData("offset") || { x: 12, y: -10 };
+      const baseColor = this.companion.getData("baseColor") || 0xffe35c;
+      this.companion.setFillStyle(baseColor);
+      this.companion.setVisible(true);
+      this.companion.body.setEnable(true);
+      this.companion.setPosition(this.player.x + offset.x, this.player.y + offset.y);
+      this.companion.setData("state", "follow");
+    });
+  }
+
+  damageCompanion() {
+    if (!this.companion.visible || !this.companion.body.enable) return;
+    this.flashEntity(this.companion, 0xff7a7a);
+    if (this.companionAttackTween) {
+      this.companionAttackTween.stop();
+    }
+    this.companion.setData("state", "retreating");
+    this.companion.setData("target", null);
+    this.companion.setData("retreatUntil", 0);
+  }
+
+  flashEntity(entity, color) {
+    const original = entity.getData("baseColor") ?? entity.fillColor;
+    if (original === undefined) return;
+    entity.setFillStyle(color);
+    this.time.delayedCall(120, () => {
+      if (entity.active) {
+        entity.setFillStyle(original);
+      }
+    });
+  }
+
+  stopAllSounds() {
+    if (!this.sfx) return;
+    Object.values(this.sfx).forEach((sound) => {
+      if (sound && sound.isPlaying) {
+        sound.stop();
+      }
     });
   }
 }

@@ -20,8 +20,9 @@ export default class MainMenuScene extends Phaser.Scene {
   }
 
   addBackground() {
-    this.add.rectangle(480, 300, 960, 600, 0x1f1a12).setAlpha(0.95);
-    this.add.rectangle(480, 160, 760, 200, 0x4d3a26).setAlpha(0.8);
+    const bg = this.add.image(480, 300, "menu-bg");
+    const scale = Math.max(960 / bg.width, 600 / bg.height);
+    bg.setScale(scale);
   }
 
   addTitle() {
@@ -29,17 +30,19 @@ export default class MainMenuScene extends Phaser.Scene {
       .text(480, 110, "Ritter & Begleiter", {
         fontFamily: "Georgia, serif",
         fontSize: "48px",
-        color: "#f6e1b9",
+        color: "#ffffff",
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setStroke("#0049e1", 5);
 
     this.add
       .text(480, 165, "Ein Abenteuer in vielen Minispielen", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "20px",
-        color: "#dfc49a",
+        color: "#ffffff",
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setStroke("#0049e1", 2);
   }
 
   addMenu() {
@@ -59,9 +62,10 @@ export default class MainMenuScene extends Phaser.Scene {
         .text(480, 280 + index * 50, item.label, {
           fontFamily: "Trebuchet MS, sans-serif",
           fontSize: "28px",
-          color: "#d2c1a2",
+          color: "#ffffff",
         })
         .setOrigin(0.5)
+        .setStroke("#0049e1", 3)
         .setInteractive({ useHandCursor: true })
         .on("pointerover", () => {
           this.selectedIndex = index;
@@ -75,12 +79,13 @@ export default class MainMenuScene extends Phaser.Scene {
 
   addHelperText() {
     this.add
-      .text(480, 520, "Pfeile / Maus zum Navigieren, Enter zum Start", {
+      .text(480, 540, "Pfeile / Maus zum Navigieren, Enter zum Start", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "16px",
-        color: "#a8916f",
+        color: "#ffffff",
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setStroke("#0049e1", 1);
   }
 
   moveSelection(delta) {
@@ -96,7 +101,7 @@ export default class MainMenuScene extends Phaser.Scene {
   updateSelection() {
     this.menuItems.forEach((item, index) => {
       const isSelected = index === this.selectedIndex;
-      item.text.setColor(isSelected ? "#f6e1b9" : "#d2c1a2");
+      item.text.setColor(isSelected ? "#c7eaff" : "#ffffff");
       item.text.setScale(isSelected ? 1.08 : 1);
     });
   }
@@ -113,10 +118,10 @@ export default class MainMenuScene extends Phaser.Scene {
     const saveData = { ...defaultSave };
     this.registry.set("saveData", saveData);
     saveProgress(saveData);
-    this.scene.start("LevelSelectScene");
+    this.scene.start("DesertRuinScene");
   }
 
   loadGame() {
-    this.scene.start("LevelSelectScene");
+    this.scene.start("DesertRuinScene");
   }
 }
