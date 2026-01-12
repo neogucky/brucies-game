@@ -11,6 +11,8 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.maxHealth = 5;
     this.health = this.maxHealth;
     this.coinsCollected = 0;
+    this.ruinCost = 100;
+    this.coinsPerChest = 10;
     this.helperRange = 150;
     this.helperSpeed = 230;
     this.helperLag = 0.08;
@@ -23,6 +25,8 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.helperRetreatDistance = 40;
     this.helperHitChance = 0.75;
     this.monsterHitChance = 0.5;
+    this.monsterScale = 0.7;
+    this.monsterEmergingScale = 0.4;
     this.attackCooldown = 350;
     this.lastAttackAt = 0;
     this.swordSwingId = 0;
@@ -37,6 +41,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.createBushes();
     this.createChests();
     this.createMonsters();
+    this.spawnMonster();
     this.createSword();
     this.createRespawnTimers();
     this.createAudio();
@@ -57,6 +62,7 @@ export default class DesertRuinScene extends Phaser.Scene {
   createPlayer() {
     this.player = this.add.image(480, 420, "knight-standing").setOrigin(0.5);
     this.player.setScale(0.5);
+    this.player.setDepth(5);
     this.physics.add.existing(this.player);
     this.player.body.setCollideWorldBounds(true);
     this.player.body.setSize(this.player.width * 0.24, this.player.height * 0.7, true);
@@ -70,6 +76,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     const startOffsetX = 36;
     const startOffsetY = -22;
     this.companion = this.add.circle(480 + startOffsetX, 420 + startOffsetY, 10, 0xffe35c);
+    this.companion.setDepth(5);
     this.physics.add.existing(this.companion);
     this.companion.body.setCircle(10);
     this.companion.body.setCollideWorldBounds(true);
@@ -116,7 +123,7 @@ export default class DesertRuinScene extends Phaser.Scene {
       this.fruits.clear(true, true);
     }
     if (this.stopAllSounds) {
-      this.stopAllSounds();
+      this.stopAllSounds(true);
     }
   }
 
@@ -326,7 +333,7 @@ export default class DesertRuinScene extends Phaser.Scene {
       this.physics.world.resume();
     };
 
-    const duration = 5000;
+    const duration = 2500;
     this.tweens.add({
       targets: this.startBarFill,
       displayWidth: barWidth - 4,
@@ -424,9 +431,11 @@ export default class DesertRuinScene extends Phaser.Scene {
     const x = Phaser.Math.Between(margin, 960 - margin);
     const y = Phaser.Math.Between(120, 430);
 
-    const monster = this.add.circle(x, y, 16, 0x9b5a2c);
+    const monster = this.add.image(x, y, "desert-mole-digging").setOrigin(0.5);
+    monster.setDepth(5);
+    monster.setScale(this.monsterEmergingScale);
     this.physics.add.existing(monster);
-    monster.body.setCircle(16);
+    monster.body.setSize(monster.displayWidth * 0.5, monster.displayHeight * 0.5, true);
     monster.setData("maxHp", 3);
     monster.setData("hp", 3);
     monster.setData("speed", Phaser.Math.Between(60, 90));
@@ -435,7 +444,6 @@ export default class DesertRuinScene extends Phaser.Scene {
     monster.setData("stunnedUntil", 0);
     monster.setData("emerging", true);
     monster.setAlpha(0.2);
-    monster.setScale(0.4);
     this.createMonsterBar(monster);
     if (this.sfx) {
       const digSound = this.sound.add("sfx-monster-dig", { loop: true, volume: 0.6 });
@@ -447,11 +455,14 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.tweens.add({
       targets: monster,
       alpha: 1,
-      scale: 1,
+      scale: this.monsterScale,
       duration: 2000,
       onComplete: () => {
         if (monster.active) {
           monster.setData("emerging", false);
+          monster.setTexture("desert-mole-running");
+          monster.setScale(this.monsterScale);
+          monster.body.setSize(monster.displayWidth * 0.5, monster.displayHeight * 0.5, true);
           const digSound = monster.getData("digSound");
           if (digSound) {
             digSound.stop();
@@ -474,7 +485,8 @@ export default class DesertRuinScene extends Phaser.Scene {
 
     const spotIndex = Phaser.Math.RND.pick(available);
     const spot = this.chestSpots[spotIndex];
-    const chest = this.add.rectangle(spot.x, spot.y, 22, 16, 0x9a6a2f).setStrokeStyle(2, 0x5a3c1c);
+    const chest = this.add.image(spot.x, spot.y, "chest-closed");
+    chest.setScale(0.56);
     chest.setData("slot", spotIndex);
     chest.setData("opened", false);
     this.physics.add.existing(chest, true);
@@ -511,12 +523,13 @@ export default class DesertRuinScene extends Phaser.Scene {
       this.chestSlots[slot] = false;
     }
 
-    this.coinsCollected += 1;
+    this.coinsCollected += this.coinsPerChest;
     this.coinText.setText(`Münzen: ${this.coinsCollected}`);
     if (this.sfx) {
       this.sfx.coin.play();
     }
 
+    chest.setTexture("chest-open");
     const coin = this.add.circle(chest.x, chest.y - 8, 6, 0xf5d37a);
     this.tweens.add({
       targets: coin,
@@ -526,7 +539,11 @@ export default class DesertRuinScene extends Phaser.Scene {
       onComplete: () => coin.destroy(),
     });
 
-    chest.destroy();
+    this.time.delayedCall(1000, () => {
+      if (chest.active) {
+        chest.destroy();
+      }
+    });
   }
 
   registerSwordHit() {
@@ -580,6 +597,10 @@ export default class DesertRuinScene extends Phaser.Scene {
     const currentHp = monster.getData("hp") ?? 0;
     const nextHp = Math.max(0, currentHp - amount);
     monster.setData("hp", nextHp);
+    const now = this.time.now;
+    const stunnedUntil = Math.max(monster.getData("stunnedUntil") || 0, now + 400);
+    monster.setData("stunnedUntil", stunnedUntil);
+    monster.body.setVelocity(0, 0);
     this.updateMonsterBar(monster);
     this.flashEntity(monster, 0xd06a5d);
     if (nextHp <= 0) {
@@ -634,7 +655,7 @@ export default class DesertRuinScene extends Phaser.Scene {
 
   bumpMonster(monster, source) {
     const now = this.time.now;
-    monster.setData("stunnedUntil", now + 300);
+    monster.setData("stunnedUntil", now + 400);
     const direction = new Phaser.Math.Vector2(monster.x - source.x, monster.y - source.y)
       .normalize()
       .scale(180);
@@ -813,21 +834,21 @@ export default class DesertRuinScene extends Phaser.Scene {
       }
     };
 
-    if (this.coinsCollected < 10) {
+    if (this.coinsCollected < this.ruinCost) {
       this.promptText.setText(
-        "Leider hast du nicht genug Münzen.\nSammel 10 Stück, um die Ruine zu reparieren."
+        `Leider hast du nicht genug Münzen.\nSammel ${this.ruinCost} Stück, um die Ruine zu reparieren.`
       );
       this.promptHint.setText("Beliebige Taste zum Weiterspielen");
       this.input.keyboard.once("keydown", () => closePrompt(true));
       return;
     }
 
-    this.promptText.setText("Die Ruine reparieren für 10 Münzen?");
+    this.promptText.setText(`Die Ruine reparieren für ${this.ruinCost} Münzen?`);
     this.promptHint.setText("[J]a oder [N]ein");
 
     onNo = () => closePrompt(true);
     onYes = () => {
-      this.coinsCollected -= 10;
+      this.coinsCollected -= this.ruinCost;
       this.coinText.setText(`Münzen: ${this.coinsCollected}`);
       this.ruinRepaired = true;
       closePrompt(true);
@@ -1123,6 +1144,15 @@ export default class DesertRuinScene extends Phaser.Scene {
   }
 
   flashEntity(entity, color) {
+    if (entity.setTintFill) {
+      entity.setTintFill(color);
+      this.time.delayedCall(120, () => {
+        if (entity.active) {
+          entity.clearTint();
+        }
+      });
+      return;
+    }
     const original = entity.getData("baseColor") ?? entity.fillColor;
     if (original === undefined) return;
     entity.setFillStyle(color);
@@ -1133,14 +1163,14 @@ export default class DesertRuinScene extends Phaser.Scene {
     });
   }
 
-  stopAllSounds() {
+  stopAllSounds(includeMusic = false) {
     if (!this.sfx) return;
     Object.values(this.sfx).forEach((sound) => {
       if (sound && sound.isPlaying) {
         sound.stop();
       }
     });
-    if (this.music && this.music.isPlaying) {
+    if (includeMusic && this.music && this.music.isPlaying) {
       this.music.stop();
     }
   }
