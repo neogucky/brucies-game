@@ -15,6 +15,8 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("ui-heart-empty", "assets/ui/heart_empty.png");
     this.load.image("knight-standing", "assets/knight/knight_standing.png");
     this.load.image("knight-hitting", "assets/knight/knight_hitting.png");
+    this.load.image("knight-female-standing", "assets/knight/knight_female_standing.png");
+    this.load.image("knight-female-hitting", "assets/knight/knight_female_hitting.png");
     this.load.image("desert-ruin", "assets/ruin.png");
     this.load.image("desert-ruin-repaired", "assets/ruin_repaired.png");
     this.load.image("worldmap-ruin", "assets/worldmap/ruin.png");

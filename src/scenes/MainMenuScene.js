@@ -140,7 +140,7 @@ export default class MainMenuScene extends Phaser.Scene {
     const saveData = { ...defaultSave };
     this.registry.set("saveData", saveData);
     saveProgress(saveData);
-    this.scene.start("WorldMapScene");
+    this.scene.start("CharacterSelectScene");
   }
 
   loadGame() {

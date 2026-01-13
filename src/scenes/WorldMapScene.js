@@ -152,7 +152,9 @@ export default class WorldMapScene extends Phaser.Scene {
     const currentId = saveData.currentLevel || "Wuestenruine";
     const startNode = NODES.find((node) => node.id === currentId) || NODES[0];
     this.currentNode = startNode;
-    this.playerMarker = this.add.image(startNode.x, startNode.y + 2, "knight-standing");
+    const isFemale = saveData.playerGender === "female";
+    const standingTexture = isFemale ? "knight-female-standing" : "knight-standing";
+    this.playerMarker = this.add.image(startNode.x, startNode.y + 2, standingTexture);
     this.playerMarker.setScale(0.42);
     this.companionMarker = this.add.image(
       startNode.x - 18,

@@ -10,6 +10,7 @@ export const defaultSave = {
   consumables: {
     honey: 0,
   },
+  playerGender: "male",
   lastPlayed: null,
 };
 

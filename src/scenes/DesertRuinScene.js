@@ -75,7 +75,11 @@ export default class DesertRuinScene extends Phaser.Scene {
   }
 
   createPlayer() {
-    this.player = this.add.image(480, 360, "knight-standing").setOrigin(0.5);
+    const saveData = this.registry.get("saveData") || {};
+    const isFemale = saveData.playerGender === "female";
+    const standingTexture = isFemale ? "knight-female-standing" : "knight-standing";
+    const hittingTexture = isFemale ? "knight-female-hitting" : "knight-hitting";
+    this.player = this.add.image(480, 360, standingTexture).setOrigin(0.5);
     this.player.setScale(0.5);
     this.player.setDepth(5);
     this.physics.add.existing(this.player);
@@ -85,8 +89,8 @@ export default class DesertRuinScene extends Phaser.Scene {
       (this.player.width - this.player.body.width) * 0.5,
       (this.player.height - this.player.body.height) * 0.6
     );
-    this.player.setData("standingTexture", "knight-standing");
-    this.player.setData("hitTexture", "knight-hitting");
+    this.player.setData("standingTexture", standingTexture);
+    this.player.setData("hitTexture", hittingTexture);
 
     this.companion = this.add
       .image(480 + 24, 360 + 16, "companion-running")
