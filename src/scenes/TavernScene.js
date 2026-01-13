@@ -42,30 +42,6 @@ export default class TavernScene extends Phaser.Scene {
       companionRespawnRatio: 0,
     });
 
-    this.shopText = this.add
-      .text(480, 250, "Honigsaft (10 Münzen) - [K] kaufen", {
-        fontFamily: "Trebuchet MS, sans-serif",
-        fontSize: "18px",
-        color: "#dfc49a",
-      })
-      .setOrigin(0.5);
-
-    this.honeyText = this.add
-      .text(480, 290, `Honigsaft: x${this.honeyCount}`, {
-        fontFamily: "Trebuchet MS, sans-serif",
-        fontSize: "16px",
-        color: "#dfc49a",
-      })
-      .setOrigin(0.5);
-
-    this.messageText = this.add
-      .text(480, 380, "", {
-        fontFamily: "Trebuchet MS, sans-serif",
-        fontSize: "16px",
-        color: "#f1b983",
-      })
-      .setOrigin(0.5);
-
     this.add
       .text(40, 590, "Esc = Zurück zur Karte", {
         fontFamily: "Trebuchet MS, sans-serif",
@@ -128,7 +104,7 @@ export default class TavernScene extends Phaser.Scene {
     if (this.isLoading) return;
     const price = 10;
     if (this.coins < price) {
-      this.messageText.setText("Nicht genug Münzen.");
+      this.showNotEnoughCoinsDialog();
       return;
     }
     this.coins -= price;
@@ -137,8 +113,6 @@ export default class TavernScene extends Phaser.Scene {
       this.hud.setCoins(this.coins);
       this.hud.setConsumableCount(this.honeyCount);
     }
-    this.honeyText.setText(`Honigsaft: x${this.honeyCount}`);
-    this.messageText.setText("Honigsaft gekauft!");
     this.saveInventory();
     this.showPurchaseDialog();
   }
@@ -161,6 +135,19 @@ export default class TavernScene extends Phaser.Scene {
     this.dialog.show(
       [
         { text: "Hier ist der Honigsaft, darf es noch etwas sein?" },
+        {
+          text: "Willst du heilenden Honigsaft kaufen?",
+          options: [{ key: "K", label: "[K] kaufen", onSelect: () => this.buyHoney(), keepOpen: true }],
+        },
+      ],
+      "bottom"
+    );
+  }
+
+  showNotEnoughCoinsDialog() {
+    this.dialog.show(
+      [
+        { text: "Du hast leider nicht genügend Münzen." },
         {
           text: "Willst du heilenden Honigsaft kaufen?",
           options: [{ key: "K", label: "[K] kaufen", onSelect: () => this.buyHoney(), keepOpen: true }],
