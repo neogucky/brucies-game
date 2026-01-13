@@ -26,6 +26,7 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("tavern-map", "assets/worldmap/tavern.png");
     this.load.image("tavern-bg", "assets/background/tavern.png");
     this.load.image("tavern-loading", "assets/tavern/tavern_loading.png");
+    this.load.image("tavern-barkeeper", "assets/tavern/barkeeper.png");
     this.load.image("item-sword", "assets/items/sword.png");
     this.load.image("item-shield", "assets/items/shield.png");
     this.load.image("item-honey", "assets/items/honey-juice.png");

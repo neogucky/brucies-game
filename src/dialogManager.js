@@ -13,6 +13,7 @@ export default class DialogManager {
     this.pages = pages;
     this.index = 0;
     this.onClose = options.onClose || null;
+    this.portraitKey = options.portraitKey || null;
     if (!this.container) {
       this.createUI(position);
     } else {
@@ -38,6 +39,15 @@ export default class DialogManager {
     this.container = this.scene.add.container(0, 0).setDepth(40);
     const shade = this.scene.add.rectangle(480, y, 760, 150, 0x1e150c, 0.7);
     shade.setStrokeStyle(2, 0x8a6b44);
+    this.portraitFrame = this.scene.add.circle(120, y - 80, 78, 0xe2c18b, 0.95);
+    this.portraitFrame.setStrokeStyle(4, 0x8a6b44);
+    const portraitMask = this.scene.add.circle(120, y - 80, 78, 0xffffff, 1);
+    this.portraitImage = this.scene.add.image(120, y - 80, "");
+    this.portraitImage.setDisplaySize(20, 20);
+    this.portraitMask = portraitMask;
+    this.portraitImage.setMask(portraitMask.createGeometryMask());
+    portraitMask.setVisible(false);
+    this.portraitImage.setVisible(false);
     this.text = this.scene.add
       .text(480, y - 18, "", {
         fontFamily: "Georgia, serif",
@@ -55,13 +65,32 @@ export default class DialogManager {
         align: "center",
       })
       .setOrigin(0.5);
-    this.container.add([shade, this.text, this.hint]);
+    this.container.add([
+      shade,
+      this.portraitFrame,
+      this.portraitImage,
+      portraitMask,
+      this.text,
+      this.hint,
+    ]);
   }
 
   setPosition(position) {
     const y = this.getY(position);
     this.container.list.forEach((child) => {
-      child.y = y + (child === this.text ? -18 : child === this.hint ? 40 : 0);
+      if (child === this.text) {
+        child.y = y - 18;
+      } else if (child === this.hint) {
+        child.y = y + 40;
+      } else if (
+        child === this.portraitFrame ||
+        child === this.portraitImage ||
+        child === this.portraitMask
+      ) {
+        child.y = y - 80;
+      } else {
+        child.y = y;
+      }
     });
   }
 
@@ -75,6 +104,16 @@ export default class DialogManager {
     this.clearHandlers();
     const page = this.pages[this.index];
     if (!page) return;
+    if (this.portraitImage && this.portraitFrame) {
+      if (this.portraitKey) {
+        this.portraitImage.setTexture(this.portraitKey);
+        this.portraitImage.setVisible(true);
+        this.portraitFrame.setVisible(true);
+      } else {
+        this.portraitImage.setVisible(false);
+        this.portraitFrame.setVisible(false);
+      }
+    }
     this.text.setText(page.text);
     if (page.options && page.options.length > 0) {
       this.hint.setText(page.options.map((opt) => opt.label).join("  "));

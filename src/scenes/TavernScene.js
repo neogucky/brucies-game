@@ -118,7 +118,7 @@ export default class TavernScene extends Phaser.Scene {
   }
 
   showGreetingDialog() {
-    this.dialog.show(this.buildShopDialog(), "bottom");
+    this.dialog.show(this.buildShopDialog(), "bottom", { portraitKey: "tavern-barkeeper" });
   }
 
   buildShopDialog() {
@@ -140,7 +140,8 @@ export default class TavernScene extends Phaser.Scene {
           options: [{ key: "K", label: "[K] kaufen", onSelect: () => this.buyHoney(), keepOpen: true }],
         },
       ],
-      "bottom"
+      "bottom",
+      { portraitKey: "tavern-barkeeper" }
     );
   }
 
@@ -153,7 +154,8 @@ export default class TavernScene extends Phaser.Scene {
           options: [{ key: "K", label: "[K] kaufen", onSelect: () => this.buyHoney(), keepOpen: true }],
         },
       ],
-      "bottom"
+      "bottom",
+      { portraitKey: "tavern-barkeeper" }
     );
   }
 
