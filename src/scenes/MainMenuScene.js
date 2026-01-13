@@ -1,4 +1,5 @@
 import { clearSave, defaultSave, saveProgress } from "../saveManager.js";
+import { playMusic } from "../soundManager.js";
 
 export default class MainMenuScene extends Phaser.Scene {
   constructor() {
@@ -18,6 +19,7 @@ export default class MainMenuScene extends Phaser.Scene {
     this.addHelperText();
     this.createConfirmDialog();
     this.updateSelection();
+    playMusic(this, "music-menu");
 
     this.input.keyboard.on("keydown-UP", () => this.moveSelection(-1));
     this.input.keyboard.on("keydown-DOWN", () => this.moveSelection(1));
@@ -32,22 +34,14 @@ export default class MainMenuScene extends Phaser.Scene {
 
   addTitle() {
     this.add
-      .text(480, 110, "Ritter & Begleiter", {
+      .text(480, 90, "Ritter und sein gelber Begleiter", {
         fontFamily: "Georgia, serif",
-        fontSize: "48px",
+        fontSize: "50px",
         color: "#ffffff",
       })
       .setOrigin(0.5)
-      .setStroke("#433320", 5);
-
-    this.add
-      .text(480, 165, "Ein Abenteuer in vielen Minispielen", {
-        fontFamily: "Trebuchet MS, sans-serif",
-        fontSize: "20px",
-        color: "#ffffff",
-      })
-      .setOrigin(0.5)
-      .setStroke("#433320", 3);
+      .setStroke("#433320", 7);
+    
   }
 
   addMenu() {
@@ -120,9 +114,8 @@ export default class MainMenuScene extends Phaser.Scene {
   updateSelection() {
     this.menuItems.forEach((item, index) => {
       const isSelected = index === this.selectedIndex;
-      const baseColor = item.enabled ? "#ffffff" : "#b9b9b9";
-      item.text.setColor(isSelected ? "#fff4ea" : baseColor);
       item.text.setScale(isSelected && item.enabled ? 1.08 : 1);
+      item.text.setStroke("#433320", isSelected ? 5 : 3);
     });
   }
 
