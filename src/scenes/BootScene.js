@@ -32,7 +32,7 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("companion-attacking", "assets/companion/companion_attacking.png");
     this.load.image("desert-mole-digging", "assets/enemies/desertmole_digging.png");
     this.load.image("desert-mole-running", "assets/enemies/desertmole_running.png");
-    this.load.image("desert-mole-attacking", "assets/enemies/desertmole_atacking.png");
+    this.load.image("desert-mole-attacking", "assets/enemies/desertmole_attacking.png");
     this.load.image("chest-closed", "assets/objects/chest_closed.png");
     this.load.image("chest-open", "assets/objects/chest_open.png");
     this.load.audio("sfx-chest-hit", "assets/sounds/chest_hit.wav");

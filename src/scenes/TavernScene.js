@@ -140,7 +140,6 @@ export default class TavernScene extends Phaser.Scene {
     this.honeyText.setText(`Honigsaft: x${this.honeyCount}`);
     this.messageText.setText("Honigsaft gekauft!");
     this.saveInventory();
-    this.updateItemUI();
     this.showPurchaseDialog();
   }
 
@@ -190,86 +189,5 @@ export default class TavernScene extends Phaser.Scene {
     saveProgress(nextSave);
   }
 
-  createItemUI() {
-    const frameWidth = 52;
-    const frameHeight = 52;
-    const spacing = 80;
-    const startX = 360;
-    const y = 36;
-
-    this.itemUI = {};
-    const items = [
-      { key: "active", label: "Schwert", hint: "Leertaste", disabled: true, icon: "item-sword" },
-      { key: "passive", label: "Schild", hint: "Passiv", icon: "item-shield" },
-      { key: "consumable", label: "Leer", hint: "T", icon: "item-honey" },
-    ];
-
-    items.forEach((item, index) => {
-      const x = startX + index * spacing;
-      const frame = this.add.rectangle(x, y, frameWidth, frameHeight, 0xf2e3c5, 0.8);
-      frame.setStrokeStyle(2, 0x8a6b44);
-      const label = this.add
-        .text(x, y - 4, item.label, {
-          fontFamily: "Trebuchet MS, sans-serif",
-          fontSize: "12px",
-          color: "#4b3824",
-        })
-        .setOrigin(0.5);
-      const icon = this.add.image(x, y, item.icon).setScale(0.26);
-      let overlay = null;
-      const hint = this.add
-        .text(x, y + 36, item.hint, {
-          fontFamily: "Trebuchet MS, sans-serif",
-          fontSize: "12px",
-          color: "#4b3824",
-        })
-        .setOrigin(0.5);
-      const count = this.add
-        .text(x + 18, y - 18, "", {
-          fontFamily: "Trebuchet MS, sans-serif",
-          fontSize: "12px",
-          color: "#ffffff",
-        })
-        .setOrigin(0.5);
-
-      if (item.disabled) {
-        frame.setFillStyle(0xd1c2a3, 0.6);
-        label.setColor("#8b8373");
-        hint.setColor("#8b8373");
-        overlay = this.add.rectangle(x, y, frameWidth, frameHeight, 0x6f6f6f, 0.6);
-      }
-
-      this.itemUI[item.key] = { frame, label, hint, count, icon, overlay };
-    });
-
-    this.updateItemUI();
-  }
-
-  updateItemUI() {
-    if (!this.itemUI) return;
-    const honeyCount = this.honeyCount ?? 0;
-    const consumableLabel = honeyCount > 0 ? "Honigsaft" : "Leer";
-    this.itemUI.consumable.label.setText(consumableLabel);
-    this.itemUI.consumable.count.setText(honeyCount > 0 ? `x${honeyCount}` : "");
-    this.itemUI.consumable.icon.setAlpha(honeyCount > 0 ? 1 : 0.25);
-  }
-
-  createHeartsUI() {
-    this.hearts = [];
-    const spacing = 26;
-    const startX = 930 - (this.maxHealth - 1) * spacing;
-    for (let i = 0; i < this.maxHealth; i += 1) {
-      const heart = this.add.image(startX + i * spacing, 30, "ui-heart");
-      heart.setScale(0.7);
-      this.hearts.push(heart);
-    }
-    this.updateHearts();
-  }
-
-  updateHearts() {
-    this.hearts.forEach((heart, index) => {
-      const filled = index < this.health;
-      heart.setTexture(filled ? "ui-heart" : "ui-heart-empty");
-    });
-  }
+  
 }

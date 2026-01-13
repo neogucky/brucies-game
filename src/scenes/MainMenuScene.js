@@ -38,7 +38,7 @@ export default class MainMenuScene extends Phaser.Scene {
         color: "#ffffff",
       })
       .setOrigin(0.5)
-      .setStroke("#0049e1", 5);
+      .setStroke("#433320", 5);
 
     this.add
       .text(480, 165, "Ein Abenteuer in vielen Minispielen", {
@@ -47,7 +47,7 @@ export default class MainMenuScene extends Phaser.Scene {
         color: "#ffffff",
       })
       .setOrigin(0.5)
-      .setStroke("#0049e1", 2);
+      .setStroke("#433320", 3);
   }
 
   addMenu() {
@@ -72,7 +72,7 @@ export default class MainMenuScene extends Phaser.Scene {
           color: "#ffffff",
         })
         .setOrigin(0.5)
-        .setStroke("#0049e1", 3)
+        .setStroke("#433320", 3)
         .setAlpha(item.enabled ? 1 : 0.4)
         .setInteractive({ useHandCursor: item.enabled })
         .on("pointerover", () => {
@@ -98,7 +98,7 @@ export default class MainMenuScene extends Phaser.Scene {
         color: "#ffffff",
       })
       .setOrigin(0.5)
-      .setStroke("#0049e1", 1);
+      .setStroke("#433320", 2);
   }
 
   moveSelection(delta) {
@@ -121,7 +121,7 @@ export default class MainMenuScene extends Phaser.Scene {
     this.menuItems.forEach((item, index) => {
       const isSelected = index === this.selectedIndex;
       const baseColor = item.enabled ? "#ffffff" : "#b9b9b9";
-      item.text.setColor(isSelected ? "#c7eaff" : baseColor);
+      item.text.setColor(isSelected ? "#fff4ea" : baseColor);
       item.text.setScale(isSelected && item.enabled ? 1.08 : 1);
     });
   }

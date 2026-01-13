@@ -366,100 +366,6 @@ export default class DesertRuinScene extends Phaser.Scene {
     });
   }
 
-  createHeartsUI() {
-    this.hearts = [];
-    const spacing = 26;
-    const startX = 930 - (this.maxHealth - 1) * spacing;
-
-    for (let i = 0; i < this.maxHealth; i += 1) {
-      const heart = this.createHeartIcon(startX + i * spacing, 30);
-      this.hearts.push(heart);
-    }
-
-    this.updateHearts();
-  }
-
-  createItemUI() {
-    const frameWidth = 52;
-    const frameHeight = 52;
-    const spacing = 80;
-    const startX = 360;
-    const y = 36;
-
-    this.itemUI = {};
-    const items = [
-      { key: "active", label: "Schwert", hint: "Leertaste", icon: "item-sword" },
-      { key: "passive", label: "Schild", hint: "Passiv", icon: "item-shield" },
-      { key: "consumable", label: "Leer", hint: "T", icon: "item-honey" },
-    ];
-
-    items.forEach((item, index) => {
-      const x = startX + index * spacing;
-      const frame = this.add.rectangle(x, y, frameWidth, frameHeight, 0xf2e3c5, 0.8);
-      frame.setStrokeStyle(2, 0x8a6b44);
-      const label = this.add
-        .text(x, y - 4, item.label, {
-          fontFamily: "Trebuchet MS, sans-serif",
-          fontSize: "12px",
-          color: "#4b3824",
-        })
-        .setOrigin(0.5);
-      const icon = this.add.image(x, y, item.icon).setScale(0.26);
-      const hint = this.add
-        .text(x, y + 36, item.hint, {
-          fontFamily: "Trebuchet MS, sans-serif",
-          fontSize: "12px",
-          color: "#4b3824",
-        })
-        .setOrigin(0.5);
-      const count = this.add
-        .text(x + 18, y - 18, "", {
-          fontFamily: "Trebuchet MS, sans-serif",
-          fontSize: "12px",
-          color: "#ffffff",
-        })
-        .setOrigin(0.5);
-
-      this.itemUI[item.key] = { frame, label, hint, count, icon };
-    });
-
-    const companionX = startX + items.length * spacing;
-    const companionFrame = this.add.rectangle(
-      companionX,
-      y,
-      frameWidth,
-      frameHeight,
-      0xf2e3c5,
-      0.8
-    );
-    companionFrame.setStrokeStyle(2, 0x8a6b44);
-    const companionIcon = this.add
-      .image(companionX, y, "item-companion")
-      .setScale(0.26);
-    const companionHeart = this.add
-      .image(companionX, y + 40, "ui-heart")
-      .setScale(0.6);
-    const barWidth = 46;
-    const barHeight = 6;
-    const companionBarBg = this.add
-      .rectangle(companionX, y + 40, barWidth, barHeight, 0x3a2a1a, 0.7)
-      .setVisible(false);
-    const companionBarFill = this.add
-      .rectangle(companionX - barWidth / 2, y + 40, 2, barHeight - 2, 0xf2e3c5, 0.9)
-      .setOrigin(0, 0.5)
-      .setVisible(false);
-    this.itemUI.companion = {
-      frame: companionFrame,
-      icon: companionIcon,
-      heart: companionHeart,
-      barBg: companionBarBg,
-      barFill: companionBarFill,
-      barWidth,
-    };
-
-    this.updateItemUI();
-  }
-
   updateItemUI() {
     if (!this.hud) return;
     this.hud.setConsumableCount(this.consumables?.honey ?? 0);
@@ -469,12 +375,6 @@ export default class DesertRuinScene extends Phaser.Scene {
         ? 1 - Math.min(1, (this.companionRespawnAt - this.time.now) / this.helperHideDuration)
         : 0,
     });
-  }
-
-  createHeartIcon(x, y) {
-    const heart = this.add.image(x, y, "ui-heart");
-    heart.setScale(0.7);
-    return heart;
   }
 
   updateHearts() {
@@ -1017,7 +917,7 @@ export default class DesertRuinScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setDepth(31)
-      .setStroke("#3e6cc2", 3);
+      .setStroke("#433320", 3);
 
     this.input.keyboard.once("keydown-ENTER", () => {
       this.scene.start("WorldMapScene");
