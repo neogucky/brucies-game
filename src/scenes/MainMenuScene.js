@@ -16,7 +16,6 @@ export default class MainMenuScene extends Phaser.Scene {
     this.addBackground();
     this.addTitle();
     this.addMenu();
-    this.addHelperText();
     this.createConfirmDialog();
     this.updateSelection();
     playMusic(this, "music-menu");
@@ -83,18 +82,7 @@ export default class MainMenuScene extends Phaser.Scene {
       this.menuItems.push({ text, action: item.action, enabled: item.enabled });
     });
   }
-
-  addHelperText() {
-    this.add
-      .text(480, 540, "Pfeile / Maus zum Navigieren, Enter zum Start", {
-        fontFamily: "Trebuchet MS, sans-serif",
-        fontSize: "16px",
-        color: "#ffffff",
-      })
-      .setOrigin(0.5)
-      .setStroke("#433320", 2);
-  }
-
+  
   moveSelection(delta) {
     const nextIndex = Phaser.Math.Wrap(
       this.selectedIndex + delta,

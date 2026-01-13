@@ -1,4 +1,5 @@
 import { defaultSave, loadSave } from "../saveManager.js";
+import { playMusic } from "../soundManager.js";
 
 export default class BootScene extends Phaser.Scene {
   constructor() {
@@ -6,6 +7,18 @@ export default class BootScene extends Phaser.Scene {
   }
 
   preload() {
+    this.createLoadingUI();
+    this.load.once("filecomplete-image-menu-bg", () => {
+      if (this.menuBg) return;
+      const bg = this.add.image(480, 300, "menu-bg");
+      const scale = Math.max(960 / bg.width, 600 / bg.height);
+      bg.setScale(scale);
+      bg.setDepth(-2);
+      this.menuBg = bg;
+    });
+    this.load.once("filecomplete-audio-music-menu", () => {
+      playMusic(this, "music-menu");
+    });
     this.load.image("desert-start", "assets/scenes/desert/desert_start.png");
     this.load.image("desert-end", "assets/scenes/desert/desert_end.png");
     this.load.image("desert-lost", "assets/scenes/desert/desert_lost.png");
@@ -61,5 +74,32 @@ export default class BootScene extends Phaser.Scene {
     const saveData = loadSave();
     this.registry.set("saveData", { ...defaultSave, ...saveData });
     this.scene.start("MainMenuScene");
+  }
+
+  createLoadingUI() {
+    const barWidth = 360;
+    const barHeight = 16;
+    const bg = this.add.rectangle(480, 300, barWidth, barHeight, 0x1e150c, 0.7);
+    bg.setStrokeStyle(2, 0x8a6b44);
+    const fill = this.add.rectangle(480 - barWidth / 2, 300, 2, barHeight - 4, 0xf7edd6, 0.9);
+    fill.setOrigin(0, 0.5);
+    const label = this.add
+      .text(480, 270, "Lade Spiel...", {
+        fontFamily: "Trebuchet MS, sans-serif",
+        fontSize: "16px",
+        color: "#f7edd6",
+      })
+      .setOrigin(0.5)
+      .setStroke("#433320", 2);
+
+    this.load.on("progress", (value) => {
+      fill.displayWidth = Math.max(2, (barWidth - 4) * value);
+    });
+
+    this.load.once("complete", () => {
+      bg.destroy();
+      fill.destroy();
+      label.destroy();
+    });
   }
 }
