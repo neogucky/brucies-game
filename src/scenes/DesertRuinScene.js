@@ -16,17 +16,20 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.ruinCost = 100;
     this.coinsPerChest = 10;
     this.helperRange = 150;
-    this.helperSpeed = 230;
+    this.helperSpeed = 200;
     this.helperLag = 0.08;
     this.helperFollowDistance = 18;
     this.helperHideDuration = 10000;
-    this.helperAttackCooldown = 1000;
+    this.helperAttackCooldown = 1200;
+    this.helperAttackRange = 30;
     this.helperApproachDuration = 100;
     this.helperReturnDuration = 100;
-    this.monsterAttackCooldown = 500;
+    this.monsterAttackCooldown = 800;
+    this.monsterAttackRange = 5;
     this.helperRetreatDistance = 40;
-    this.helperHitChance = 0.75;
-    this.monsterHitChance = 0.5;
+    this.helperHitChance = 1;
+    this.monsterHitChance = 1;
+    this.helperInvulnDuration = 1000;
     this.monsterScale = 0.7;
     this.monsterEmergingScale = 0.4;
     this.companionDetectedDuration = 1000;
@@ -97,6 +100,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.companion.setData("target", null);
     this.companion.setData("nextHitAt", 0);
     this.companion.setData("retreatUntil", 0);
+    this.companion.setData("invulnerableUntil", 0);
     this.companion.setData("baseColor", 0xffffff);
     this.companion.setData("animState", "running");
     this.companion.setData("detectedUntil", 0);
@@ -694,9 +698,22 @@ export default class DesertRuinScene extends Phaser.Scene {
 
   useConsumable() {
     if (!this.consumables || this.consumables.honey <= 0) return;
-    if (this.health >= this.maxHealth) return;
+    const companionNeedsHeal = this.companionHealth <= 0 && this.companionRespawnAt > 0;
+    if (this.health >= this.maxHealth && !companionNeedsHeal) return;
     this.consumables.honey -= 1;
     this.health = Math.min(this.maxHealth, this.health + 1);
+    if (companionNeedsHeal) {
+      this.companionHealth = 1;
+      this.companionRespawnAt = 0;
+      this.companion.clearTint();
+      this.companion.setVisible(true);
+      this.companion.body.setEnable(true);
+      const followPos = this.getCompanionFollowPosition();
+      this.companion.setPosition(followPos.x, followPos.y);
+      this.companion.setData("state", "follow");
+      this.setCompanionVisual("running");
+      this.stopCompanionRetreatBlink();
+    }
     this.updateHearts();
     this.updateItemUI();
     this.saveInventory();
@@ -711,42 +728,11 @@ export default class DesertRuinScene extends Phaser.Scene {
   }
 
   handlePlayerHit(_, monster) {
-    if (this.isGameOver || this.isPaused || monster.getData("emerging")) return;
-    if (this.getMonsterTarget(monster) !== this.player) return;
-    const now = this.time.now;
-    if (monster.getData("nextAttackAt") > now) return;
-
-    monster.setData("nextAttackAt", now + this.monsterAttackCooldown);
-    if (Phaser.Math.FloatBetween(0, 1) <= this.monsterHitChance) {
-      this.damagePlayer(1);
-      this.flashEntity(this.player, 0xa33b2b);
-      if (this.sfx) {
-        this.sfx.monsterAttack.play();
-      }
-    } else if (this.sfx) {
-      this.sfx.monsterMiss.play();
-    }
+    this.attemptMonsterAttack(monster, this.player);
   }
 
   handleCompanionInteraction(_, monster) {
-    if (this.isGameOver || this.isPaused || this.isComplete) return;
-    if (monster.getData("emerging")) return;
-
-    const now = this.time.now;
-    if (monster.getData("nextAttackAt") > now) return;
-    if (this.getMonsterTarget(monster) !== this.companion) return;
-    if (Phaser.Math.FloatBetween(0, 1) > this.monsterHitChance) {
-      monster.setData("nextAttackAt", now + this.monsterAttackCooldown);
-      if (this.sfx) {
-        this.sfx.monsterMiss.play();
-      }
-      return;
-    }
-    monster.setData("nextAttackAt", now + this.monsterAttackCooldown);
-    this.damageCompanion();
-    if (this.sfx) {
-      this.sfx.monsterAttack.play();
-    }
+    this.attemptMonsterAttack(monster, this.companion);
   }
 
   damageMonster(monster, amount) {
@@ -807,6 +793,48 @@ export default class DesertRuinScene extends Phaser.Scene {
     const barFill = monster.getData("barFill");
     if (barBg) barBg.destroy();
     if (barFill) barFill.destroy();
+  }
+
+  setMonsterAttack(monster, target) {
+    if (!monster.active || monster.getData("emerging")) return;
+    monster.setTexture("desert-mole-attacking");
+    if (target) {
+      monster.setFlipX(target.x > monster.x);
+    }
+    monster.setData("attackUntil", this.time.now + 200);
+    monster.body.setSize(monster.displayWidth * 0.5, monster.displayHeight * 0.5, true);
+  }
+
+  attemptMonsterAttack(monster, target) {
+    if (this.isGameOver || this.isPaused || this.isComplete) return;
+    if (!monster || !monster.active || monster.getData("emerging")) return;
+    if (!target || !target.active) return;
+    if (this.getMonsterTarget(monster) !== target) return;
+    if (target === this.companion) {
+      const invulnerableUntil = this.companion.getData("invulnerableUntil") || 0;
+      if (this.time.now < invulnerableUntil) return;
+    }
+    const now = this.time.now;
+    if (monster.getData("nextAttackAt") > now) return;
+
+    monster.setData("nextAttackAt", now + this.monsterAttackCooldown);
+    this.setMonsterAttack(monster, target);
+    if (Phaser.Math.FloatBetween(0, 1) > this.monsterHitChance) {
+      if (this.sfx) {
+        this.sfx.monsterMiss.play();
+      }
+      return;
+    }
+
+    if (target === this.player) {
+      this.damagePlayer(1);
+      this.flashEntity(this.player, 0xa33b2b);
+    } else if (target === this.companion) {
+      this.damageCompanion();
+    }
+    if (this.sfx) {
+      this.sfx.monsterAttack.play();
+    }
   }
 
   bumpMonster(monster, source) {
@@ -904,7 +932,7 @@ export default class DesertRuinScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setDepth(31)
-      .setStroke("#3e6cc2", 3);
+      .setStroke("#433320", 3);
     this.physics.world.pause();
     if (this.monsterSpawnEvent) {
       this.monsterSpawnEvent.remove(false);
@@ -1141,22 +1169,47 @@ export default class DesertRuinScene extends Phaser.Scene {
         monster.body.setVelocity(0, 0);
         return;
       }
+      const attackUntil = monster.getData("attackUntil") || 0;
+      if (this.time.now < attackUntil) {
+        if (monster.texture.key !== "desert-mole-attacking") {
+          monster.setTexture("desert-mole-attacking");
+          monster.body.setSize(monster.displayWidth * 0.5, monster.displayHeight * 0.5, true);
+        }
+      } else if (monster.texture.key !== "desert-mole-running") {
+        monster.setTexture("desert-mole-running");
+        monster.body.setSize(monster.displayWidth * 0.5, monster.displayHeight * 0.5, true);
+      }
       const stunnedUntil = monster.getData("stunnedUntil") || 0;
       if (this.time.now < stunnedUntil) {
         return;
       }
       const speedValue = monster.getData("speed") || 70;
       const target = this.getMonsterTarget(monster);
-      const direction = new Phaser.Math.Vector2(
-        target.x - monster.x,
-        target.y - monster.y
-      ).normalize();
+      const direction = new Phaser.Math.Vector2(target.x - monster.x, target.y - monster.y);
+      const distance = direction.length();
+      const targetRadius = (target.body?.width ?? target.displayWidth) * 0.5;
+      const monsterRadius = (monster.body?.width ?? monster.displayWidth) * 0.5;
+      const desiredDistance = targetRadius + monsterRadius + this.monsterAttackRange;
+
+      if (distance <= desiredDistance) {
+        monster.body.setVelocity(0, 0);
+        this.attemptMonsterAttack(monster, target);
+        return;
+      }
+
+      if (distance > 0) {
+        monster.setFlipX(direction.x > 0);
+        direction.normalize();
+      }
       monster.body.setVelocity(direction.x * speedValue, direction.y * speedValue);
     });
   }
 
   getMonsterTarget(monster) {
-    if (this.companion.visible && this.companion.body.enable) {
+    const companionState = this.companion.getData("state");
+    const companionAttackLocked =
+      companionState === "attack-approach" || companionState === "attack-return";
+    if (this.companion.visible && this.companion.body.enable && !companionAttackLocked) {
       const distHelper = Phaser.Math.Distance.Between(
         monster.x,
         monster.y,
@@ -1203,7 +1256,7 @@ export default class DesertRuinScene extends Phaser.Scene {
         this.hideCompanion();
         return;
       }
-      this.moveCompanionToward(this.player.x, this.player.y, this.helperSpeed);
+      this.moveCompanionToward(this.player.x, this.player.y, this.helperSpeed * 2);
       return;
     }
 
@@ -1212,10 +1265,31 @@ export default class DesertRuinScene extends Phaser.Scene {
       return;
     }
 
+    if (state === "returning") {
+      const followPos = this.getCompanionFollowPosition();
+      const distance = Phaser.Math.Distance.Between(
+        this.companion.x,
+        this.companion.y,
+        followPos.x,
+        followPos.y
+      );
+      if (distance <= this.helperFollowDistance) {
+        this.companion.body.setVelocity(0, 0);
+        this.companion.setData("state", "cooldown");
+        return;
+      }
+      this.setCompanionVisual("running");
+      this.moveCompanionToward(followPos.x, followPos.y, this.helperSpeed);
+      return;
+    }
+
     if (state === "cooldown") {
       const nextHitAt = this.companion.getData("nextHitAt") || 0;
       if (this.time.now >= nextHitAt) {
         this.companion.setData("state", "follow");
+      } else {
+        this.followCompanion();
+        return;
       }
     }
 
@@ -1230,7 +1304,19 @@ export default class DesertRuinScene extends Phaser.Scene {
       if (this.time.now >= nextHitAt && state !== "cooldown") {
         this.setCompanionDetected(target);
         if (this.canStartDetectedChase()) {
-          this.startCompanionAttack(target);
+          const distance = Phaser.Math.Distance.Between(
+            this.companion.x,
+            this.companion.y,
+            target.x,
+            target.y
+          );
+          if (distance <= this.helperAttackRange) {
+            this.startCompanionAttack(target);
+            return;
+          }
+          this.setCompanionVisual("running");
+          this.moveCompanionToward(target.x, target.y, this.helperSpeed);
+          return;
         }
       } else {
         this.setCompanionDetected(target);
@@ -1245,7 +1331,9 @@ export default class DesertRuinScene extends Phaser.Scene {
   startCompanionAttack(target) {
     this.companion.setData("state", "attack-approach");
     this.companion.setData("target", target);
+    this.companion.setData("attackStart", { x: this.companion.x, y: this.companion.y });
     this.setCompanionVisual("attacking");
+    this.stopCompanionRetreatBlink();
     if (target) {
       this.companion.setFlipX(target.x < this.companion.x);
     }
@@ -1280,7 +1368,7 @@ export default class DesertRuinScene extends Phaser.Scene {
   }
 
   startCompanionReturn() {
-    const followPos = this.getCompanionFollowPosition();
+    const followPos = this.companion.getData("attackStart") || this.getCompanionFollowPosition();
     this.companion.setData("state", "attack-return");
     this.setCompanionVisual("running");
     if (this.companionAttackTween) {
@@ -1292,8 +1380,11 @@ export default class DesertRuinScene extends Phaser.Scene {
       y: followPos.y,
       duration: this.helperReturnDuration,
       onComplete: () => {
-        this.companion.setData("state", "cooldown");
-        this.companion.setData("nextHitAt", this.time.now + this.helperAttackCooldown);
+        const now = this.time.now;
+        this.companion.setData("state", "returning");
+        this.companion.setData("nextHitAt", now + this.helperAttackCooldown);
+        this.companion.setData("invulnerableUntil", now + this.helperInvulnDuration);
+        this.companion.setData("attackStart", null);
       },
     });
   }
@@ -1364,12 +1455,14 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.companion.setVisible(false);
     this.companion.body.setEnable(false);
     this.companion.setPosition(this.player.x, this.player.y);
+    this.companion.clearTint();
     this.companionRespawnAt = this.time.now + this.helperHideDuration;
     this.updateItemUI();
     this.time.delayedCall(this.helperHideDuration, () => {
       if (this.isGameOver || this.isComplete) return;
       const followPos = this.getCompanionFollowPosition();
       this.companion.clearTint();
+      this.stopCompanionRetreatBlink();
       this.companion.setVisible(true);
       this.companion.body.setEnable(true);
       this.companion.setPosition(followPos.x, followPos.y);
@@ -1384,9 +1477,12 @@ export default class DesertRuinScene extends Phaser.Scene {
   damageCompanion() {
     if (!this.companion.visible || !this.companion.body.enable) return;
     if (this.companionHealth <= 0) return;
+    const now = this.time.now;
+    if (now < (this.companion.getData("invulnerableUntil") || 0)) return;
     this.companionHealth = 0;
     this.updateItemUI();
     this.flashEntity(this.companion, 0xff7a7a);
+    this.startCompanionRetreatBlink();
     if (this.sfx) {
       this.sfx.companionFear.play();
     }
@@ -1396,6 +1492,42 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.companion.setData("state", "retreating");
     this.companion.setData("target", null);
     this.companion.setData("retreatUntil", 0);
+  }
+
+  startCompanionRetreatBlink() {
+    this.stopCompanionRetreatBlink();
+    this.companion.setData("retreatBlinking", true);
+    const blink = this.time.addEvent({
+      delay: 120,
+      loop: true,
+      callback: () => {
+        const isRed = this.companion.getData("blinkRed") || false;
+        if (isRed) {
+          this.companion.clearTint();
+        } else {
+          this.companion.setTint(0xff4d4d);
+        }
+        this.companion.setData("blinkRed", !isRed);
+      },
+    });
+    this.companion.setData("blinkEvent", blink);
+  }
+
+  stopCompanionRetreatBlink() {
+    const blinkEvent = this.companion.getData("blinkEvent");
+    if (blinkEvent) {
+      blinkEvent.remove();
+      this.companion.setData("blinkEvent", null);
+    }
+    const blinkTween = this.companion.getData("blinkTween");
+    if (blinkTween) {
+      blinkTween.stop();
+      this.companion.setData("blinkTween", null);
+    }
+    this.companion.setData("blinkRed", false);
+    this.companion.setAlpha(1);
+    this.companion.setData("retreatBlinking", false);
+    this.companion.clearTint();
   }
 
   updateCompanionUI() {
