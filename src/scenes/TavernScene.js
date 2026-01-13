@@ -125,7 +125,7 @@ export default class TavernScene extends Phaser.Scene {
     return [
       { text: "Willkommen in meiner Taverne, Sir Ritter!" },
       {
-        text: "Willst du heilenden Honigsaft kaufen?",
+        text: "Willst du Honigsaft kaufen? Er heilt dich und deinen Begleiter um ein Herz!",
         options: [{ key: "K", label: "[K] kaufen", onSelect: () => this.buyHoney(), keepOpen: true }],
       },
     ];

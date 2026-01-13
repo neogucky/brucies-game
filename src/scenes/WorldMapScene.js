@@ -42,17 +42,20 @@ export default class WorldMapScene extends Phaser.Scene {
 
   create() {
     this.addBackground();
-    this.drawPaths();
     this.createNodes();
+    this.drawPaths();
     this.createPlayerMarker();
     this.createUI();
     playMusic(this, "music-world");
     const saveData = this.registry.get("saveData") || {};
+    this.health = saveData.health ?? 5;
+    this.maxHealth = 5;
+    this.consumables = { ...(saveData.consumables || {}) };
     this.hud = new TopHud(this, {
       coins: saveData.coins ?? 0,
-      health: saveData.health ?? 5,
-      maxHealth: 5,
-      consumables: saveData.consumables || {},
+      health: this.health,
+      maxHealth: this.maxHealth,
+      consumables: this.consumables,
       activeDisabled: true,
       showCompanion: true,
       companionHealth: 1,
@@ -62,6 +65,7 @@ export default class WorldMapScene extends Phaser.Scene {
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys("W,A,S,D");
     this.input.keyboard.on("keydown-ENTER", () => this.startCurrentLevel());
+    this.input.keyboard.on("keydown-T", () => this.useConsumable());
     this.handleKeyDown = (event) => {
       if (event.code === "Escape") {
         this.time.delayedCall(0, () => {
@@ -80,16 +84,19 @@ export default class WorldMapScene extends Phaser.Scene {
     const bg = this.add.image(480, 300, "worldmap-bg");
     const scale = Math.max(960 / bg.width, 600 / bg.height);
     bg.setScale(scale);
+    bg.setDepth(-2);
   }
 
   drawPaths() {
     const graphics = this.add.graphics();
+    graphics.setDepth(-1);
     graphics.lineStyle(4, 0x9a7c56, 1);
     for (let i = 0; i < NODES.length; i += 1) {
       const node = NODES[i];
       Object.values(node.neighbors).forEach((neighborId) => {
         const neighbor = NODES.find((item) => item.id === neighborId);
         if (!neighbor) return;
+        if (!this.unlocked.has(node.id) || !this.unlocked.has(neighbor.id)) return;
         graphics.strokeLineShape(
           new Phaser.Geom.Line(
             node.x,
@@ -273,5 +280,30 @@ export default class WorldMapScene extends Phaser.Scene {
     } else if (this.currentNode.id === "Taverne") {
       this.scene.start("TavernScene");
     }
+  }
+
+  useConsumable() {
+    if (!this.hud) return;
+    const result = this.hud.tryUseHoney({
+      count: this.consumables?.honey ?? 0,
+      health: this.health,
+      maxHealth: this.maxHealth,
+      companionHealth: 1,
+      companionRespawnAt: 0,
+    });
+    if (!result.consumed) return;
+    this.health = result.health;
+    this.consumables.honey = result.count;
+    const saveData = this.registry.get("saveData") || {};
+    const nextSave = {
+      ...saveData,
+      health: this.health,
+      consumables: {
+        ...saveData.consumables,
+        honey: this.consumables.honey,
+      },
+    };
+    this.registry.set("saveData", nextSave);
+    saveProgress(nextSave);
   }
 }

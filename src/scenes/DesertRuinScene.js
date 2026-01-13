@@ -65,6 +65,12 @@ export default class DesertRuinScene extends Phaser.Scene {
       if (!this.skipShutdownSave) {
         this.saveInventory();
       }
+      this.activeDigSounds?.forEach((digSound) => {
+        digSound.stop();
+        digSound.destroy();
+      });
+      this.activeDigSounds?.clear();
+      this.sound.stopByKey?.("sfx-monster-dig");
     });
   }
 
@@ -131,6 +137,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.swordSwingId = 0;
     this.companionHealth = 1;
     this.companionRespawnAt = 0;
+    this.activeDigSounds = new Set();
 
     if (this.monsterSpawnEvent) {
       this.monsterSpawnEvent.remove(false);
@@ -471,6 +478,7 @@ export default class DesertRuinScene extends Phaser.Scene {
       const digSound = this.sound.add("sfx-monster-dig", { loop: true, volume: 0.6 });
       digSound.play();
       monster.setData("digSound", digSound);
+      this.activeDigSounds.add(digSound);
     }
     this.monsters.add(monster);
 
@@ -490,6 +498,7 @@ export default class DesertRuinScene extends Phaser.Scene {
             digSound.stop();
             digSound.destroy();
             monster.setData("digSound", null);
+            this.activeDigSounds.delete(digSound);
           }
         }
       },
@@ -601,22 +610,28 @@ export default class DesertRuinScene extends Phaser.Scene {
   }
 
   useConsumable() {
-    if (!this.consumables || this.consumables.honey <= 0) return;
-    const companionNeedsHeal = this.companionHealth <= 0 && this.companionRespawnAt > 0;
-    if (this.health >= this.maxHealth && !companionNeedsHeal) return;
-    this.consumables.honey -= 1;
-    this.health = Math.min(this.maxHealth, this.health + 1);
-    if (companionNeedsHeal) {
-      this.companionHealth = 1;
-      this.companionRespawnAt = 0;
+    if (!this.hud) return;
+    const result = this.hud.tryUseHoney({
+      count: this.consumables?.honey ?? 0,
+      health: this.health,
+      maxHealth: this.maxHealth,
+      companionHealth: this.companionHealth,
+      companionRespawnAt: this.companionRespawnAt,
+    });
+    if (!result.consumed) return;
+    this.health = result.health;
+    this.companionHealth = result.companionHealth;
+    this.companionRespawnAt = result.companionRespawnAt;
+    this.consumables.honey = result.count;
+    if (this.companionHealth > 0 && this.companionRespawnAt === 0 && !this.companion.visible) {
       this.companion.clearTint();
+      this.stopCompanionRetreatBlink();
       this.companion.setVisible(true);
       this.companion.body.setEnable(true);
       const followPos = this.getCompanionFollowPosition();
       this.companion.setPosition(followPos.x, followPos.y);
       this.companion.setData("state", "follow");
       this.setCompanionVisual("running");
-      this.stopCompanionRetreatBlink();
     }
     this.updateHearts();
     this.updateItemUI();
@@ -661,6 +676,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     if (digSound) {
       digSound.stop();
       digSound.destroy();
+      this.activeDigSounds.delete(digSound);
     }
     this.destroyMonsterBar(monster);
     if (this.companion.getData("target") === monster) {

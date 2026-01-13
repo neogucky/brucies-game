@@ -4,10 +4,11 @@ export default class TopHud {
     this.options = options;
     this.items = {};
     this.hearts = [];
+    this.consumableCount = options.consumables?.honey ?? 0;
     this.create();
     this.setCoins(options.coins ?? 0);
     this.setHealth(options.health ?? options.maxHealth ?? 5, options.maxHealth ?? 5);
-    this.setConsumableCount(options.consumables?.honey ?? 0);
+    this.setConsumableCount(this.consumableCount);
     if (options.showCompanion) {
       this.setCompanionStatus({
         health: options.companionHealth ?? 1,
@@ -131,6 +132,7 @@ export default class TopHud {
   }
 
   setConsumableCount(count) {
+    this.consumableCount = count;
     const label = count > 0 ? "Honigsaft" : "Leer";
     this.items.consumable.label.setText(label);
     this.items.consumable.count.setText(count > 0 ? `x${count}` : "");
@@ -163,5 +165,29 @@ export default class TopHud {
       const width = (companion.barWidth - 4) * respawnRatio;
       companion.barFill.displayWidth = Math.max(2, width);
     }
+  }
+
+  tryUseHoney({ count, health, maxHealth, companionHealth, companionRespawnAt }) {
+    const companionNeedsHeal = companionHealth <= 0 && companionRespawnAt > 0;
+    if (count <= 0) {
+      return { consumed: false, count, health, companionHealth, companionRespawnAt };
+    }
+    if (health >= maxHealth && !companionNeedsHeal) {
+      return { consumed: false, count, health, companionHealth, companionRespawnAt };
+    }
+    const nextCount = count - 1;
+    const nextHealth = Math.min(maxHealth, health + 1);
+    const nextCompanionHealth = companionNeedsHeal ? 1 : companionHealth;
+    const nextCompanionRespawnAt = companionNeedsHeal ? 0 : companionRespawnAt;
+    this.setConsumableCount(nextCount);
+    this.setHealth(nextHealth, maxHealth);
+    this.scene.events.emit("consumable-used", { type: "honey" });
+    return {
+      consumed: true,
+      count: nextCount,
+      health: nextHealth,
+      companionHealth: nextCompanionHealth,
+      companionRespawnAt: nextCompanionRespawnAt,
+    };
   }
 }
