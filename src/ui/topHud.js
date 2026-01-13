@@ -135,12 +135,20 @@ export default class TopHud {
     this.items.consumable.label.setText(label);
     this.items.consumable.count.setText(count > 0 ? `x${count}` : "");
     this.items.consumable.icon.setAlpha(count > 0 ? 1 : 0.25);
+    this.items.consumable.hint.setColor(count > 0 ? "#4b3824" : "#8b8373");
   }
 
   setItemDisabled(key, disabled) {
     const item = this.items[key];
     if (!item) return;
-    item.overlay.setVisible(disabled);
+    item.overlay.setVisible(false);
+    const alpha = disabled ? 0.25 : 1;
+    item.icon.setAlpha(alpha);
+    if (key === "active") {
+      item.label.setText("");
+    }
+    item.label.setColor(disabled ? "#8b8373" : "#4b3824");
+    item.hint.setColor(disabled ? "#8b8373" : "#4b3824");
   }
 
   setCompanionStatus({ health, respawnRatio }) {
