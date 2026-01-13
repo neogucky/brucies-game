@@ -90,7 +90,14 @@ export default class WorldMapScene extends Phaser.Scene {
       Object.values(node.neighbors).forEach((neighborId) => {
         const neighbor = NODES.find((item) => item.id === neighborId);
         if (!neighbor) return;
-        graphics.strokeLineShape(new Phaser.Geom.Line(node.x, node.y, neighbor.x, neighbor.y));
+        graphics.strokeLineShape(
+          new Phaser.Geom.Line(
+            node.x,
+            node.y + 20,
+            neighbor.x,
+            neighbor.y + 20
+          )
+        );
       });
     }
   }
@@ -107,9 +114,9 @@ export default class WorldMapScene extends Phaser.Scene {
       if (node.id === "Wuestenruine" && isUnlocked) {
         const isCompleted = saveData.completedLevels?.includes("Wuestenruine");
         const ruinKey = isCompleted
-          ? "desert-ruin-repaired"
-          : "desert-ruin";
-        icon = this.add.image(node.x, node.y - 40, ruinKey).setScale(0.26);
+          ? "worldmap-ruin-repaired"
+          : "worldmap-ruin";
+        icon = this.add.image(node.x, node.y, ruinKey).setScale(0.312);
         if (isCompleted && !saveData.repairedRuinShown) {
           this.animateRepairedRuin(icon);
           const nextSave = {
@@ -120,9 +127,9 @@ export default class WorldMapScene extends Phaser.Scene {
           saveProgress(nextSave);
         }
       } else if (node.id === "Taverne" && isUnlocked) {
-        icon = this.add.image(node.x, node.y - 38, "tavern-map").setScale(0.2);
+        icon = this.add.image(node.x, node.y, "tavern-map").setScale(0.2);
       } else {
-        icon = this.add.image(node.x, node.y - 40, "desert-ruin").setScale(0.234);
+        icon = this.add.image(node.x, node.y, "worldmap-ruin").setScale(0.281);
         icon.setAlpha(isUnlocked ? 1 : 0.35);
       }
 
@@ -145,7 +152,7 @@ export default class WorldMapScene extends Phaser.Scene {
     const currentId = saveData.currentLevel || "Wuestenruine";
     const startNode = NODES.find((node) => node.id === currentId) || NODES[0];
     this.currentNode = startNode;
-    this.playerMarker = this.add.image(startNode.x, startNode.y - 18, "knight-standing");
+    this.playerMarker = this.add.image(startNode.x, startNode.y + 2, "knight-standing");
     this.playerMarker.setScale(0.42);
     this.companionMarker = this.add.image(
       startNode.x - 18,
@@ -232,7 +239,7 @@ export default class WorldMapScene extends Phaser.Scene {
     this.tweens.add({
       targets: this.playerMarker,
       x: nextNode.x,
-      y: nextNode.y - 18,
+      y: nextNode.y + 2,
       duration: 400,
       onComplete: () => {
         this.currentNode = nextNode;
