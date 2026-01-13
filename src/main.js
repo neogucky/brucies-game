@@ -1,7 +1,8 @@
 import BootScene from "./scenes/BootScene.js";
 import MainMenuScene from "./scenes/MainMenuScene.js";
-import LevelSelectScene from "./scenes/LevelSelectScene.js";
 import DesertRuinScene from "./scenes/DesertRuinScene.js";
+import WorldMapScene from "./scenes/WorldMapScene.js";
+import TavernScene from "./scenes/TavernScene.js";
 
 const config = {
   type: Phaser.AUTO,
@@ -16,7 +17,7 @@ const config = {
       debug: false,
     },
   },
-  scene: [BootScene, MainMenuScene, LevelSelectScene, DesertRuinScene],
+  scene: [BootScene, MainMenuScene, WorldMapScene, DesertRuinScene, TavernScene],
 };
 
 new Phaser.Game(config);

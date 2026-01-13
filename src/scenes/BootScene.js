@@ -16,7 +16,15 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("knight-standing", "assets/knight/knight_standing.png");
     this.load.image("knight-hitting", "assets/knight/knight_hitting.png");
     this.load.image("desert-ruin", "assets/ruin.png");
+    this.load.image("desert-ruin-repaired", "assets/ruin_repaired.png");
     this.load.image("desert-bg", "assets/background/desert.png");
+    this.load.image("tavern-map", "assets/tavern.png");
+    this.load.image("tavern-bg", "assets/background/tavern.png");
+    this.load.image("tavern-loading", "assets/tavern/tavern_loading.png");
+    this.load.image("item-sword", "assets/items/sword.png");
+    this.load.image("item-shield", "assets/items/shield.png");
+    this.load.image("item-honey", "assets/items/honey-juice.png");
+    this.load.image("item-companion", "assets/items/companion.png");
     this.load.image("companion-running", "assets/companion/companien_running.png");
     this.load.image("companion-searching", "assets/companion/companion_searching.png");
     this.load.image("companion-detected", "assets/companion/companion_detected.png");
@@ -37,6 +45,8 @@ export default class BootScene extends Phaser.Scene {
     this.load.audio("sfx-companion-fear", "assets/sounds/companion_fear.mp3");
     this.load.audio("sfx-gameover", "assets/sounds/gameover.wav");
     this.load.audio("music-desert", "assets/sounds/music-desert.mp3");
+    this.load.audio("music-world", "assets/sounds/music-world.mp3");
+    this.load.audio("music-tavern", "assets/sounds/music-tavern.mp3");
   }
 
   create() {

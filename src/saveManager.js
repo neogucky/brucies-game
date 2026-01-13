@@ -3,6 +3,13 @@ const STORAGE_KEY = "brucies_game_save_v1";
 export const defaultSave = {
   currentLevel: "Wuestenruine",
   unlockedLevels: ["Wuestenruine"],
+  completedLevels: [],
+  repairedRuinShown: false,
+  health: 5,
+  coins: 0,
+  consumables: {
+    honey: 0,
+  },
   lastPlayed: null,
 };
 

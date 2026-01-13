@@ -1,4 +1,5 @@
 import { saveProgress } from "../saveManager.js";
+import { playMusic } from "../soundManager.js";
 
 export default class DesertRuinScene extends Phaser.Scene {
   constructor() {
@@ -32,6 +33,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.attackCooldown = 350;
     this.lastAttackAt = 0;
     this.swordSwingId = 0;
+    this.skipShutdownSave = false;
   }
 
   create() {
@@ -47,12 +49,19 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.createSword();
     this.createRespawnTimers();
     this.createAudio();
+    playMusic(this, "music-desert");
     this.showStartScreen();
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys("W,A,S,D");
     this.input.keyboard.on("keydown-SPACE", () => this.swingSword());
-    this.input.keyboard.on("keydown-ESC", () => this.scene.start("MainMenuScene"));
+    this.input.keyboard.on("keydown-T", () => this.useConsumable());
+    this.input.keyboard.on("keydown-ESC", () => this.openExitPrompt());
+    this.events.once("shutdown", () => {
+      if (!this.skipShutdownSave) {
+        this.saveInventory();
+      }
+    });
   }
 
   addBackground() {
@@ -62,7 +71,7 @@ export default class DesertRuinScene extends Phaser.Scene {
   }
 
   createPlayer() {
-    this.player = this.add.image(480, 420, "knight-standing").setOrigin(0.5);
+    this.player = this.add.image(480, 360, "knight-standing").setOrigin(0.5);
     this.player.setScale(0.5);
     this.player.setDepth(5);
     this.physics.add.existing(this.player);
@@ -78,7 +87,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     const startOffsetX = 36;
     const startOffsetY = -22;
     this.companion = this.add
-      .image(480 + startOffsetX, 420 + startOffsetY, "companion-running")
+      .image(480 + startOffsetX, 360 + startOffsetY, "companion-running")
       .setOrigin(0.5);
     this.companion.setScale(0.545);
     this.companion.setDepth(5);
@@ -102,11 +111,18 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.isComplete = false;
     this.ruinRepaired = false;
     this.canPromptRuin = true;
-    this.health = this.maxHealth;
-    this.coinsCollected = 0;
+    const saveData = this.registry.get("saveData") || {};
+    this.health = saveData.health ?? this.maxHealth;
+    this.coinsCollected = saveData.coins ?? 0;
+    this.consumables = {
+      honey: saveData.consumables?.honey ?? 0,
+    };
+    this.levelCompleted = (saveData.completedLevels || []).includes("Wuestenruine");
     this.lastAttackAt = 0;
     this.swordDidHit = false;
     this.swordSwingId = 0;
+    this.companionHealth = 1;
+    this.companionRespawnAt = 0;
 
     if (this.monsterSpawnEvent) {
       this.monsterSpawnEvent.remove(false);
@@ -166,6 +182,7 @@ export default class DesertRuinScene extends Phaser.Scene {
       if (this.health < this.maxHealth) {
         this.health = Math.min(this.maxHealth, this.health + 1);
         this.updateHearts();
+        this.saveInventory();
       }
     });
 
@@ -210,35 +227,36 @@ export default class DesertRuinScene extends Phaser.Scene {
   }
 
   createUI() {
-    this.add
-      .text(30, 30, "Level 1: Wüstenpfad", {
-        fontFamily: "Trebuchet MS, sans-serif",
-        fontSize: "22px",
-        color: "#59422a",
-      })
-      .setOrigin(0, 0.5)
-      .setStroke("#f2e3c5", 4);
-
-    this.coinIcon = this.add.image(28, 60, "ui-coin").setOrigin(0.5);
+    this.coinIcon = this.add.image(28, 30, "ui-coin").setOrigin(0.5);
     this.coinIcon.setScale(0.7);
     this.coinText = this.add
-      .text(50, 60, "Münzen: 0", {
+      .text(50, 30, `Münzen: ${this.coinsCollected}`, {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "18px",
-        color: "#59422a",
+        color: "#FFFFFF",
       })
       .setOrigin(0, 0.5)
-      .setStroke("#f2e3c5", 3);
+      .setStroke("#433320", 3);
 
+    this.createItemUI();
     this.createHeartsUI();
 
     this.add
-      .text(30, 560, "Pfeile bewegen, Leertaste schlägt zu. Früchte heilen.", {
+      .text(30, 560, "Pfeiltasten zum bewegen, Früchte heilen, Schlag Truhen für Münzen", {
+        fontFamily: "Trebuchet MS, sans-serif",
+        fontSize: "14px",
+        color: "#FFFFFF",
+      })
+      .setOrigin(0, 0.5)
+      .setStroke("#433320", 2);
+
+    this.add
+      .text(950, 590, "Wüstenruine", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "16px",
         color: "#6c5134",
       })
-      .setOrigin(0, 0.5)
+      .setOrigin(1, 1)
       .setStroke("#f2e3c5", 2);
 
     this.statusText = this.add
@@ -287,8 +305,6 @@ export default class DesertRuinScene extends Phaser.Scene {
       success: this.sound.add("sfx-success"),
       swordSlash: this.sound.add("sfx-sword-slash"),
     };
-    this.music = this.sound.add("music-desert", { loop: true, volume: 0.35 });
-    this.music.play();
   }
 
   showStartScreen() {
@@ -362,6 +378,104 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.updateHearts();
   }
 
+  createItemUI() {
+    const frameWidth = 52;
+    const frameHeight = 52;
+    const spacing = 80;
+    const startX = 360;
+    const y = 36;
+
+    this.itemUI = {};
+    const items = [
+      { key: "active", label: "Schwert", hint: "Leertaste", icon: "item-sword" },
+      { key: "passive", label: "Schild", hint: "Passiv", icon: "item-shield" },
+      { key: "consumable", label: "Leer", hint: "T", icon: "item-honey" },
+    ];
+
+    items.forEach((item, index) => {
+      const x = startX + index * spacing;
+      const frame = this.add.rectangle(x, y, frameWidth, frameHeight, 0xf2e3c5, 0.8);
+      frame.setStrokeStyle(2, 0x8a6b44);
+      const label = this.add
+        .text(x, y - 4, item.label, {
+          fontFamily: "Trebuchet MS, sans-serif",
+          fontSize: "12px",
+          color: "#4b3824",
+        })
+        .setOrigin(0.5);
+      const icon = this.add.image(x, y, item.icon).setScale(0.26);
+      const hint = this.add
+        .text(x, y + 36, item.hint, {
+          fontFamily: "Trebuchet MS, sans-serif",
+          fontSize: "12px",
+          color: "#4b3824",
+        })
+        .setOrigin(0.5);
+      const count = this.add
+        .text(x + 18, y - 18, "", {
+          fontFamily: "Trebuchet MS, sans-serif",
+          fontSize: "12px",
+          color: "#ffffff",
+        })
+        .setOrigin(0.5);
+
+      this.itemUI[item.key] = { frame, label, hint, count, icon };
+    });
+
+    const companionX = startX + items.length * spacing;
+    const companionFrame = this.add.rectangle(
+      companionX,
+      y,
+      frameWidth,
+      frameHeight,
+      0xf2e3c5,
+      0.8
+    );
+    companionFrame.setStrokeStyle(2, 0x8a6b44);
+    const companionIcon = this.add
+      .image(companionX, y, "item-companion")
+      .setScale(0.26);
+    const companionHeart = this.add
+      .image(companionX, y + 40, "ui-heart")
+      .setScale(0.6);
+    const barWidth = 46;
+    const barHeight = 6;
+    const companionBarBg = this.add
+      .rectangle(companionX, y + 40, barWidth, barHeight, 0x3a2a1a, 0.7)
+      .setVisible(false);
+    const companionBarFill = this.add
+      .rectangle(companionX - barWidth / 2, y + 40, 2, barHeight - 2, 0xf2e3c5, 0.9)
+      .setOrigin(0, 0.5)
+      .setVisible(false);
+    this.itemUI.companion = {
+      frame: companionFrame,
+      icon: companionIcon,
+      heart: companionHeart,
+      barBg: companionBarBg,
+      barFill: companionBarFill,
+      barWidth,
+    };
+
+    this.updateItemUI();
+  }
+
+  updateItemUI() {
+    if (!this.itemUI) return;
+    const honeyCount = this.consumables?.honey ?? 0;
+    const consumableLabel = honeyCount > 0 ? "Honigsaft" : "Leer";
+    this.itemUI.consumable.label.setText(consumableLabel);
+    this.itemUI.consumable.count.setText(honeyCount > 0 ? `x${honeyCount}` : "");
+    this.itemUI.consumable.icon.setAlpha(honeyCount > 0 ? 1 : 0.25);
+
+    if (this.itemUI.companion) {
+      const hasHealth = this.companionHealth > 0;
+      this.itemUI.companion.heart.setVisible(hasHealth);
+      this.itemUI.companion.heart.setTexture(hasHealth ? "ui-heart" : "ui-heart-empty");
+      this.itemUI.companion.barBg.setVisible(!hasHealth);
+      this.itemUI.companion.barFill.setVisible(!hasHealth);
+    }
+  }
+
   createHeartIcon(x, y) {
     const heart = this.add.image(x, y, "ui-heart");
     heart.setScale(0.7);
@@ -418,6 +532,9 @@ export default class DesertRuinScene extends Phaser.Scene {
     const targetWidth = 600;
     const scale = (targetWidth / this.ruinSprite.width) * 0.5;
     this.ruinSprite.setScale(scale);
+    if (this.levelCompleted) {
+      this.ruinSprite.setTexture("desert-ruin-repaired");
+    }
 
     const entranceWidth = this.ruinSprite.displayWidth * 0.36;
     const entranceHeight = this.ruinSprite.displayHeight * 0.72;
@@ -530,8 +647,7 @@ export default class DesertRuinScene extends Phaser.Scene {
       this.chestSlots[slot] = false;
     }
 
-    this.coinsCollected += this.coinsPerChest;
-    this.coinText.setText(`Münzen: ${this.coinsCollected}`);
+    this.addCoins(this.coinsPerChest);
     if (this.sfx) {
       this.sfx.coin.play();
     }
@@ -551,6 +667,45 @@ export default class DesertRuinScene extends Phaser.Scene {
         chest.destroy();
       }
     });
+  }
+
+  addCoins(amount) {
+    this.coinsCollected += amount;
+    this.coinText.setText(`Münzen: ${this.coinsCollected}`);
+    this.saveInventory();
+  }
+
+  spendCoins(amount) {
+    if (this.coinsCollected < amount) return false;
+    this.coinsCollected -= amount;
+    this.coinText.setText(`Münzen: ${this.coinsCollected}`);
+    this.saveInventory();
+    return true;
+  }
+
+  saveInventory() {
+    const saveData = this.registry.get("saveData") || {};
+    const nextSave = {
+      ...saveData,
+      health: this.health,
+      coins: this.coinsCollected,
+      consumables: {
+        ...saveData.consumables,
+        ...this.consumables,
+      },
+    };
+    this.registry.set("saveData", nextSave);
+    saveProgress(nextSave);
+  }
+
+  useConsumable() {
+    if (!this.consumables || this.consumables.honey <= 0) return;
+    if (this.health >= this.maxHealth) return;
+    this.consumables.honey -= 1;
+    this.health = Math.min(this.maxHealth, this.health + 1);
+    this.updateHearts();
+    this.updateItemUI();
+    this.saveInventory();
   }
 
   registerSwordHit() {
@@ -679,6 +834,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.health = Math.max(0, this.health - amount);
     this.updateHearts();
     this.flashDamage();
+    this.saveInventory();
 
     if (this.health <= 0) {
       this.gameOver();
@@ -747,7 +903,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.lostScreen = this.add.image(480, 300, "desert-lost").setDepth(25);
     this.fitScreenImage(this.lostScreen, 1);
     this.gameOverHint = this.add
-      .text(480, 545, "Enter für Neustart", {
+      .text(480, 540, "Enter für Neustart\nEsc für Weltkarte", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "18px",
         color: "#f7edd6",
@@ -779,14 +935,27 @@ export default class DesertRuinScene extends Phaser.Scene {
     saveProgress(nextSave);
 
     this.input.keyboard.once("keydown-ENTER", () => {
+      const saveData = this.registry.get("saveData");
+      if (saveData) {
+        const nextSave = {
+          ...saveData,
+          health: this.maxHealth,
+        };
+        this.registry.set("saveData", nextSave);
+        saveProgress(nextSave);
+      }
+      this.skipShutdownSave = true;
       this.scene.restart();
+    });
+    this.input.keyboard.once("keydown-ESC", () => {
+      this.scene.start("WorldMapScene");
     });
   }
 
   showEndScreen() {
     this.isComplete = true;
     this.player.body.setVelocity(0, 0);
-    this.statusText.setText("Enter für die Levelauswahl");
+    this.statusText.setText("Enter für die Weltkarte");
     this.endScreen = this.add.image(480, 300, "desert-end").setDepth(25);
     this.fitScreenImage(this.endScreen, 1);
     this.physics.world.pause();
@@ -808,13 +977,28 @@ export default class DesertRuinScene extends Phaser.Scene {
     const nextSave = {
       ...saveData,
       currentLevel: "Wuestenruine",
-      unlockedLevels: Array.from(new Set([...saveData.unlockedLevels, "Wuestenruine"])),
+      unlockedLevels: Array.from(
+        new Set([...saveData.unlockedLevels, "Wuestenruine", "Taverne"])
+      ),
+      completedLevels: Array.from(
+        new Set([...(saveData.completedLevels || []), "Wuestenruine"])
+      ),
     };
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);
 
+    this.winHint = this.add
+      .text(480, 545, "Drücke Enter um zur Weltkarte zu kommen", {
+        fontFamily: "Trebuchet MS, sans-serif",
+        fontSize: "18px",
+        color: "#f7edd6",
+      })
+      .setOrigin(0.5)
+      .setDepth(31)
+      .setStroke("#3e6cc2", 3);
+
     this.input.keyboard.once("keydown-ENTER", () => {
-      this.scene.start("MainMenuScene");
+      this.scene.start("WorldMapScene");
     });
   }
 
@@ -824,10 +1008,12 @@ export default class DesertRuinScene extends Phaser.Scene {
   }
 
   openRuinPrompt() {
+    if (this.isPromptActive) return;
     this.isPaused = true;
     this.player.body.setVelocity(0, 0);
     this.physics.world.pause();
     this.promptBox.setVisible(true);
+    this.isPromptActive = true;
 
     let onYes = null;
     let onNo = null;
@@ -835,11 +1021,25 @@ export default class DesertRuinScene extends Phaser.Scene {
       if (onYes) this.input.keyboard.off("keydown-J", onYes);
       if (onNo) this.input.keyboard.off("keydown-N", onNo);
       this.promptBox.setVisible(false);
+      this.isPromptActive = false;
       if (resumeWorld) {
         this.physics.world.resume();
         this.isPaused = false;
       }
     };
+
+    if (this.levelCompleted) {
+      this.promptText.setText("Die Ruine wurde schon repariert!\nLevel verlassen?");
+      this.promptHint.setText("[J]a oder [N]ein");
+      const onNo = () => closePrompt(true);
+      const onYes = () => {
+        closePrompt(false);
+        this.scene.start("WorldMapScene");
+      };
+      this.input.keyboard.once("keydown-J", onYes);
+      this.input.keyboard.once("keydown-N", onNo);
+      return;
+    }
 
     if (this.coinsCollected < this.ruinCost) {
       this.promptText.setText(
@@ -855,12 +1055,42 @@ export default class DesertRuinScene extends Phaser.Scene {
 
     onNo = () => closePrompt(true);
     onYes = () => {
-      this.coinsCollected -= this.ruinCost;
-      this.coinText.setText(`Münzen: ${this.coinsCollected}`);
+      this.spendCoins(this.ruinCost);
       this.ruinRepaired = true;
       closePrompt(true);
       this.showEndScreen();
     };
+
+    this.input.keyboard.once("keydown-J", onYes);
+    this.input.keyboard.once("keydown-N", onNo);
+  }
+
+  openExitPrompt() {
+    if (this.isPromptActive || this.isComplete || this.isGameOver) return;
+    this.isPaused = true;
+    this.player.body.setVelocity(0, 0);
+    this.physics.world.pause();
+    this.promptBox.setVisible(true);
+    this.promptText.setText("Willst du das Level wirklich verlassen?");
+    this.promptHint.setText("[J]a oder [N]ein");
+    this.isPromptActive = true;
+
+    const closePrompt = (resumeWorld) => {
+      this.input.keyboard.off("keydown-J", onYes);
+      this.input.keyboard.off("keydown-N", onNo);
+      this.promptBox.setVisible(false);
+      this.isPromptActive = false;
+      if (resumeWorld) {
+        this.physics.world.resume();
+        this.isPaused = false;
+      }
+    };
+
+    const onYes = () => {
+      closePrompt(false);
+      this.scene.start("WorldMapScene");
+    };
+    const onNo = () => closePrompt(true);
 
     this.input.keyboard.once("keydown-J", onYes);
     this.input.keyboard.once("keydown-N", onNo);
@@ -889,6 +1119,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     }
 
     this.updateCompanion();
+    this.updateCompanionUI();
 
     const movementLength = Math.hypot(vx, vy);
     if (movementLength > 0) {
@@ -1137,6 +1368,8 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.companion.setVisible(false);
     this.companion.body.setEnable(false);
     this.companion.setPosition(this.player.x, this.player.y);
+    this.companionRespawnAt = this.time.now + this.helperHideDuration;
+    this.updateItemUI();
     this.time.delayedCall(this.helperHideDuration, () => {
       if (this.isGameOver || this.isComplete) return;
       const offset = this.companion.getData("offset") || { x: 12, y: -10 };
@@ -1146,11 +1379,16 @@ export default class DesertRuinScene extends Phaser.Scene {
       this.companion.setPosition(this.player.x + offset.x, this.player.y + offset.y);
       this.companion.setData("state", "follow");
       this.setCompanionVisual("running");
+      this.companionHealth = 1;
+      this.companionRespawnAt = 0;
+      this.updateItemUI();
     });
   }
 
   damageCompanion() {
     if (!this.companion.visible || !this.companion.body.enable) return;
+    if (this.companionHealth <= 0) return;
+    this.companionHealth = 0;
     this.flashEntity(this.companion, 0xff7a7a);
     if (this.sfx) {
       this.sfx.companionFear.play();
@@ -1161,6 +1399,16 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.companion.setData("state", "retreating");
     this.companion.setData("target", null);
     this.companion.setData("retreatUntil", 0);
+  }
+
+  updateCompanionUI() {
+    if (!this.itemUI || !this.itemUI.companion) return;
+    if (this.companionHealth > 0) return;
+    if (!this.companionRespawnAt) return;
+    const remaining = Math.max(0, this.companionRespawnAt - this.time.now);
+    const ratio = 1 - Math.min(1, remaining / this.helperHideDuration);
+    const width = (this.itemUI.companion.barWidth - 4) * ratio;
+    this.itemUI.companion.barFill.displayWidth = Math.max(2, width);
   }
 
   setCompanionDetected(target) {
@@ -1224,8 +1472,5 @@ export default class DesertRuinScene extends Phaser.Scene {
         sound.stop();
       }
     });
-    if (includeMusic && this.music && this.music.isPlaying) {
-      this.music.stop();
-    }
   }
 }
