@@ -1,33 +1,34 @@
 import { saveProgress } from "../saveManager.js";
 import { playMusic } from "../soundManager.js";
+import TopHud from "../ui/topHud.js";
 
 const NODES = [
   {
     id: "Wuestenruine",
     label: "Wüstenruine",
     x: 180,
-    y: 340,
+    y: 490,
     neighbors: { right: "Taverne" },
   },
   {
     id: "Taverne",
     label: "Taverne",
     x: 470,
-    y: 280,
+    y: 320,
     neighbors: { left: "Wuestenruine", right: "Ruinenpass" },
   },
   {
     id: "Ruinenpass",
     label: "Ruinenpass",
     x: 740,
-    y: 210,
+    y: 270,
     neighbors: { left: "Taverne", down: "Schattenhof" },
   },
   {
     id: "Schattenhof",
     label: "Schattenhof",
     x: 640,
-    y: 420,
+    y: 480,
     neighbors: { up: "Ruinenpass" },
   },
 ];
@@ -46,7 +47,17 @@ export default class WorldMapScene extends Phaser.Scene {
     this.createPlayerMarker();
     this.createUI();
     playMusic(this, "music-world");
-    this.createItemUI();
+    const saveData = this.registry.get("saveData") || {};
+    this.hud = new TopHud(this, {
+      coins: saveData.coins ?? 0,
+      health: saveData.health ?? 5,
+      maxHealth: 5,
+      consumables: saveData.consumables || {},
+      activeDisabled: true,
+      showCompanion: true,
+      companionHealth: 1,
+      companionRespawnRatio: 0,
+    });
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys("W,A,S,D");
@@ -55,8 +66,9 @@ export default class WorldMapScene extends Phaser.Scene {
   }
 
   addBackground() {
-    this.add.rectangle(480, 300, 960, 600, 0xefe3c7);
-    this.add.rectangle(480, 300, 900, 520, 0xe0d0ad).setAlpha(0.9);
+    const bg = this.add.image(480, 300, "worldmap-bg");
+    const scale = Math.max(960 / bg.width, 600 / bg.height);
+    bg.setScale(scale);
   }
 
   drawPaths() {
@@ -86,7 +98,7 @@ export default class WorldMapScene extends Phaser.Scene {
         const ruinKey = isCompleted
           ? "desert-ruin-repaired"
           : "desert-ruin";
-        icon = this.add.image(node.x, node.y - 40, ruinKey).setScale(0.2);
+        icon = this.add.image(node.x, node.y - 40, ruinKey).setScale(0.26);
         if (isCompleted && !saveData.repairedRuinShown) {
           this.animateRepairedRuin(icon);
           const nextSave = {
@@ -99,7 +111,7 @@ export default class WorldMapScene extends Phaser.Scene {
       } else if (node.id === "Taverne" && isUnlocked) {
         icon = this.add.image(node.x, node.y - 38, "tavern-map").setScale(0.2);
       } else {
-        icon = this.add.image(node.x, node.y - 40, "desert-ruin").setScale(0.18);
+        icon = this.add.image(node.x, node.y - 40, "desert-ruin").setScale(0.234);
         icon.setAlpha(isUnlocked ? 1 : 0.35);
       }
 
@@ -123,7 +135,13 @@ export default class WorldMapScene extends Phaser.Scene {
     const startNode = NODES.find((node) => node.id === currentId) || NODES[0];
     this.currentNode = startNode;
     this.playerMarker = this.add.image(startNode.x, startNode.y - 18, "knight-standing");
-    this.playerMarker.setScale(0.35);
+    this.playerMarker.setScale(0.42);
+    this.companionMarker = this.add.image(
+      startNode.x - 18,
+      startNode.y + 8,
+      "companion-running"
+    );
+    this.companionMarker.setScale(0.42);
   }
 
   createUI() {
@@ -131,7 +149,9 @@ export default class WorldMapScene extends Phaser.Scene {
       .text(40, 590, "Pfeile/WASD = Bewegen, Enter = Start, Esc = Menü", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "14px",
-        color: "#5b4a34",
+        color: "#ffffff",
+        stroke: "#3b2a17",
+        strokeThickness: 3,
       })
       .setOrigin(0, 1);
     this.lockText = this.add
@@ -146,7 +166,9 @@ export default class WorldMapScene extends Phaser.Scene {
       .text(950, 590, "Wüsten-Land", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "16px",
-        color: "#5b4a34",
+        color: "#ffffff",
+        stroke: "#3b2a17",
+        strokeThickness: 3,
       })
       .setOrigin(1, 1);
   }
@@ -230,6 +252,14 @@ export default class WorldMapScene extends Phaser.Scene {
     else if (right) this.tryMove("right");
     else if (up) this.tryMove("up");
     else if (down) this.tryMove("down");
+
+    if (this.companionMarker) {
+      const side = this.companionMarker.x >= this.playerMarker.x ? 1 : -1;
+      const targetX = this.playerMarker.x + side * 18;
+      const targetY = this.playerMarker.y + 17;
+      this.companionMarker.x = Phaser.Math.Linear(this.companionMarker.x, targetX, 0.12);
+      this.companionMarker.y = Phaser.Math.Linear(this.companionMarker.y, targetY, 0.12);
+    }
   }
 
   tryMove(direction) {
@@ -254,6 +284,14 @@ export default class WorldMapScene extends Phaser.Scene {
         this.isMoving = false;
       },
     });
+    if (this.companionMarker) {
+      this.tweens.add({
+        targets: this.companionMarker,
+        x: nextNode.x - 18,
+        y: nextNode.y - 6,
+        duration: 460,
+      });
+    }
   }
 
   startCurrentLevel() {

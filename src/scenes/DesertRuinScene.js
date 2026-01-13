@@ -1,5 +1,6 @@
 import { saveProgress } from "../saveManager.js";
 import { playMusic } from "../soundManager.js";
+import TopHud from "../ui/topHud.js";
 
 export default class DesertRuinScene extends Phaser.Scene {
   constructor() {
@@ -84,10 +85,8 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.player.setData("standingTexture", "knight-standing");
     this.player.setData("hitTexture", "knight-hitting");
 
-    const startOffsetX = 36;
-    const startOffsetY = -22;
     this.companion = this.add
-      .image(480 + startOffsetX, 360 + startOffsetY, "companion-running")
+      .image(480 + 24, 360 + 16, "companion-running")
       .setOrigin(0.5);
     this.companion.setScale(0.545);
     this.companion.setDepth(5);
@@ -96,12 +95,13 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.companion.body.setCollideWorldBounds(true);
     this.companion.setData("state", "follow");
     this.companion.setData("target", null);
-    this.companion.setData("offset", { x: startOffsetX, y: startOffsetY });
     this.companion.setData("nextHitAt", 0);
     this.companion.setData("retreatUntil", 0);
     this.companion.setData("baseColor", 0xffffff);
     this.companion.setData("animState", "running");
     this.companion.setData("detectedUntil", 0);
+    const followPos = this.getCompanionFollowPosition();
+    this.companion.setPosition(followPos.x, followPos.y);
     this.facing = new Phaser.Math.Vector2(1, 0);
   }
 
@@ -227,37 +227,34 @@ export default class DesertRuinScene extends Phaser.Scene {
   }
 
   createUI() {
-    this.coinIcon = this.add.image(28, 30, "ui-coin").setOrigin(0.5);
-    this.coinIcon.setScale(0.7);
-    this.coinText = this.add
-      .text(50, 30, `Münzen: ${this.coinsCollected}`, {
-        fontFamily: "Trebuchet MS, sans-serif",
-        fontSize: "18px",
-        color: "#FFFFFF",
-      })
-      .setOrigin(0, 0.5)
-      .setStroke("#433320", 3);
-
-    this.createItemUI();
-    this.createHeartsUI();
+    this.hud = new TopHud(this, {
+      coins: this.coinsCollected,
+      health: this.health,
+      maxHealth: this.maxHealth,
+      consumables: this.consumables,
+      activeDisabled: false,
+      showCompanion: true,
+      companionHealth: this.companionHealth,
+      companionRespawnRatio: 0,
+    });
 
     this.add
       .text(30, 560, "Pfeiltasten zum bewegen, Früchte heilen, Schlag Truhen für Münzen", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "14px",
-        color: "#FFFFFF",
+        color: "#ffffff",
       })
       .setOrigin(0, 0.5)
-      .setStroke("#433320", 2);
+      .setStroke("#3b2a17", 2);
 
     this.add
       .text(950, 590, "Wüstenruine", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "16px",
-        color: "#6c5134",
+        color: "#ffffff",
       })
       .setOrigin(1, 1)
-      .setStroke("#f2e3c5", 2);
+      .setStroke("#3b2a17", 2);
 
     this.statusText = this.add
       .text(480, 300, "", {
@@ -460,20 +457,14 @@ export default class DesertRuinScene extends Phaser.Scene {
   }
 
   updateItemUI() {
-    if (!this.itemUI) return;
-    const honeyCount = this.consumables?.honey ?? 0;
-    const consumableLabel = honeyCount > 0 ? "Honigsaft" : "Leer";
-    this.itemUI.consumable.label.setText(consumableLabel);
-    this.itemUI.consumable.count.setText(honeyCount > 0 ? `x${honeyCount}` : "");
-    this.itemUI.consumable.icon.setAlpha(honeyCount > 0 ? 1 : 0.25);
-
-    if (this.itemUI.companion) {
-      const hasHealth = this.companionHealth > 0;
-      this.itemUI.companion.heart.setVisible(hasHealth);
-      this.itemUI.companion.heart.setTexture(hasHealth ? "ui-heart" : "ui-heart-empty");
-      this.itemUI.companion.barBg.setVisible(!hasHealth);
-      this.itemUI.companion.barFill.setVisible(!hasHealth);
-    }
+    if (!this.hud) return;
+    this.hud.setConsumableCount(this.consumables?.honey ?? 0);
+    this.hud.setCompanionStatus({
+      health: this.companionHealth,
+      respawnRatio: this.companionRespawnAt
+        ? 1 - Math.min(1, (this.companionRespawnAt - this.time.now) / this.helperHideDuration)
+        : 0,
+    });
   }
 
   createHeartIcon(x, y) {
@@ -483,10 +474,9 @@ export default class DesertRuinScene extends Phaser.Scene {
   }
 
   updateHearts() {
-    this.hearts.forEach((heart, index) => {
-      const filled = index < this.health;
-      heart.setTexture(filled ? "ui-heart" : "ui-heart-empty");
-    });
+    if (this.hud) {
+      this.hud.setHealth(this.health, this.maxHealth);
+    }
   }
 
   createSword() {
@@ -671,14 +661,18 @@ export default class DesertRuinScene extends Phaser.Scene {
 
   addCoins(amount) {
     this.coinsCollected += amount;
-    this.coinText.setText(`Münzen: ${this.coinsCollected}`);
+    if (this.hud) {
+      this.hud.setCoins(this.coinsCollected);
+    }
     this.saveInventory();
   }
 
   spendCoins(amount) {
     if (this.coinsCollected < amount) return false;
     this.coinsCollected -= amount;
-    this.coinText.setText(`Münzen: ${this.coinsCollected}`);
+    if (this.hud) {
+      this.hud.setCoins(this.coinsCollected);
+    }
     this.saveInventory();
     return true;
   }
@@ -1322,10 +1316,12 @@ export default class DesertRuinScene extends Phaser.Scene {
   }
 
   getCompanionFollowPosition() {
-    const offset = this.companion.getData("offset") || { x: 12, y: -10 };
+    const side = this.companion.x >= this.player.x ? 1 : -1;
+    const sideOffset = Math.max(18, this.companion.displayWidth * 0.45);
+    const footY = this.player.y + this.player.displayHeight * 0.38;
     return {
-      x: this.player.x + offset.x,
-      y: this.player.y + offset.y,
+      x: this.player.x + side * sideOffset,
+      y: footY,
     };
   }
 
@@ -1372,11 +1368,11 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.updateItemUI();
     this.time.delayedCall(this.helperHideDuration, () => {
       if (this.isGameOver || this.isComplete) return;
-      const offset = this.companion.getData("offset") || { x: 12, y: -10 };
+      const followPos = this.getCompanionFollowPosition();
       this.companion.clearTint();
       this.companion.setVisible(true);
       this.companion.body.setEnable(true);
-      this.companion.setPosition(this.player.x + offset.x, this.player.y + offset.y);
+      this.companion.setPosition(followPos.x, followPos.y);
       this.companion.setData("state", "follow");
       this.setCompanionVisual("running");
       this.companionHealth = 1;
@@ -1389,6 +1385,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     if (!this.companion.visible || !this.companion.body.enable) return;
     if (this.companionHealth <= 0) return;
     this.companionHealth = 0;
+    this.updateItemUI();
     this.flashEntity(this.companion, 0xff7a7a);
     if (this.sfx) {
       this.sfx.companionFear.play();
@@ -1402,13 +1399,14 @@ export default class DesertRuinScene extends Phaser.Scene {
   }
 
   updateCompanionUI() {
-    if (!this.itemUI || !this.itemUI.companion) return;
-    if (this.companionHealth > 0) return;
-    if (!this.companionRespawnAt) return;
-    const remaining = Math.max(0, this.companionRespawnAt - this.time.now);
-    const ratio = 1 - Math.min(1, remaining / this.helperHideDuration);
-    const width = (this.itemUI.companion.barWidth - 4) * ratio;
-    this.itemUI.companion.barFill.displayWidth = Math.max(2, width);
+    if (!this.hud) return;
+    const ratio = this.companionRespawnAt
+      ? 1 - Math.min(1, (this.companionRespawnAt - this.time.now) / this.helperHideDuration)
+      : 0;
+    this.hud.setCompanionStatus({
+      health: this.companionHealth,
+      respawnRatio: ratio,
+    });
   }
 
   setCompanionDetected(target) {

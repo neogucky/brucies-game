@@ -1,6 +1,7 @@
 import { saveProgress } from "../saveManager.js";
 import { playMusic } from "../soundManager.js";
 import DialogManager from "../dialogManager.js";
+import TopHud from "../ui/topHud.js";
 
 export default class TavernScene extends Phaser.Scene {
   constructor() {
@@ -30,19 +31,16 @@ export default class TavernScene extends Phaser.Scene {
     this.health = this.getSaveData().health ?? 5;
     this.maxHealth = 5;
     
-    this.createItemUI();
-    this.createHeartsUI();
-
-    this.coinIcon = this.add.image(28, 30, "ui-coin").setOrigin(0.5);
-    this.coinIcon.setScale(0.7);
-    this.coinText = this.add
-      .text(50, 30, `Münzen: ${this.coins}`, {
-        fontFamily: "Trebuchet MS, sans-serif",
-        fontSize: "18px",
-        color: "#f7e3c0",
-      })
-      .setOrigin(0, 0.5)
-      .setStroke("#3e6cc2", 3);
+    this.hud = new TopHud(this, {
+      coins: this.coins,
+      health: this.health,
+      maxHealth: this.maxHealth,
+      consumables: { honey: this.honeyCount },
+      activeDisabled: true,
+      showCompanion: true,
+      companionHealth: 1,
+      companionRespawnRatio: 0,
+    });
 
     this.shopText = this.add
       .text(480, 250, "Honigsaft (10 Münzen) - [K] kaufen", {
@@ -72,7 +70,7 @@ export default class TavernScene extends Phaser.Scene {
       .text(40, 590, "Esc = Zurück zur Karte", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "16px",
-        color: "#c5b08e",
+        color: "#ffffff",
       })
       .setOrigin(0, 1);
 
@@ -80,10 +78,10 @@ export default class TavernScene extends Phaser.Scene {
       .text(950, 590, "Taverne", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "16px",
-        color: "#c5b08e",
+        color: "#ffffff",
       })
       .setOrigin(1, 1)
-      .setStroke("#3e6cc2", 2);
+      .setStroke("#3b2a17", 2);
   }
 
   shutdown() {
@@ -135,7 +133,10 @@ export default class TavernScene extends Phaser.Scene {
     }
     this.coins -= price;
     this.honeyCount += 1;
-    this.coinText.setText(`Münzen: ${this.coins}`);
+    if (this.hud) {
+      this.hud.setCoins(this.coins);
+      this.hud.setConsumableCount(this.honeyCount);
+    }
     this.honeyText.setText(`Honigsaft: x${this.honeyCount}`);
     this.messageText.setText("Honigsaft gekauft!");
     this.saveInventory();

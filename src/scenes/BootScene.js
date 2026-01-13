@@ -18,6 +18,7 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("desert-ruin", "assets/ruin.png");
     this.load.image("desert-ruin-repaired", "assets/ruin_repaired.png");
     this.load.image("desert-bg", "assets/background/desert.png");
+    this.load.image("worldmap-bg", "assets/background/desert_world.png");
     this.load.image("tavern-map", "assets/tavern.png");
     this.load.image("tavern-bg", "assets/background/tavern.png");
     this.load.image("tavern-loading", "assets/tavern/tavern_loading.png");
