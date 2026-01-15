@@ -13,23 +13,23 @@ const NODES = [
   {
     id: "Taverne",
     label: "Taverne",
-    x: 470,
-    y: 320,
-    neighbors: { left: "Wuestenruine", right: "Ruinenpass" },
+    x: 420,
+    y: 410,
+    neighbors: { left: "Wuestenruine", up: "DesertEndless", down: "Fremdweg" },
   },
   {
-    id: "Ruinenpass",
-    label: "Ruinenpass",
-    x: 740,
-    y: 270,
-    neighbors: { left: "Taverne", down: "Schattenhof" },
+    id: "DesertEndless",
+    label: "Wüstenendlos",
+    x: 620,
+    y: 250,
+    neighbors: { down: "Taverne" },
   },
   {
-    id: "Schattenhof",
-    label: "Schattenhof",
-    x: 640,
-    y: 480,
-    neighbors: { up: "Ruinenpass" },
+    id: "Fremdweg",
+    label: "Fremdweg",
+    x: 720,
+    y: 460,
+    neighbors: { up: "Taverne" },
   },
 ];
 
@@ -42,6 +42,7 @@ export default class WorldMapScene extends Phaser.Scene {
 
   create() {
     this.addBackground();
+    this.ensureUnlocks();
     this.createNodes();
     this.drawPaths();
     this.createPlayerMarker();
@@ -78,6 +79,19 @@ export default class WorldMapScene extends Phaser.Scene {
     this.events.once("shutdown", () => {
       this.input.keyboard.off("keydown", this.handleKeyDown);
     });
+  }
+
+  ensureUnlocks() {
+    const saveData = this.registry.get("saveData") || {};
+    const unlocked = new Set(saveData.unlockedLevels || []);
+    if (saveData.completedLevels?.includes("Wuestenruine") || unlocked.has("Taverne")) {
+      unlocked.add("DesertEndless");
+    }
+    if (unlocked.size !== (saveData.unlockedLevels || []).length) {
+      const nextSave = { ...saveData, unlockedLevels: Array.from(unlocked) };
+      this.registry.set("saveData", nextSave);
+      saveProgress(nextSave);
+    }
   }
 
   addBackground() {
@@ -134,7 +148,7 @@ export default class WorldMapScene extends Phaser.Scene {
           saveProgress(nextSave);
         }
       } else if (node.id === "Taverne" && isUnlocked) {
-        icon = this.add.image(node.x, node.y, "tavern-map").setScale(0.2);
+        icon = this.add.image(node.x, node.y, "tavern-map").setScale(0.3);
       } else {
         icon = this.add.image(node.x, node.y, "worldmap-ruin").setScale(0.281);
         icon.setAlpha(isUnlocked ? 1 : 0.35);
@@ -219,10 +233,10 @@ export default class WorldMapScene extends Phaser.Scene {
     const up = this.cursors.up.isDown || this.wasd.W.isDown;
     const down = this.cursors.down.isDown || this.wasd.S.isDown;
 
-    if (left) this.tryMove("left");
-    else if (right) this.tryMove("right");
-    else if (up) this.tryMove("up");
-    else if (down) this.tryMove("down");
+    if (left) this.tryMove({ x: -1, y: 0 });
+    else if (right) this.tryMove({ x: 1, y: 0 });
+    else if (up) this.tryMove({ x: 0, y: -1 });
+    else if (down) this.tryMove({ x: 0, y: 1 });
 
     if (this.companionMarker) {
       const side = this.companionMarker.x >= this.playerMarker.x ? 1 : -1;
@@ -234,7 +248,7 @@ export default class WorldMapScene extends Phaser.Scene {
   }
 
   tryMove(direction) {
-    const nextId = this.currentNode.neighbors[direction];
+    const nextId = this.getNeighborForDirection(direction);
     if (!nextId) return;
     if (!this.unlocked.has(nextId)) {
       this.lockText.setText("Dieser Ort ist noch gesperrt.");
@@ -265,9 +279,38 @@ export default class WorldMapScene extends Phaser.Scene {
     }
   }
 
+  getNeighborForDirection(direction) {
+    if (!this.currentNode) return null;
+    const candidates = Object.values(this.currentNode.neighbors || {});
+    let bestId = null;
+    let bestDot = 0.25;
+    candidates.forEach((id) => {
+      const node = NODES.find((item) => item.id === id);
+      if (!node) return;
+      const dx = node.x - this.currentNode.x;
+      const dy = node.y - this.currentNode.y;
+      const length = Math.hypot(dx, dy);
+      if (length === 0) return;
+      const dot = (dx / length) * direction.x + (dy / length) * direction.y;
+      if (dot > bestDot) {
+        bestDot = dot;
+        bestId = id;
+      }
+    });
+    return bestId;
+  }
+
   startCurrentLevel() {
     if (!this.currentNode || !this.unlocked.has(this.currentNode.id)) return;
     const saveData = this.registry.get("saveData");
+    if (
+      this.currentNode.id === "Wuestenruine" &&
+      saveData.completedLevels?.includes("Wuestenruine")
+    ) {
+      this.lockText.setText("Die Ruine ist bereits repariert.");
+      this.time.delayedCall(1200, () => this.lockText.setText(""));
+      return;
+    }
     const nextSave = {
       ...saveData,
       currentLevel: this.currentNode.id,
@@ -277,6 +320,8 @@ export default class WorldMapScene extends Phaser.Scene {
 
     if (this.currentNode.id === "Wuestenruine") {
       this.scene.start("DesertRuinScene");
+    } else if (this.currentNode.id === "DesertEndless") {
+      this.scene.start("DesertEndlessScene");
     } else if (this.currentNode.id === "Taverne") {
       this.scene.start("TavernScene");
     }

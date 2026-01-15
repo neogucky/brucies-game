@@ -51,6 +51,8 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("desert-mole-digging", "assets/desert/enemies/desertmole_digging.png");
     this.load.image("desert-mole-running", "assets/desert/enemies/desertmole_running.png");
     this.load.image("desert-mole-attacking", "assets/desert/enemies/desertmole_attacking.png");
+    this.load.image("desert-mole-charging", "assets/desert/enemies/desertmole_charging.png");
+    this.load.image("desert-mole-stunned", "assets/desert/enemies/desertmole_stunned.png");
     this.load.image("chest-closed", "assets/desert/chest_closed.png");
     this.load.image("chest-open", "assets/desert/chest_open.png");
     this.load.audio("sfx-chest-hit", "assets/common/sounds/chest_hit.wav");
@@ -64,6 +66,10 @@ export default class BootScene extends Phaser.Scene {
     this.load.audio("sfx-success", "assets/common/sounds/success.wav");
     this.load.audio("sfx-companion-fear", "assets/common/sounds/companion_fear.mp3");
     this.load.audio("sfx-gameover", "assets/common/sounds/gameover.wav");
+    this.load.audio("sfx-eating", "assets/common/sounds/eating.wav");
+    this.load.audio("sfx-charging", "assets/common/sounds/charging.wav");
+    this.load.audio("sfx-power-attack", "assets/common/sounds/power-attack.wav");
+    this.load.audio("sfx-explosion", "assets/common/sounds/explosion.wav");
     this.load.audio("music-desert", "assets/common/sounds/music-desert.mp3");
     this.load.audio("music-menu", "assets/common/sounds/music-menu.mp3");
     this.load.audio("music-world", "assets/common/sounds/music-world.mp3");
