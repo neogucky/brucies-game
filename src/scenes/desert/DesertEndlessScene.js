@@ -20,6 +20,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
     this.helperHideDuration = 10000;
     this.helperAttackCooldown = 1200;
     this.helperAttackRange = 30;
+    this.helperFruitRange = 220;
     this.helperApproachDuration = 100;
     this.helperReturnDuration = 100;
     this.monsterAttackCooldown = 800;
@@ -126,11 +127,16 @@ export default class DesertEndlessScene extends Phaser.Scene {
     this.companion.setData("nextHitAt", 0);
     this.companion.setData("retreatUntil", 0);
     this.companion.setData("invulnerableUntil", 0);
+    this.companion.setData("fruitTarget", null);
+    this.companion.setData("fetching", false);
     this.companion.setData("baseColor", 0xffffff);
     this.companion.setData("animState", "running");
     this.companion.setData("detectedUntil", 0);
     const followPos = this.getCompanionFollowPosition();
     this.companion.setPosition(followPos.x, followPos.y);
+    this.companionFruit = this.add.circle(this.companion.x + 8, this.companion.y - 8, 4, 0xc23a2c);
+    this.companionFruit.setDepth(6);
+    this.companionFruit.setVisible(false);
     this.facing = new Phaser.Math.Vector2(1, 0);
   }
 
@@ -338,6 +344,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
       charging: this.sound.add("sfx-charging"),
       powerAttack: this.sound.add("sfx-power-attack"),
       explosion: this.sound.add("sfx-explosion"),
+      monsterDeath: this.sound.add("sfx-monster-death"),
     };
   }
 
@@ -918,6 +925,9 @@ export default class DesertEndlessScene extends Phaser.Scene {
       });
     }
     if (nextHp <= 0) {
+      if (this.sfx?.monsterDeath) {
+        this.time.delayedCall(50, () => this.sfx?.monsterDeath?.play());
+      }
       this.destroyMonster(monster);
       return false;
     }
@@ -1469,7 +1479,12 @@ export default class DesertEndlessScene extends Phaser.Scene {
     const companionState = this.companion.getData("state");
     const companionAttackLocked =
       companionState === "attack-approach" || companionState === "attack-return";
-    if (this.companion.visible && this.companion.body.enable && !companionAttackLocked) {
+    if (
+      this.companion.visible &&
+      this.companion.body.enable &&
+      !companionAttackLocked &&
+      !this.companion.getData("fetching")
+    ) {
       const distHelper = Phaser.Math.Distance.Between(
         monster.x,
         monster.y,
@@ -1501,6 +1516,9 @@ export default class DesertEndlessScene extends Phaser.Scene {
   updateCompanion() {
     const state = this.companion.getData("state");
     if (state === "hidden") {
+      if (this.companionFruit) {
+        this.companionFruit.setVisible(false);
+      }
       return;
     }
 
@@ -1523,6 +1541,55 @@ export default class DesertEndlessScene extends Phaser.Scene {
     if (state === "attack-approach" || state === "attack-return") {
       this.setCompanionVisual("attacking");
       return;
+    }
+
+    if (state === "fetching") {
+      this.setCompanionVisual("running");
+      const fruit = this.companion.getData("fruitTarget");
+      if (!fruit || !fruit.active) {
+        this.finishCompanionFetch();
+        return;
+      }
+      const distance = Phaser.Math.Distance.Between(
+        this.companion.x,
+        this.companion.y,
+        fruit.x,
+        fruit.y
+      );
+      if (distance <= 12) {
+        this.pickupFruit(fruit);
+        this.companion.setData("state", "returning-fruit");
+        this.companion.setData("fruitTarget", null);
+        return;
+      }
+      this.moveCompanionToward(fruit.x, fruit.y, this.helperSpeed);
+      return;
+    }
+
+    if (state === "returning-fruit") {
+      this.setCompanionVisual("running");
+      const distance = Phaser.Math.Distance.Between(
+        this.companion.x,
+        this.companion.y,
+        this.player.x,
+        this.player.y
+      );
+      if (distance <= 14) {
+        this.giveFruitToPlayer();
+        this.finishCompanionFetch();
+        return;
+      }
+      this.moveCompanionToward(this.player.x, this.player.y, this.helperSpeed);
+      this.updateCompanionFruitPosition();
+      return;
+    }
+
+    if (this.health < this.maxHealth) {
+      const fruitTarget = this.findNearestFruit();
+      if (fruitTarget) {
+        this.startCompanionFetch(fruitTarget);
+        return;
+      }
     }
 
     if (state === "returning") {
@@ -1586,6 +1653,63 @@ export default class DesertEndlessScene extends Phaser.Scene {
       this.companion.setData("state", "follow");
       this.followCompanion();
     }
+    this.updateCompanionFruitPosition();
+  }
+
+  startCompanionFetch(fruit) {
+    this.companion.setData("state", "fetching");
+    this.companion.setData("fruitTarget", fruit);
+    this.companion.setData("fetching", true);
+  }
+
+  finishCompanionFetch() {
+    this.companion.setData("fetching", false);
+    this.companion.setData("state", "follow");
+  }
+
+  findNearestFruit() {
+    let nearest = null;
+    let nearestDistance = this.helperFruitRange;
+    this.fruits.getChildren().forEach((fruit) => {
+      if (!fruit.active) return;
+      const distance = Phaser.Math.Distance.Between(
+        this.companion.x,
+        this.companion.y,
+        fruit.x,
+        fruit.y
+      );
+      if (distance <= nearestDistance) {
+        nearest = fruit;
+        nearestDistance = distance;
+      }
+    });
+    return nearest;
+  }
+
+  pickupFruit(fruit) {
+    if (!fruit.active) return;
+    const slot = fruit.getData("slot");
+    if (slot !== undefined) {
+      this.fruitSlots[slot] = false;
+    }
+    fruit.destroy();
+    if (this.companionFruit) {
+      this.companionFruit.setVisible(true);
+      this.updateCompanionFruitPosition();
+    }
+  }
+
+  giveFruitToPlayer() {
+    if (this.health >= this.maxHealth) return;
+    this.health = Math.min(this.maxHealth, this.health + 1);
+    if (this.sfx?.eating) {
+      this.sfx.eating.play();
+    }
+    if (this.companionFruit) {
+      this.companionFruit.setVisible(false);
+    }
+    this.updateHearts();
+    this.saveInventory();
   }
 
   startCompanionAttack(target) {
@@ -1666,6 +1790,11 @@ export default class DesertEndlessScene extends Phaser.Scene {
     }
   }
 
+  updateCompanionFruitPosition() {
+    if (!this.companionFruit || !this.companionFruit.visible) return;
+    this.companionFruit.setPosition(this.companion.x + 8, this.companion.y - 8);
+  }
+
   getCompanionFollowPosition() {
     const side = this.companion.x >= this.player.x ? 1 : -1;
     const sideOffset = Math.max(18, this.companion.displayWidth * 0.45);
@@ -1716,6 +1845,9 @@ export default class DesertEndlessScene extends Phaser.Scene {
     this.companion.body.setEnable(false);
     this.companion.setPosition(this.player.x, this.player.y);
     this.companion.clearTint();
+    if (this.companionFruit) {
+      this.companionFruit.setVisible(false);
+    }
     this.companionRespawnAt = this.time.now + this.helperHideDuration;
     this.updateItemUI();
     this.time.delayedCall(this.helperHideDuration, () => {
@@ -1730,12 +1862,16 @@ export default class DesertEndlessScene extends Phaser.Scene {
       this.setCompanionVisual("running");
       this.companionHealth = 1;
       this.companionRespawnAt = 0;
+      if (this.companionFruit) {
+        this.companionFruit.setVisible(false);
+      }
       this.updateItemUI();
     });
   }
 
   damageCompanion() {
     if (!this.companion.visible || !this.companion.body.enable) return;
+    if (this.companion.getData("fetching")) return;
     if (this.companionHealth <= 0) return;
     const now = this.time.now;
     if (now < (this.companion.getData("invulnerableUntil") || 0)) return;
