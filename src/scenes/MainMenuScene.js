@@ -7,6 +7,7 @@ export default class MainMenuScene extends Phaser.Scene {
     this.menuItems = [];
     this.selectedIndex = 0;
     this.hasSave = false;
+    this.isDialogOpen = false;
   }
 
   create() {
@@ -17,6 +18,7 @@ export default class MainMenuScene extends Phaser.Scene {
     this.addTitle();
     this.addMenu();
     this.createConfirmDialog();
+    this.createSettingsDialog();
     this.updateSelection();
     playMusic(this, "music-menu");
 
@@ -55,6 +57,11 @@ export default class MainMenuScene extends Phaser.Scene {
         action: () => this.requestNewGame(this.hasSave),
         enabled: true,
       },
+      {
+        label: "Einstellungen",
+        action: () => this.openSettingsDialog(),
+        enabled: true,
+      },
     ];
 
     menuData.forEach((item, index) => {
@@ -84,6 +91,7 @@ export default class MainMenuScene extends Phaser.Scene {
   }
   
   moveSelection(delta) {
+    if (this.isDialogOpen) return;
     const nextIndex = Phaser.Math.Wrap(
       this.selectedIndex + delta,
       0,
@@ -108,6 +116,7 @@ export default class MainMenuScene extends Phaser.Scene {
   }
 
   activateSelection() {
+    if (this.isDialogOpen) return;
     const item = this.menuItems[this.selectedIndex];
     if (item) {
       if (item.enabled) {
@@ -164,12 +173,14 @@ export default class MainMenuScene extends Phaser.Scene {
   }
 
   openConfirmDialog(message, onYes) {
+    this.isDialogOpen = true;
     this.confirmText.setText(message);
     this.confirmBox.setVisible(true);
     const close = () => {
       this.confirmBox.setVisible(false);
       this.input.keyboard.off("keydown-J", yesHandler);
       this.input.keyboard.off("keydown-N", noHandler);
+      this.isDialogOpen = false;
     };
     const yesHandler = () => {
       close();
@@ -178,5 +189,69 @@ export default class MainMenuScene extends Phaser.Scene {
     const noHandler = () => close();
     this.input.keyboard.once("keydown-J", yesHandler);
     this.input.keyboard.once("keydown-N", noHandler);
+  }
+
+  createSettingsDialog() {
+    this.settingsBox = this.add.container(0, 0).setDepth(20).setVisible(false);
+    const shade = this.add.rectangle(480, 300, 960, 600, 0x000000, 0.45);
+    const panel = this.add.rectangle(480, 300, 520, 200, 0xe2c18b).setStrokeStyle(3, 0x8a6b44);
+    this.settingsText = this.add
+      .text(480, 290, "", {
+        fontFamily: "Georgia, serif",
+        fontSize: "22px",
+        color: "#3b2a17",
+        align: "center",
+      })
+      .setOrigin(0.5);
+    this.settingsHint = this.add
+      .text(480, 360, "Enter = Umschalten, Esc = Zurück", {
+        fontFamily: "Trebuchet MS, sans-serif",
+        fontSize: "14px",
+        color: "#4b3824",
+      })
+      .setOrigin(0.5);
+    this.settingsBox.add([shade, panel, this.settingsText, this.settingsHint]);
+  }
+
+  openSettingsDialog() {
+    if (this.isDialogOpen) return;
+    this.isDialogOpen = true;
+    this.updateSettingsText();
+    this.settingsBox.setVisible(true);
+
+    const close = () => {
+      this.settingsBox.setVisible(false);
+      this.input.keyboard.off("keydown-ENTER", toggleHandler);
+      this.input.keyboard.off("keydown-SPACE", toggleHandler);
+      this.input.keyboard.off("keydown-ESC", closeHandler);
+      this.isDialogOpen = false;
+    };
+
+    const toggleHandler = () => {
+      const saveData = this.registry.get("saveData") || {};
+      const current = Boolean(saveData.settings?.autoAim);
+      const nextSave = {
+        ...saveData,
+        settings: {
+          ...(saveData.settings || {}),
+          autoAim: !current,
+        },
+      };
+      this.registry.set("saveData", nextSave);
+      saveProgress(nextSave);
+      this.updateSettingsText();
+    };
+
+    const closeHandler = () => close();
+
+    this.input.keyboard.on("keydown-ENTER", toggleHandler);
+    this.input.keyboard.on("keydown-SPACE", toggleHandler);
+    this.input.keyboard.on("keydown-ESC", closeHandler);
+  }
+
+  updateSettingsText() {
+    const saveData = this.registry.get("saveData") || {};
+    const autoAim = Boolean(saveData.settings?.autoAim);
+    this.settingsText.setText(`Auto-Anvisieren: ${autoAim ? "An" : "Aus"}`);
   }
 }

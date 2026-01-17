@@ -25,6 +25,8 @@ export default class DesertEndlessScene extends Phaser.Scene {
     this.helperReturnDuration = 100;
     this.monsterAttackCooldown = 800;
     this.monsterAttackRange = 5;
+    this.autoAimRangeX = 60;
+    this.autoAimRangeY = 30;
     this.helperRetreatDistance = 40;
     this.helperHitChance = 1;
     this.monsterHitChance = 1;
@@ -147,6 +149,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
     const saveData = this.registry.get("saveData") || {};
     this.health = saveData.health ?? this.maxHealth;
     this.coinsCollected = saveData.coins ?? 0;
+    this.autoAimEnabled = Boolean(saveData.settings?.autoAim);
     this.consumables = {
       honey: saveData.consumables?.honey ?? 0,
     };
@@ -435,7 +438,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
   }
 
   createSword() {
-    this.swordHitbox = this.add.rectangle(0, 0, 34, 18, 0xfff2d0, 0.2);
+    this.swordHitbox = this.add.rectangle(0, 0, 54, 38, 0xfff2d0, 0.2);
     this.physics.add.existing(this.swordHitbox);
     this.swordHitbox.body.setEnable(false);
     this.swordHitbox.setVisible(false);
@@ -1409,6 +1412,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
     if (movementLength > 0) {
       this.facing.set(vx / movementLength, vy / movementLength);
     }
+    this.applyAutoAim();
 
     if (this.isSwinging) {
       this.positionSword();
@@ -1949,6 +1953,30 @@ export default class DesertEndlessScene extends Phaser.Scene {
       this.companion.setData("detectedStart", now);
       this.setCompanionVisual("detected");
     }
+  }
+
+  applyAutoAim() {
+    if (!this.autoAimEnabled || !this.monsters) return;
+    let nearest = null;
+    let bestDistance = Infinity;
+    this.monsters.getChildren().forEach((monster) => {
+      if (!monster.active || monster.getData("emerging")) return;
+      const dx = monster.x - this.player.x;
+      const dy = monster.y - this.player.y;
+      if (Math.abs(dy) > this.autoAimRangeY) return;
+      const absDx = Math.abs(dx);
+      if (absDx > this.autoAimRangeX) return;
+      const distance = absDx + Math.abs(dy);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        nearest = monster;
+      }
+    });
+    if (!nearest) return;
+    const dx = nearest.x - this.player.x;
+    const direction = dx >= 0 ? 1 : -1;
+    this.facing.set(direction, 0);
+    this.player.setFlipX(direction > 0);
   }
 
   canStartDetectedChase() {

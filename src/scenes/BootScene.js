@@ -24,6 +24,7 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("desert-lost", "assets/desert/desert_lost.png");
     this.load.image("menu-bg", "assets/common/menu/menu.png");
     this.load.image("ui-coin", "assets/common/ui/coin.png");
+    this.load.image("ui-stone", "assets/common/ui/stone.svg");
     this.load.image("ui-heart", "assets/common/ui/heart.png");
     this.load.image("ui-heart-empty", "assets/common/ui/heart_empty.png");
     this.load.image("knight-standing", "assets/common/characters/knight_standing.png");
@@ -36,7 +37,10 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("worldmap-ruin-repaired", "assets/worldmap/ruin_repaired.png");
     this.load.image("desert-bg", "assets/desert/desert.png");
     this.load.image("worldmap-bg", "assets/worldmap/desert_world.png");
+    this.load.image("worldmap-underground-bg", "assets/worldmap/underground_world.png");
     this.load.image("tavern-map", "assets/worldmap/tavern.png");
+    this.load.image("underground-shop", "assets/underground/underground_shop.png");
+    this.load.image("underground-shop-loading", "assets/underground/underground_shop_loading.png");
     this.load.image("tavern-bg", "assets/tavern/tavern.png");
     this.load.image("tavern-loading", "assets/tavern/tavern_loading.png");
     this.load.image("tavern-barkeeper", "assets/tavern/barkeeper.png");
@@ -53,6 +57,7 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("desert-mole-attacking", "assets/desert/enemies/desertmole_attacking.png");
     this.load.image("desert-mole-charging", "assets/desert/enemies/desertmole_charging.png");
     this.load.image("desert-mole-stunned", "assets/desert/enemies/desertmole_stunned.png");
+    this.load.image("desert-stone-pile", "assets/desert/stone_pile.svg");
     this.load.image("chest-closed", "assets/desert/chest_closed.png");
     this.load.image("chest-open", "assets/desert/chest_open.png");
     this.load.audio("sfx-chest-hit", "assets/common/sounds/chest_hit.wav");

@@ -10,6 +10,9 @@ export const defaultSave = {
   consumables: {
     honey: 0,
   },
+  settings: {
+    autoAim: false,
+  },
   playerGender: "male",
   lastPlayed: null,
 };

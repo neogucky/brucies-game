@@ -3,7 +3,9 @@ import MainMenuScene from "./scenes/MainMenuScene.js";
 import CharacterSelectScene from "./scenes/CharacterSelectScene.js";
 import DesertRuinScene from "./scenes/desert/DesertRuinScene.js";
 import DesertEndlessScene from "./scenes/desert/DesertEndlessScene.js";
+import DesertTunnelScene from "./scenes/desert/DesertTunnelScene.js";
 import WorldMapScene from "./scenes/WorldMapScene.js";
+import UndergroundMapScene from "./scenes/UndergroundMapScene.js";
 import TavernScene from "./scenes/desert/TavernScene.js";
 
 const config = {
@@ -24,8 +26,10 @@ const config = {
     MainMenuScene,
     CharacterSelectScene,
     WorldMapScene,
+    UndergroundMapScene,
     DesertRuinScene,
     DesertEndlessScene,
+    DesertTunnelScene,
     TavernScene,
   ],
 };

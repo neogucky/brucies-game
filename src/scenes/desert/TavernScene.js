@@ -8,19 +8,28 @@ export default class TavernScene extends Phaser.Scene {
     super({ key: "TavernScene" });
   }
 
+  init(data) {
+    this.fromUnderground = data?.from === "underground";
+  }
+
   create() {
     this.isLoading = true;
+    const saveData = this.getSaveData();
+    this.isUnderground = this.fromUnderground || saveData.currentLevel === "UnderShop";
     this.addBackground();
     this.addUI();
     this.dialog = new DialogManager(this);
     this.showLoadingScreen();
     playMusic(this, "music-tavern");
 
-    this.input.keyboard.on("keydown-ESC", () => this.scene.start("WorldMapScene"));
+    this.input.keyboard.on("keydown-ESC", () =>
+      this.scene.start(this.isUnderground ? "UndergroundMapScene" : "WorldMapScene")
+    );
   }
 
   addBackground() {
-    const bg = this.add.image(480, 300, "tavern-bg");
+    const textureKey = this.isUnderground ? "underground-shop" : "tavern-bg";
+    const bg = this.add.image(480, 300, textureKey);
     const scale = Math.max(960 / bg.width, 600 / bg.height);
     bg.setScale(scale);
   }
@@ -42,16 +51,20 @@ export default class TavernScene extends Phaser.Scene {
       companionRespawnRatio: 0,
     });
 
+    const hintText = this.isUnderground
+      ? "Esc = Zurück zur Unterwelt"
+      : "Esc = Zurück zur Karte";
     this.add
-      .text(40, 590, "Esc = Zurück zur Karte", {
+      .text(40, 590, hintText, {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "16px",
         color: "#ffffff",
       })
       .setOrigin(0, 1);
 
+    const locationText = this.isUnderground ? "Unterwelt-Shop" : "Taverne";
     this.add
-      .text(950, 590, "Taverne", {
+      .text(950, 590, locationText, {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "16px",
         color: "#ffffff",
@@ -62,16 +75,18 @@ export default class TavernScene extends Phaser.Scene {
 
   shutdown() {
     const saveData = this.registry.get("saveData");
+    const nextLevel = this.isUnderground ? "UnderShop" : "Taverne";
     const nextSave = {
       ...saveData,
-      currentLevel: "Taverne",
+      currentLevel: nextLevel,
     };
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);
   }
 
   showLoadingScreen() {
-    this.loadingScreen = this.add.image(480, 300, "tavern-loading").setDepth(25);
+    const loadingKey = this.isUnderground ? "underground-shop-loading" : "tavern-loading";
+    this.loadingScreen = this.add.image(480, 300, loadingKey).setDepth(25);
     const scale = Math.min(960 / this.loadingScreen.width, 600 / this.loadingScreen.height);
     this.loadingScreen.setScale(scale);
     const barWidth = 360;

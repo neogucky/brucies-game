@@ -5,8 +5,10 @@ export default class TopHud {
     this.items = {};
     this.hearts = [];
     this.consumableCount = options.consumables?.honey ?? 0;
+    this.stones = options.stones ?? 0;
     this.create();
     this.setCoins(options.coins ?? 0);
+    this.setStones(this.stones);
     this.setHealth(options.health ?? options.maxHealth ?? 5, options.maxHealth ?? 5);
     this.setConsumableCount(this.consumableCount);
     if (options.showCompanion) {
@@ -31,6 +33,19 @@ export default class TopHud {
       })
       .setOrigin(0, 0.5)
       .setStroke("#433320", 3);
+
+    if (this.options.showStones) {
+      this.stoneIcon = this.scene.add.image(28, 54, "ui-stone").setOrigin(0.5);
+      this.stoneIcon.setScale(0.6);
+      this.stoneText = this.scene.add
+        .text(50, 54, "Steine: 0", {
+          fontFamily: "Trebuchet MS, sans-serif",
+          fontSize: "16px",
+          color: "#f7e3c0",
+        })
+        .setOrigin(0, 0.5)
+        .setStroke("#433320", 3);
+    }
 
     this.createItems();
     this.createHearts();
@@ -121,6 +136,11 @@ export default class TopHud {
 
   setCoins(value) {
     this.coinText.setText(`Münzen: ${value}`);
+  }
+
+  setStones(value) {
+    if (!this.stoneText) return;
+    this.stoneText.setText(`Steine: ${value}`);
   }
 
   setHealth(value, max = this.options.maxHealth ?? 5) {

@@ -86,6 +86,7 @@ export default class WorldMapScene extends Phaser.Scene {
     const unlocked = new Set(saveData.unlockedLevels || []);
     if (saveData.completedLevels?.includes("Wuestenruine") || unlocked.has("Taverne")) {
       unlocked.add("DesertEndless");
+      unlocked.add("Fremdweg");
     }
     if (unlocked.size !== (saveData.unlockedLevels || []).length) {
       const nextSave = { ...saveData, unlockedLevels: Array.from(unlocked) };
@@ -120,6 +121,17 @@ export default class WorldMapScene extends Phaser.Scene {
           )
         );
       });
+    }
+    const fremdweg = NODES.find((node) => node.id === "Fremdweg");
+    if (fremdweg && this.unlocked.has("Fremdweg")) {
+      graphics.strokeLineShape(
+        new Phaser.Geom.Line(
+          fremdweg.x,
+          fremdweg.y + 20,
+          fremdweg.x,
+          Math.min(590, fremdweg.y + 90)
+        )
+      );
     }
   }
 
@@ -233,6 +245,11 @@ export default class WorldMapScene extends Phaser.Scene {
     const up = this.cursors.up.isDown || this.wasd.W.isDown;
     const down = this.cursors.down.isDown || this.wasd.S.isDown;
 
+    if (down && this.currentNode?.id === "Fremdweg") {
+      this.scene.start("UndergroundMapScene");
+      return;
+    }
+
     if (left) this.tryMove({ x: -1, y: 0 });
     else if (right) this.tryMove({ x: 1, y: 0 });
     else if (up) this.tryMove({ x: 0, y: -1 });
@@ -322,6 +339,8 @@ export default class WorldMapScene extends Phaser.Scene {
       this.scene.start("DesertRuinScene");
     } else if (this.currentNode.id === "DesertEndless") {
       this.scene.start("DesertEndlessScene");
+    } else if (this.currentNode.id === "Fremdweg") {
+      this.scene.start("DesertTunnelScene");
     } else if (this.currentNode.id === "Taverne") {
       this.scene.start("TavernScene");
     }
