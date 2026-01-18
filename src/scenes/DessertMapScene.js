@@ -39,6 +39,12 @@ export default class DessertMapScene extends Phaser.Scene {
     super({ key: "DessertMapScene" });
     this.currentNode = null;
     this.isMoving = false;
+    this.entryFromUnderground = false;
+    this.travelSpeed = 260;
+  }
+
+  init(data) {
+    this.entryFromUnderground = Boolean(data?.fromUnderground);
   }
 
   create() {
@@ -134,7 +140,7 @@ export default class DessertMapScene extends Phaser.Scene {
             fremdweg.x,
             fremdweg.y + 20,
             fremdweg.x,
-            Math.min(590, fremdweg.y + 90)
+            600
           )
         );
       }
@@ -171,6 +177,8 @@ export default class DessertMapScene extends Phaser.Scene {
         const isCompleted = saveData.completedLevels?.includes("Fremdweg");
         const quarryKey = isCompleted ? "worldmap-quarry-tunnel" : "worldmap-quarry";
         icon = this.add.image(node.x, node.y, quarryKey).setScale(0.3);
+      } else if (node.id === "DesertEndless" && isUnlocked) {
+        icon = this.add.image(node.x, node.y, "worldmap-oasis").setScale(0.3);
       } else {
         icon = this.add.image(node.x, node.y, "worldmap-ruin").setScale(0.281);
         icon.setAlpha(isUnlocked ? 1 : 0.35);
@@ -244,6 +252,30 @@ export default class DessertMapScene extends Phaser.Scene {
     );
     this.companionMarker.setScale(0.42);
     this.companionMarker.setDepth(5);
+
+    if (this.entryFromUnderground && startNode.id === "Fremdweg") {
+      const edgeY = Math.min(590, startNode.y + 90);
+      const duration = this.getTravelDuration(edgeY, startNode.y + 2);
+      this.playerMarker.setPosition(startNode.x, edgeY);
+      this.companionMarker.setPosition(startNode.x - 18, edgeY + 8);
+      this.isMoving = true;
+      this.tweens.add({
+        targets: this.playerMarker,
+        x: startNode.x,
+        y: startNode.y + 2,
+        duration,
+        onComplete: () => {
+          this.isMoving = false;
+          this.entryFromUnderground = false;
+        },
+      });
+      this.tweens.add({
+        targets: this.companionMarker,
+        x: startNode.x - 18,
+        y: startNode.y + 8,
+        duration: duration + 40,
+      });
+    }
   }
 
   createUI() {
@@ -301,7 +333,27 @@ export default class DessertMapScene extends Phaser.Scene {
         this.time.delayedCall(1000, () => this.lockText.setText(""));
         return;
       }
-      this.scene.start("UndergroundMapScene");
+      const edgeY = Math.min(590, this.currentNode.y + 90);
+      const duration = this.getTravelDuration(this.currentNode.y + 2, edgeY);
+      this.isMoving = true;
+      this.tweens.add({
+        targets: this.playerMarker,
+        x: this.currentNode.x,
+        y: edgeY,
+        duration,
+        onComplete: () => {
+          this.isMoving = false;
+          this.scene.start("UndergroundMapScene", { fromDesert: true });
+        },
+      });
+      if (this.companionMarker) {
+        this.tweens.add({
+          targets: this.companionMarker,
+          x: this.currentNode.x - 18,
+          y: edgeY + 8,
+          duration: duration + 40,
+        });
+      }
       return;
     }
 
@@ -432,5 +484,10 @@ export default class DessertMapScene extends Phaser.Scene {
     } else {
       this.scale.startFullscreen();
     }
+  }
+
+  getTravelDuration(fromY, toY) {
+    const distance = Math.abs(toY - fromY);
+    return Math.max(220, Math.round((distance / this.travelSpeed) * 1000));
   }
 }

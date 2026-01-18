@@ -1,5 +1,6 @@
 import { saveProgress } from "../../saveManager.js";
 import { playMusic } from "../../soundManager.js";
+import DialogManager from "../../dialogManager.js";
 import TopHud from "../../ui/topHud.js";
 import CoordinateDebugger from "../../utils/coordinateDebugger.js";
 
@@ -16,6 +17,8 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.coinsCollected = 0;
     this.ruinCost = 100;
     this.coinsPerChest = 10;
+    this.ruinStoredCoins = 0;
+    this.ruinTransferAt = 0;
     this.helperRange = 150;
     this.helperSpeed = 200;
     this.helperLag = 0.08;
@@ -57,6 +60,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.createSword();
     this.createRespawnTimers();
     this.createAudio();
+    this.dialog = new DialogManager(this);
     playMusic(this, "music-desert");
     this.showStartScreen();
 
@@ -143,6 +147,8 @@ export default class DesertRuinScene extends Phaser.Scene {
       honey: saveData.consumables?.honey ?? 0,
     };
     this.levelCompleted = (saveData.completedLevels || []).includes("Wuestenruine");
+    this.ruinStoredCoins = 0;
+    this.ruinTransferAt = 0;
     this.lastAttackAt = 0;
     this.swordDidHit = false;
     this.swordSwingId = 0;
@@ -375,14 +381,15 @@ export default class DesertRuinScene extends Phaser.Scene {
         this.startBarFill.destroy();
         this.startBarFill = null;
       }
-      if (this.startBarLabel) {
-        this.startBarLabel.destroy();
-        this.startBarLabel = null;
-      }
-      this.isPaused = false;
-      this.canPromptRuin = true;
-      this.physics.world.resume();
-    };
+    if (this.startBarLabel) {
+      this.startBarLabel.destroy();
+      this.startBarLabel = null;
+    }
+    this.isPaused = false;
+    this.canPromptRuin = true;
+    this.physics.world.resume();
+    this.showIntroDialog();
+  };
 
     const duration = 2500;
     this.tweens.add({
@@ -468,6 +475,15 @@ export default class DesertRuinScene extends Phaser.Scene {
       0
     );
     this.physics.add.existing(this.ruinEntrance, true);
+    this.ruinCounter = this.add
+      .text(480, 600 - entranceHeight - 8, "Ruine: 0/100", {
+        fontFamily: "Trebuchet MS, sans-serif",
+        fontSize: "14px",
+        color: "#ffffff",
+      })
+      .setOrigin(0.5, 1)
+      .setStroke("#3b2a17", 2)
+      .setDepth(6);
   }
 
   spawnMonster() {
@@ -969,61 +985,54 @@ export default class DesertRuinScene extends Phaser.Scene {
   }
 
   openRuinPrompt() {
-    if (this.isPromptActive) return;
+    return;
+  }
+
+  showIntroDialog() {
+    if (!this.dialog || this.levelCompleted) return;
     this.isPaused = true;
     this.player.body.setVelocity(0, 0);
     this.physics.world.pause();
-    this.promptBox.setVisible(true);
-    this.isPromptActive = true;
-
-    let onYes = null;
-    let onNo = null;
-    const closePrompt = (resumeWorld) => {
-      if (onYes) this.input.keyboard.off("keydown-J", onYes);
-      if (onNo) this.input.keyboard.off("keydown-N", onNo);
-      this.promptBox.setVisible(false);
-      this.isPromptActive = false;
-      if (resumeWorld) {
-        this.physics.world.resume();
-        this.isPaused = false;
+    this.dialog.show(
+      [
+        { text: "Der Ritter hat eine alte Ruine gefunden!" },
+        { text: "Bringe 100 Münzen um sie zu reparieren." },
+      ],
+      "bottom",
+      {
+        onClose: () => {
+          this.physics.world.resume();
+          this.isPaused = false;
+        },
       }
-    };
+    );
+  }
 
-    if (this.levelCompleted) {
-      this.promptText.setText("Die Ruine wurde schon repariert!\nLevel verlassen?");
-      this.promptHint.setText("[J]a oder [N]ein");
-      const onNo = () => closePrompt(true);
-      const onYes = () => {
-        closePrompt(false);
-        this.scene.start("DessertMapScene");
-      };
-      this.input.keyboard.once("keydown-J", onYes);
-      this.input.keyboard.once("keydown-N", onNo);
-      return;
-    }
-
-    if (this.coinsCollected < this.ruinCost) {
-      this.promptText.setText(
-        `Leider hast du nicht genug Münzen.\nSammel ${this.ruinCost} Stück, um die Ruine zu reparieren.`
-      );
-      this.promptHint.setText("Beliebige Taste zum Weiterspielen");
-      this.input.keyboard.once("keydown", () => closePrompt(true));
-      return;
-    }
-
-    this.promptText.setText(`Die Ruine reparieren für ${this.ruinCost} Münzen?`);
-    this.promptHint.setText("[J]a oder [N]ein");
-
-    onNo = () => closePrompt(true);
-    onYes = () => {
-      this.spendCoins(this.ruinCost);
-      this.ruinRepaired = true;
-      closePrompt(true);
+  tryDepositRuinCoins() {
+    if (this.levelCompleted || this.isPaused) return;
+    if (this.time.now < this.ruinTransferAt) return;
+    if (this.ruinStoredCoins >= this.ruinCost) {
       this.showEndScreen();
-    };
-
-    this.input.keyboard.once("keydown-J", onYes);
-    this.input.keyboard.once("keydown-N", onNo);
+      return;
+    }
+    if (this.coinsCollected < 10) return;
+    const amount = Math.min(10, this.coinsCollected, this.ruinCost - this.ruinStoredCoins);
+    if (amount <= 0) return;
+    this.coinsCollected -= amount;
+    this.ruinStoredCoins += amount;
+    this.ruinTransferAt = this.time.now + 250;
+    this.hud?.setCoins(this.coinsCollected);
+    if (this.sfx?.coin) {
+      this.sfx.coin.play();
+    }
+    if (this.ruinCounter) {
+      this.ruinCounter.setText(`Ruine: ${this.ruinStoredCoins}/${this.ruinCost}`);
+    }
+    if (this.ruinStoredCoins >= this.ruinCost) {
+      this.ruinRepaired = true;
+      this.ruinSprite.setTexture("desert-ruin-repaired");
+      this.showEndScreen();
+    }
   }
 
   openExitPrompt() {
@@ -1096,11 +1105,8 @@ export default class DesertRuinScene extends Phaser.Scene {
       this.player.getBounds(),
       this.ruinEntrance.getBounds()
     );
-    if (!isOnRuin) {
-      this.canPromptRuin = true;
-    } else if (this.canPromptRuin && !this.ruinRepaired) {
-      this.canPromptRuin = false;
-      this.openRuinPrompt();
+    if (isOnRuin && !this.ruinRepaired) {
+      this.tryDepositRuinCoins();
     }
 
     this.monsters.getChildren().forEach((monster) => {

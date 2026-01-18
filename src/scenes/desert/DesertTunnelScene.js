@@ -1,5 +1,6 @@
 import { saveProgress } from "../../saveManager.js";
 import { playMusic, bumpMusicRate } from "../../soundManager.js";
+import DialogManager from "../../dialogManager.js";
 import TopHud from "../../ui/topHud.js";
 import MonsterSpawner from "./MonsterSpawner.js";
 import CoordinateDebugger from "../../utils/coordinateDebugger.js";
@@ -42,17 +43,22 @@ export default class DesertTunnelScene extends Phaser.Scene {
     this.swordSwingId = 0;
     this.skipShutdownSave = false;
     this.bossSpawned = false;
+    this.bossDefeated = false;
     this.typeIntroducedCount = 0;
     this.redUnlocked = false;
     this.blueUnlocked = false;
     this.spawners = {};
+    this.rollingStoneMultiplier = 1;
+    this.rollingStoneBaseMin = 6000;
+    this.rollingStoneBaseMax = 11000;
+    this.levelStartAt = 0;
+    this.timerText = null;
   }
 
   create() {
     this.resetState();
     this.addBackground();
     this.createPlayer();
-    this.createTunnel();
     this.createUI();
     this.createBlockedZone();
     this.createBushes();
@@ -62,6 +68,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
     this.createSword();
     this.createRespawnTimers();
     this.createAudio();
+    this.dialog = new DialogManager(this);
     playMusic(this, "music-desert");
     this.showStartScreen();
 
@@ -156,9 +163,16 @@ export default class DesertTunnelScene extends Phaser.Scene {
     this.companionHealth = 1;
     this.companionRespawnAt = 0;
     this.bossSpawned = false;
+    this.bossDefeated = false;
     this.typeIntroducedCount = 0;
     this.redUnlocked = false;
     this.blueUnlocked = false;
+    this.rollingStoneMultiplier = 1;
+    this.levelStartAt = 0;
+    if (this.timerText) {
+      this.timerText.destroy();
+      this.timerText = null;
+    }
     this.activeDigSounds = new Set();
 
     if (this.chestSpawnEvent) {
@@ -225,6 +239,15 @@ export default class DesertTunnelScene extends Phaser.Scene {
       .setOrigin(1, 1)
       .setStroke("#3b2a17", 2);
 
+    this.timerText = this.add
+      .text(30, 530, "Zeit: 0:00", {
+        fontFamily: "Trebuchet MS, sans-serif",
+        fontSize: "14px",
+        color: "#ffffff",
+      })
+      .setOrigin(0, 0.5)
+      .setStroke("#3b2a17", 2);
+
     this.statusText = this.add
       .text(480, 300, "", {
         fontFamily: "Georgia, serif",
@@ -262,6 +285,31 @@ export default class DesertTunnelScene extends Phaser.Scene {
     this.physics.add.existing(block, true);
     this.blockedZone = block;
     this.physics.add.collider(this.player, block);
+  }
+
+  showIntroDialog() {
+    if (!this.dialog) return;
+    this.isPaused = true;
+    this.player.body.setVelocity(0, 0);
+    this.physics.world.pause();
+    this.dialog.show(
+      [
+        {
+          text: "Hoho! Ich, der Wüsten-Maulwurf Boss, habe den\nWeg zur Unterwelt kaputt gemacht!",
+        },
+        {
+          text: "Sammle 200 Steine und besiege mich,\nwenn du ihn reparieren willst!",
+        },
+      ],
+      "bottom",
+      {
+        portraitKey: "desert-mole-running",
+        onClose: () => {
+          this.physics.world.resume();
+          this.isPaused = false;
+        },
+      }
+    );
   }
 
   createAudio() {
@@ -343,10 +391,12 @@ export default class DesertTunnelScene extends Phaser.Scene {
   }
 
   beginSession() {
+    this.levelStartAt = this.time.now;
     this.spawnMonster("normal");
     this.createSpawners();
     this.startSpawners();
     this.scheduleEscalations();
+    this.showIntroDialog();
   }
 
   createSpawners() {
@@ -382,29 +432,32 @@ export default class DesertTunnelScene extends Phaser.Scene {
   }
 
   scheduleEscalations() {
-    this.redUnlockEvent = this.time.delayedCall(60000, () => {
+    this.redUnlockEvent = this.time.delayedCall(30000, () => {
       this.redUnlocked = true;
       this.typeIntroducedCount += 1;
       this.applySpawnPenalty();
       this.spawners.red.triggerSpawning();
+      this.bumpRollingStoneRate();
       bumpMusicRate();
     });
-    this.blueUnlockEvent = this.time.delayedCall(120000, () => {
+    this.blueUnlockEvent = this.time.delayedCall(60000, () => {
       this.blueUnlocked = true;
       this.typeIntroducedCount += 1;
       this.applySpawnPenalty();
       this.spawners.blue.triggerSpawning();
+      this.bumpRollingStoneRate();
       bumpMusicRate();
     });
-    this.bossWarningEvent = this.time.delayedCall(176000, () => {
+    this.bossWarningEvent = this.time.delayedCall(86000, () => {
       this.showDanger(4000, true);
     });
-    this.bossEvent = this.time.delayedCall(180000, () => {
+    this.bossEvent = this.time.delayedCall(90000, () => {
       if (this.bossSpawned) return;
       this.bossSpawned = true;
       this.typeIntroducedCount += 1;
       this.applySpawnPenalty();
       this.spawners.boss.triggerSpawning();
+      this.bumpRollingStoneRate();
       bumpMusicRate();
     });
   }
@@ -485,23 +538,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
     });
   }
 
-  createTunnel() {
-    this.tunnelSprite = this.add.image(960, 600, "desert-ruin").setOrigin(1, 1);
-    const targetWidth = 360;
-    const scale = (targetWidth / this.tunnelSprite.width) * 0.5;
-    this.tunnelSprite.setScale(scale);
-    const entranceWidth = this.tunnelSprite.displayWidth * 0.36;
-    const entranceHeight = this.tunnelSprite.displayHeight * 0.72;
-    this.tunnelEntrance = this.add.rectangle(
-      960 - entranceWidth / 2,
-      600 - entranceHeight / 2,
-      entranceWidth,
-      entranceHeight,
-      0x000000,
-      0
-    );
-    this.physics.add.existing(this.tunnelEntrance, true);
-  }
+  createTunnel() {}
 
   createBushes() {
     const bushes = [
@@ -552,23 +589,41 @@ export default class DesertTunnelScene extends Phaser.Scene {
     this.rollingStones = this.physics.add.group();
     this.stonePiles = this.physics.add.staticGroup();
 
-    this.physics.add.overlap(this.rollingStones, this.player, (_, stone) => {
+    this.physics.add.overlap(this.rollingStones, this.player, (a, b) => {
+      const stone = a?.getData?.("isRollingStone") ? a : b;
+      if (!stone?.getData?.("isRollingStone")) return;
       this.handleRollingStoneHit(stone, "player");
     });
-    this.physics.add.overlap(this.rollingStones, this.monsters, (_, stone, monster) => {
+    this.physics.add.overlap(this.rollingStones, this.monsters, (a, b) => {
+      const stone = a?.getData?.("isRollingStone") ? a : b;
+      const monster = stone === a ? b : a;
+      if (!stone?.getData?.("isRollingStone") || !monster) return;
       this.handleRollingStoneHit(stone, monster);
     });
 
     this.rollingStoneEvent = this.time.addEvent({
-      delay: 7000,
+      delay: this.getRollingStoneDelay(),
       loop: true,
       callback: () => {
         if (!this.isPaused && !this.isGameOver && !this.isComplete) {
           this.spawnRollingStone();
         }
-        this.rollingStoneEvent.delay = Phaser.Math.Between(6000, 11000);
+        this.rollingStoneEvent.delay = this.getRollingStoneDelay();
       },
     });
+  }
+
+  bumpRollingStoneRate() {
+    this.rollingStoneMultiplier *= 0.8;
+    if (this.rollingStoneEvent) {
+      this.rollingStoneEvent.delay = this.getRollingStoneDelay();
+    }
+  }
+
+  getRollingStoneDelay() {
+    const min = this.rollingStoneBaseMin * this.rollingStoneMultiplier;
+    const max = this.rollingStoneBaseMax * this.rollingStoneMultiplier;
+    return Phaser.Math.Between(Math.round(min), Math.round(max));
   }
 
   createChests() {
@@ -966,6 +1021,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
     if (this.hud) {
       this.hud.setStones(this.stonesCollected);
     }
+    this.checkWinCondition();
   }
 
   saveInventory() {
@@ -1058,11 +1114,18 @@ export default class DesertTunnelScene extends Phaser.Scene {
     monster.body.setVelocity(0, 0);
     monster.body.setSize(monster.displayWidth * 0.5, monster.displayHeight * 0.5, true);
     this.time.delayedCall(500, () => {
-      if (!monster.active) return;
+      if (!monster.active || monster.getData("dead")) return;
       monster.setData("isWindingUp", false);
       monster.setData("bossAttackPoseUntil", this.time.now + 200);
-      this.time.delayedCall(200, () => this.applyBossStun(monster));
-      this.time.delayedCall(100, () => this.shakeCameraBurst());
+      this.time.delayedCall(200, () => {
+        if (!monster.active || monster.getData("dead")) return;
+        this.applyBossStun(monster);
+      });
+      this.time.delayedCall(100, () => {
+        if (!monster.active || monster.getData("dead")) return;
+        this.shakeCameraBurst();
+      });
+      if (!monster.active || monster.getData("dead")) return;
       this.playBossAttackSound();
       this.executeMonsterAttack(monster, target, 2, { allowMiss: true });
     });
@@ -1121,6 +1184,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
 
   applyBossStun(monster) {
     const now = this.time.now;
+    if (!monster || !monster.active || !monster.body || monster.getData("dead")) return;
     monster.setData("powerStunUntil", Math.max(monster.getData("powerStunUntil") || 0, now + 2000));
     monster.body.setVelocity(0, 0);
   }
@@ -1234,8 +1298,8 @@ export default class DesertTunnelScene extends Phaser.Scene {
   }
 
   playBossDefeat(monster) {
-    this.isComplete = true;
-    this.stopEndlessTimers();
+    this.bossDefeated = true;
+    monster.setData("dead", true);
     const explosions = 15;
     for (let i = 0; i < explosions; i += 1) {
       this.time.delayedCall(150 * i, () => {
@@ -1262,9 +1326,16 @@ export default class DesertTunnelScene extends Phaser.Scene {
       duration: 600,
       onComplete: () => {
         if (monster.active) monster.destroy();
-        this.time.delayedCall(1500, () => this.showEndScreen());
+        this.time.delayedCall(1500, () => this.checkWinCondition());
       },
     });
+  }
+
+  checkWinCondition() {
+    if (this.isComplete || this.isGameOver) return;
+    if (!this.bossDefeated) return;
+    if (this.stonesCollected < 200) return;
+    this.showEndScreen();
   }
 
   swingSword() {
@@ -1485,6 +1556,14 @@ export default class DesertTunnelScene extends Phaser.Scene {
       this.positionSword();
     }
 
+    if (this.timerText && this.levelStartAt) {
+      const elapsed = Math.max(0, this.time.now - this.levelStartAt);
+      const totalSeconds = Math.floor(elapsed / 1000);
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      this.timerText.setText(`Zeit: ${minutes}:${seconds.toString().padStart(2, "0")}`);
+    }
+
     if (this.rollingStones) {
       this.rollingStones.getChildren().forEach((stone) => {
         if (!stone.active) return;
@@ -1535,16 +1614,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
       });
     }
 
-    const isOnTunnel = Phaser.Geom.Intersects.RectangleToRectangle(
-      this.player.getBounds(),
-      this.tunnelEntrance.getBounds()
-    );
-    if (!isOnTunnel) {
-      this.canPromptTunnel = true;
-    } else if (this.canPromptTunnel) {
-      this.canPromptTunnel = false;
-      this.openTunnelPrompt();
-    }
+    this.canPromptTunnel = true;
 
     this.monsters.getChildren().forEach((monster) => {
       this.updateMonsterBarPosition(monster);
@@ -2097,52 +2167,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
     this.companion.setData("state", "follow");
   }
 
-  openTunnelPrompt() {
-    if (this.isPromptActive) return;
-    this.isPaused = true;
-    this.player.body.setVelocity(0, 0);
-    this.physics.world.pause();
-    this.promptBox.setVisible(true);
-    this.isPromptActive = true;
-
-    let onYes = null;
-    let onNo = null;
-    const closePrompt = (resumeWorld) => {
-      if (onYes) this.input.keyboard.off("keydown-J", onYes);
-      if (onNo) this.input.keyboard.off("keydown-N", onNo);
-      this.promptBox.setVisible(false);
-      this.isPromptActive = false;
-      if (resumeWorld) {
-        this.physics.world.resume();
-        this.isPaused = false;
-      }
-    };
-
-    if (this.stonesCollected < this.tunnelCost) {
-      this.promptText.setText(
-        `Leider hast du nicht genug Steine.\nSammel ${this.tunnelCost} Stück, um den Tunnel zu bauen.`
-      );
-      this.promptHint.setText("Beliebige Taste zum Weiterspielen");
-      this.input.keyboard.once("keydown", () => closePrompt(true));
-      return;
-    }
-
-    this.promptText.setText(`Tunnel bauen für ${this.tunnelCost} Steine?`);
-    this.promptHint.setText("[J]a oder [N]ein");
-
-    onNo = () => closePrompt(true);
-    onYes = () => {
-      this.stonesCollected -= this.tunnelCost;
-      if (this.hud) {
-        this.hud.setStones(this.stonesCollected);
-      }
-      closePrompt(true);
-      this.showEndScreen();
-    };
-
-    this.input.keyboard.once("keydown-J", onYes);
-    this.input.keyboard.once("keydown-N", onNo);
-  }
+  openTunnelPrompt() {}
 
   updateCompanionUI() {
     if (!this.hud) return;

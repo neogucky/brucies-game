@@ -17,6 +17,12 @@ export default class UndergroundMapScene extends Phaser.Scene {
   constructor() {
     super({ key: "UndergroundMapScene" });
     this.currentNode = null;
+    this.entryFromDesert = false;
+    this.travelSpeed = 260;
+  }
+
+  init(data) {
+    this.entryFromDesert = Boolean(data?.fromDesert);
   }
 
   create() {
@@ -128,6 +134,28 @@ export default class UndergroundMapScene extends Phaser.Scene {
     );
     this.companionMarker.setScale(0.46);
     this.companionMarker.setDepth(5);
+
+    if (this.entryFromDesert) {
+      const edgeY = 40;
+      const duration = this.getTravelDuration(edgeY, startNode.y + 6);
+      this.playerMarker.setPosition(startNode.x, edgeY);
+      this.companionMarker.setPosition(startNode.x - 18, edgeY + 12);
+      this.tweens.add({
+        targets: this.playerMarker,
+        x: startNode.x,
+        y: startNode.y + 6,
+        duration,
+        onComplete: () => {
+          this.entryFromDesert = false;
+        },
+      });
+      this.tweens.add({
+        targets: this.companionMarker,
+        x: startNode.x - 18,
+        y: startNode.y + 12,
+        duration: duration + 40,
+      });
+    }
   }
 
   createUI() {
@@ -170,7 +198,22 @@ export default class UndergroundMapScene extends Phaser.Scene {
     };
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);
-    this.scene.start("DessertMapScene");
+    const duration = this.getTravelDuration(this.currentNode.y + 6, 40);
+    this.tweens.add({
+      targets: this.playerMarker,
+      x: this.currentNode.x,
+      y: 40,
+      duration,
+      onComplete: () => {
+        this.scene.start("DessertMapScene", { fromUnderground: true });
+      },
+    });
+    this.tweens.add({
+      targets: this.companionMarker,
+      x: this.currentNode.x - 18,
+      y: 52,
+      duration: duration + 40,
+    });
   }
 
   useConsumable() {
@@ -204,5 +247,10 @@ export default class UndergroundMapScene extends Phaser.Scene {
     } else {
       this.scale.startFullscreen();
     }
+  }
+
+  getTravelDuration(fromY, toY) {
+    const distance = Math.abs(toY - fromY);
+    return Math.max(220, Math.round((distance / this.travelSpeed) * 1000));
   }
 }
