@@ -909,7 +909,7 @@ export default class DesertRuinScene extends Phaser.Scene {
       this.scene.restart();
     });
     this.input.keyboard.once("keydown-ESC", () => {
-      this.scene.start("WorldMapScene");
+      this.scene.start("DessertMapScene");
     });
   }
 
@@ -959,7 +959,7 @@ export default class DesertRuinScene extends Phaser.Scene {
       .setStroke("#433320", 3);
 
     this.input.keyboard.once("keydown-ENTER", () => {
-      this.scene.start("WorldMapScene");
+      this.scene.start("DessertMapScene");
     });
   }
 
@@ -995,7 +995,7 @@ export default class DesertRuinScene extends Phaser.Scene {
       const onNo = () => closePrompt(true);
       const onYes = () => {
         closePrompt(false);
-        this.scene.start("WorldMapScene");
+        this.scene.start("DessertMapScene");
       };
       this.input.keyboard.once("keydown-J", onYes);
       this.input.keyboard.once("keydown-N", onNo);
@@ -1049,7 +1049,7 @@ export default class DesertRuinScene extends Phaser.Scene {
 
     const onYes = () => {
       closePrompt(false);
-      this.scene.start("WorldMapScene");
+      this.scene.start("DessertMapScene");
     };
     const onNo = () => closePrompt(true);
 

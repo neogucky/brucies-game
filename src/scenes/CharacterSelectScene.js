@@ -137,7 +137,7 @@ export default class CharacterSelectScene extends Phaser.Scene {
     };
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);
-    this.scene.start("WorldMapScene");
+    this.scene.start("DessertMapScene");
   }
 
   toggleFullscreen() {

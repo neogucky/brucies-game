@@ -1297,7 +1297,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
       this.scene.restart();
     });
     this.input.keyboard.once("keydown-ESC", () => {
-      this.scene.start("WorldMapScene");
+      this.scene.start("DessertMapScene");
     });
   }
 
@@ -1343,7 +1343,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
       .setStroke("#433320", 3);
 
     this.input.keyboard.once("keydown-ENTER", () => {
-      this.scene.start("WorldMapScene");
+      this.scene.start("DessertMapScene");
     });
   }
 
@@ -1378,7 +1378,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
     const onYes = () => {
       closePrompt(false);
       this.time.paused = false;
-      this.scene.start("WorldMapScene");
+      this.scene.start("DessertMapScene");
     };
     const onNo = () => closePrompt(true);
 

@@ -24,7 +24,7 @@ export default class TavernScene extends Phaser.Scene {
     playMusic(this, "music-tavern");
 
     this.input.keyboard.on("keydown-ESC", () =>
-      this.scene.start(this.isUnderground ? "UndergroundMapScene" : "WorldMapScene")
+      this.scene.start(this.isUnderground ? "UndergroundMapScene" : "DessertMapScene")
     );
     this.coordDebugger = new CoordinateDebugger(this);
     this.input.keyboard.on("keydown-F", () => this.toggleFullscreen());

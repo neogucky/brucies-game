@@ -34,9 +34,9 @@ const NODES = [
   },
 ];
 
-export default class WorldMapScene extends Phaser.Scene {
+export default class DessertMapScene extends Phaser.Scene {
   constructor() {
-    super({ key: "WorldMapScene" });
+    super({ key: "DessertMapScene" });
     this.currentNode = null;
     this.isMoving = false;
   }
@@ -73,7 +73,7 @@ export default class WorldMapScene extends Phaser.Scene {
     this.handleKeyDown = (event) => {
       if (event.code === "Escape") {
         this.time.delayedCall(0, () => {
-          this.scene.stop("WorldMapScene");
+          this.scene.stop("DessertMapScene");
           this.scene.start("MainMenuScene");
         });
       }
@@ -176,6 +176,43 @@ export default class WorldMapScene extends Phaser.Scene {
         icon.setAlpha(isUnlocked ? 1 : 0.35);
       }
 
+      if (isUnlocked && icon) {
+        icon.setDepth(2);
+        const glowKey = "worldmap-glow";
+        if (!this.textures.exists(glowKey)) {
+          const size = 160;
+          const canvasTexture = this.textures.createCanvas(glowKey, size, size);
+          const ctx = canvasTexture.getContext();
+          const grad = ctx.createRadialGradient(
+            size / 2,
+            size / 2,
+            10,
+            size / 2,
+            size / 2,
+            size / 2
+          );
+          grad.addColorStop(0, "rgba(255,226,161,0.9)");
+          grad.addColorStop(0.6, "rgba(255,226,161,0.4)");
+          grad.addColorStop(1, "rgba(255,226,161,0)");
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, size, size);
+          canvasTexture.refresh();
+        }
+        const glow = this.add.image(node.x, node.y + 8, glowKey);
+        glow.setDepth(1);
+        glow.setBlendMode(Phaser.BlendModes.ADD);
+        glow.setScale(0.9, 0.63);
+        this.tweens.add({
+          targets: glow,
+          alpha: { from: 0.5, to: 0.85 },
+          scaleX: { from: 0.9, to: 1.1 },
+          scaleY: { from: 0.65, to: 0.8 },
+          duration: 1400,
+          yoyo: true,
+          repeat: -1,
+        });
+      }
+
       if (!isUnlocked) {
         label = this.add
           .text(node.x, node.y + 10, "???", {
@@ -199,17 +236,19 @@ export default class WorldMapScene extends Phaser.Scene {
     const standingTexture = isFemale ? "knight-female-standing" : "knight-standing";
     this.playerMarker = this.add.image(startNode.x, startNode.y + 2, standingTexture);
     this.playerMarker.setScale(0.42);
+    this.playerMarker.setDepth(5);
     this.companionMarker = this.add.image(
       startNode.x - 18,
       startNode.y + 8,
       "companion-running"
     );
     this.companionMarker.setScale(0.42);
+    this.companionMarker.setDepth(5);
   }
 
   createUI() {
     this.hintText = this.add
-      .text(40, 590, "Pfeile/WASD = Bewegen, Enter = Start, Esc = Menü", {
+      .text(14, 590, "Pfeile/WASD = Bewegen, Enter = Start, Esc = Menü", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "14px",
         color: "#ffffff",
@@ -226,7 +265,7 @@ export default class WorldMapScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(950, 590, "Wüsten-Land", {
+      .text(945, 590, "Wüsten-Land", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "16px",
         color: "#ffffff",

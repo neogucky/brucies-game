@@ -4,15 +4,23 @@ import CharacterSelectScene from "./scenes/CharacterSelectScene.js";
 import DesertRuinScene from "./scenes/desert/DesertRuinScene.js";
 import DesertEndlessScene from "./scenes/desert/DesertEndlessScene.js";
 import DesertTunnelScene from "./scenes/desert/DesertTunnelScene.js";
-import WorldMapScene from "./scenes/WorldMapScene.js";
+import DessertMapScene from "./scenes/DessertMapScene.js";
 import UndergroundMapScene from "./scenes/UndergroundMapScene.js";
 import TavernScene from "./scenes/desert/TavernScene.js";
 
 const config = {
-  type: Phaser.AUTO,
+  type: Phaser.WEBGL,
   parent: "game",
   width: 960,
   height: 600,
+  resolution: 2,
+  antialias: true,
+  pixelArt: false,
+  render: {
+    antialias: true,
+    antialiasGL: true,
+    roundPixels: false,
+  },
   scale: {
     mode: Phaser.Scale.ENVELOP,
     autoCenter: Phaser.Scale.CENTER_BOTH,
@@ -30,7 +38,7 @@ const config = {
     BootScene,
     MainMenuScene,
     CharacterSelectScene,
-    WorldMapScene,
+    DessertMapScene,
     UndergroundMapScene,
     DesertRuinScene,
     DesertEndlessScene,

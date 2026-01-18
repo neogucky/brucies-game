@@ -7,8 +7,8 @@ const NODES = [
   {
     id: "UnderShop",
     label: "Händlerin",
-    x: 465,
-    y: 130,
+    x: 445,
+    y: 210,
     neighbors: {},
   },
 ];
@@ -27,6 +27,14 @@ export default class UndergroundMapScene extends Phaser.Scene {
     playMusic(this, "music-world");
 
     const saveData = this.registry.get("saveData") || {};
+    if (saveData.currentLevel !== "UnderShop") {
+      const nextSave = {
+        ...saveData,
+        currentLevel: "UnderShop",
+      };
+      this.registry.set("saveData", nextSave);
+      saveProgress(nextSave);
+    }
     this.health = saveData.health ?? 5;
     this.maxHealth = 5;
     this.consumables = { ...(saveData.consumables || {}) };
@@ -46,7 +54,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
     const returnToDesert = () => this.returnToDesert();
     this.input.keyboard.on("keydown-UP", returnToDesert);
     this.input.keyboard.on("keydown-W", returnToDesert);
-    this.input.keyboard.on("keydown-ESC", returnToDesert);
+    this.input.keyboard.on("keydown-ESC", () => this.scene.start("MainMenuScene"));
     this.coordDebugger = new CoordinateDebugger(this);
     this.input.keyboard.on("keydown-F", () => this.toggleFullscreen());
   }
@@ -66,6 +74,40 @@ export default class UndergroundMapScene extends Phaser.Scene {
     this.nodeSprites = new Map();
     NODES.forEach((node) => {
       const icon = this.add.image(node.x, node.y, "underground-shop-map").setScale(0.3);
+      icon.setDepth(2);
+      const glowKey = "worldmap-glow";
+      if (!this.textures.exists(glowKey)) {
+        const size = 160;
+        const canvasTexture = this.textures.createCanvas(glowKey, size, size);
+        const ctx = canvasTexture.getContext();
+        const grad = ctx.createRadialGradient(
+          size / 2,
+          size / 2,
+          10,
+          size / 2,
+          size / 2,
+          size / 2
+        );
+        grad.addColorStop(0, "rgba(255,226,161,0.9)");
+        grad.addColorStop(0.6, "rgba(255,226,161,0.4)");
+        grad.addColorStop(1, "rgba(255,226,161,0)");
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, size, size);
+        canvasTexture.refresh();
+      }
+      const glow = this.add.image(node.x, node.y + 8, glowKey);
+      glow.setDepth(1);
+      glow.setBlendMode(Phaser.BlendModes.ADD);
+      glow.setScale(0.9, 0.63);
+      this.tweens.add({
+        targets: glow,
+        alpha: { from: 0.5, to: 0.85 },
+        scaleX: { from: 0.9, to: 1.1 },
+        scaleY: { from: 0.65, to: 0.8 },
+        duration: 1400,
+        yoyo: true,
+        repeat: -1,
+      });
       this.nodeSprites.set(node.id, { icon });
     });
   }
@@ -78,17 +120,19 @@ export default class UndergroundMapScene extends Phaser.Scene {
     const standingTexture = isFemale ? "knight-female-standing" : "knight-standing";
     this.playerMarker = this.add.image(startNode.x, startNode.y + 6, standingTexture);
     this.playerMarker.setScale(0.46);
+    this.playerMarker.setDepth(5);
     this.companionMarker = this.add.image(
       startNode.x - 18,
       startNode.y + 12,
       "companion-running"
     );
     this.companionMarker.setScale(0.46);
+    this.companionMarker.setDepth(5);
   }
 
   createUI() {
     this.hintText = this.add
-      .text(40, 590, "Enter = Shop, W/Pfeil hoch/Esc = Wüstenkarte", {
+      .text(14, 590, "Enter = Shop, W/Pfeil hoch = Wüstenkarte, Esc = Menü", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "14px",
         color: "#ffffff",
@@ -97,7 +141,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
       .setStroke("#3b2a17", 2);
 
     this.locationText = this.add
-      .text(950, 590, "Unterwelt", {
+      .text(945, 590, "Unterwelt", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "16px",
         color: "#ffffff",
@@ -126,7 +170,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
     };
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);
-    this.scene.start("WorldMapScene");
+    this.scene.start("DessertMapScene");
   }
 
   useConsumable() {
