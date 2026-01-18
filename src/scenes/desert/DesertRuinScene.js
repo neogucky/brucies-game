@@ -274,7 +274,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     });
 
     this.add
-      .text(30, 560, "Pfeiltasten zum bewegen, Früchte heilen, Schlag Truhen für Münzen", {
+      .text(14, 580, "Pfeiltasten zum bewegen, Früchte heilen, Schlag Truhen für Münzen", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "14px",
         color: "#ffffff",

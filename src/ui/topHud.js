@@ -24,7 +24,7 @@ export default class TopHud {
 
   create() {
     this.coinIcon = this.scene.add.image(28, 30, "ui-coin").setOrigin(0.5);
-    this.coinIcon.setScale(0.7);
+    this.coinIcon.setScale(0.49);
     this.coinText = this.scene.add
       .text(50, 30, "Münzen: 0", {
         fontFamily: "Trebuchet MS, sans-serif",
@@ -36,7 +36,7 @@ export default class TopHud {
 
     if (this.options.showStones) {
       this.stoneIcon = this.scene.add.image(28, 54, "ui-stone").setOrigin(0.5);
-      this.stoneIcon.setScale(0.6);
+      this.stoneIcon.setScale(0.78);
       this.stoneText = this.scene.add
         .text(50, 54, "Steine: 0", {
           fontFamily: "Trebuchet MS, sans-serif",

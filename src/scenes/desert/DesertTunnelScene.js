@@ -222,7 +222,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
     });
 
     this.add
-      .text(30, 560, "Pfeiltasten zum bewegen, Früchte heilen, Schwert = Sammeln", {
+      .text(14, 580, "Pfeiltasten zum bewegen, Früchte heilen, Schwert = Sammeln", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "14px",
         color: "#ffffff",
@@ -240,7 +240,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
       .setStroke("#3b2a17", 2);
 
     this.timerText = this.add
-      .text(30, 530, "Zeit: 0:00", {
+      .text(14, 560, "Zeit: 0:00", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "14px",
         color: "#ffffff",
