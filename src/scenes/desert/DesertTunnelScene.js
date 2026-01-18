@@ -70,6 +70,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
     this.input.keyboard.on("keydown-T", () => this.useConsumable());
     this.input.keyboard.on("keydown-ESC", () => this.openExitPrompt());
     this.input.keyboard.on("keydown-ONE", () => this.spawnBossNow());
+    this.input.keyboard.on("keydown-F", () => this.toggleFullscreen());
     this.coordDebugger = new CoordinateDebugger(this);
     this.events.once("shutdown", () => {
       if (!this.skipShutdownSave) {
@@ -2139,6 +2140,14 @@ export default class DesertTunnelScene extends Phaser.Scene {
     }
     if (target) {
       this.companion.setFlipX(target.x < this.companion.x);
+    }
+  }
+
+  toggleFullscreen() {
+    if (this.scale.isFullscreen) {
+      this.scale.stopFullscreen();
+    } else {
+      this.scale.startFullscreen();
     }
   }
 

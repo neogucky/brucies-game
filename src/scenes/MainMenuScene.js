@@ -8,6 +8,8 @@ export default class MainMenuScene extends Phaser.Scene {
     this.selectedIndex = 0;
     this.hasSave = false;
     this.isDialogOpen = false;
+    this.settingsIndex = 0;
+    this.pendingSettings = null;
   }
 
   create() {
@@ -25,6 +27,7 @@ export default class MainMenuScene extends Phaser.Scene {
     this.input.keyboard.on("keydown-UP", () => this.moveSelection(-1));
     this.input.keyboard.on("keydown-DOWN", () => this.moveSelection(1));
     this.input.keyboard.on("keydown-ENTER", () => this.activateSelection());
+    this.input.keyboard.on("keydown-F", () => this.toggleFullscreen());
   }
 
   addBackground() {
@@ -194,7 +197,7 @@ export default class MainMenuScene extends Phaser.Scene {
   createSettingsDialog() {
     this.settingsBox = this.add.container(0, 0).setDepth(20).setVisible(false);
     const shade = this.add.rectangle(480, 300, 960, 600, 0x000000, 0.45);
-    const panel = this.add.rectangle(480, 300, 520, 200, 0xe2c18b).setStrokeStyle(3, 0x8a6b44);
+    const panel = this.add.rectangle(480, 300, 520, 190, 0xe2c18b).setStrokeStyle(3, 0x8a6b44);
     this.settingsText = this.add
       .text(480, 290, "", {
         fontFamily: "Georgia, serif",
@@ -204,7 +207,7 @@ export default class MainMenuScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
     this.settingsHint = this.add
-      .text(480, 360, "Enter = Umschalten, Esc = Zurück", {
+      .text(480, 350, "Enter = Umschalten, S = Speichern und zurück, Esc = Abbrechen", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "14px",
         color: "#4b3824",
@@ -216,42 +219,79 @@ export default class MainMenuScene extends Phaser.Scene {
   openSettingsDialog() {
     if (this.isDialogOpen) return;
     this.isDialogOpen = true;
+    this.settingsIndex = 0;
+    const saveData = this.registry.get("saveData") || {};
+    this.pendingSettings = {
+      autoAim: Boolean(saveData.settings?.autoAim),
+    };
     this.updateSettingsText();
     this.settingsBox.setVisible(true);
 
-    const close = () => {
+    const close = (saveChanges) => {
       this.settingsBox.setVisible(false);
       this.input.keyboard.off("keydown-ENTER", toggleHandler);
       this.input.keyboard.off("keydown-SPACE", toggleHandler);
-      this.input.keyboard.off("keydown-ESC", closeHandler);
+      this.input.keyboard.off("keydown-UP", upHandler);
+      this.input.keyboard.off("keydown-DOWN", downHandler);
+      this.input.keyboard.off("keydown-S", saveHandler);
+      this.input.keyboard.off("keydown-ESC", cancelHandler);
       this.isDialogOpen = false;
+      if (saveChanges) {
+        this.applySettings();
+      }
+      this.pendingSettings = null;
     };
 
     const toggleHandler = () => {
-      const saveData = this.registry.get("saveData") || {};
-      const current = Boolean(saveData.settings?.autoAim);
-      const nextSave = {
-        ...saveData,
-        settings: {
-          ...(saveData.settings || {}),
-          autoAim: !current,
-        },
-      };
-      this.registry.set("saveData", nextSave);
-      saveProgress(nextSave);
+      this.pendingSettings.autoAim = !this.pendingSettings.autoAim;
       this.updateSettingsText();
     };
 
-    const closeHandler = () => close();
+    const saveHandler = () => close(true);
+    const cancelHandler = () => close(false);
+    const upHandler = () => {
+      this.settingsIndex = 0;
+      this.updateSettingsText();
+    };
+    const downHandler = () => {
+      this.settingsIndex = 0;
+      this.updateSettingsText();
+    };
 
     this.input.keyboard.on("keydown-ENTER", toggleHandler);
     this.input.keyboard.on("keydown-SPACE", toggleHandler);
-    this.input.keyboard.on("keydown-ESC", closeHandler);
+    this.input.keyboard.on("keydown-UP", upHandler);
+    this.input.keyboard.on("keydown-DOWN", downHandler);
+    this.input.keyboard.on("keydown-S", saveHandler);
+    this.input.keyboard.on("keydown-ESC", cancelHandler);
   }
 
   updateSettingsText() {
+    const autoAim = Boolean(this.pendingSettings?.autoAim);
+    const line1 = `${this.settingsIndex === 0 ? ">" : " "} Auto-Anvisieren: ${
+      autoAim ? "An" : "Aus"
+    }`;
+    this.settingsText.setText(line1);
+  }
+
+  applySettings() {
     const saveData = this.registry.get("saveData") || {};
-    const autoAim = Boolean(saveData.settings?.autoAim);
-    this.settingsText.setText(`Auto-Anvisieren: ${autoAim ? "An" : "Aus"}`);
+    const nextSave = {
+      ...saveData,
+      settings: {
+        ...(saveData.settings || {}),
+        ...this.pendingSettings,
+      },
+    };
+    this.registry.set("saveData", nextSave);
+    saveProgress(nextSave);
+  }
+
+  toggleFullscreen() {
+    if (this.scale.isFullscreen) {
+      this.scale.stopFullscreen();
+    } else {
+      this.scale.startFullscreen();
+    }
   }
 }

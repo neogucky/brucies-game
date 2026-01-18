@@ -1,4 +1,4 @@
-import { defaultSave, loadSave } from "../saveManager.js";
+import { defaultSave, loadSave, saveProgress } from "../saveManager.js";
 import { playMusic } from "../soundManager.js";
 
 export default class BootScene extends Phaser.Scene {
@@ -89,6 +89,19 @@ export default class BootScene extends Phaser.Scene {
   create() {
     const saveData = loadSave();
     this.registry.set("saveData", { ...defaultSave, ...saveData });
+    this.scale.on("fullscreenchange", (_, isFullscreen) => {
+      document.body.classList.toggle("fullscreen", isFullscreen);
+      this.scale.refresh();
+      const current = this.registry.get("saveData") || {};
+      const nextSave = {
+        ...current,
+        settings: {
+          ...(current.settings || {}),
+        },
+      };
+      this.registry.set("saveData", nextSave);
+      saveProgress(nextSave);
+    });
     this.scene.start("MainMenuScene");
   }
 

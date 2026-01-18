@@ -27,6 +27,7 @@ export default class TavernScene extends Phaser.Scene {
       this.scene.start(this.isUnderground ? "UndergroundMapScene" : "WorldMapScene")
     );
     this.coordDebugger = new CoordinateDebugger(this);
+    this.input.keyboard.on("keydown-F", () => this.toggleFullscreen());
   }
 
   addBackground() {
@@ -193,6 +194,14 @@ export default class TavernScene extends Phaser.Scene {
     };
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);
+  }
+
+  toggleFullscreen() {
+    if (this.scale.isFullscreen) {
+      this.scale.stopFullscreen();
+    } else {
+      this.scale.startFullscreen();
+    }
   }
 
   

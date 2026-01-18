@@ -48,6 +48,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
     this.input.keyboard.on("keydown-W", returnToDesert);
     this.input.keyboard.on("keydown-ESC", returnToDesert);
     this.coordDebugger = new CoordinateDebugger(this);
+    this.input.keyboard.on("keydown-F", () => this.toggleFullscreen());
   }
 
   addBackground() {
@@ -151,5 +152,13 @@ export default class UndergroundMapScene extends Phaser.Scene {
     };
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);
+  }
+
+  toggleFullscreen() {
+    if (this.scale.isFullscreen) {
+      this.scale.stopFullscreen();
+    } else {
+      this.scale.startFullscreen();
+    }
   }
 }

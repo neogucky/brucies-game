@@ -70,6 +70,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
     this.input.keyboard.on("keydown-T", () => this.useConsumable());
     this.input.keyboard.on("keydown-ESC", () => this.openExitPrompt());
     this.input.keyboard.on("keydown-ONE", () => this.spawnBossNow());
+    this.input.keyboard.on("keydown-F", () => this.toggleFullscreen());
     this.coordDebugger = new CoordinateDebugger(this);
     this.events.once("shutdown", () => {
       if (!this.skipShutdownSave) {
@@ -1998,6 +1999,14 @@ export default class DesertEndlessScene extends Phaser.Scene {
       this.companion.setTexture("companion-detected");
     } else if (state === "attacking") {
       this.companion.setTexture("companion-attacking");
+    }
+  }
+
+  toggleFullscreen() {
+    if (this.scale.isFullscreen) {
+      this.scale.stopFullscreen();
+    } else {
+      this.scale.startFullscreen();
     }
   }
 

@@ -13,6 +13,11 @@ const config = {
   parent: "game",
   width: 960,
   height: 600,
+  scale: {
+    mode: Phaser.Scale.ENVELOP,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+    fullscreenTarget: document.getElementById("game"),
+  },
   backgroundColor: "#1f1a12",
   physics: {
     default: "arcade",

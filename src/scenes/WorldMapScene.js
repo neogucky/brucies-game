@@ -69,6 +69,7 @@ export default class WorldMapScene extends Phaser.Scene {
     this.input.keyboard.on("keydown-ENTER", () => this.startCurrentLevel());
     this.input.keyboard.on("keydown-T", () => this.useConsumable());
     this.coordDebugger = new CoordinateDebugger(this);
+    this.input.keyboard.on("keydown-F", () => this.toggleFullscreen());
     this.handleKeyDown = (event) => {
       if (event.code === "Escape") {
         this.time.delayedCall(0, () => {
@@ -384,5 +385,13 @@ export default class WorldMapScene extends Phaser.Scene {
     };
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);
+  }
+
+  toggleFullscreen() {
+    if (this.scale.isFullscreen) {
+      this.scale.stopFullscreen();
+    } else {
+      this.scale.startFullscreen();
+    }
   }
 }

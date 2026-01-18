@@ -94,6 +94,7 @@ export default class CharacterSelectScene extends Phaser.Scene {
     this.input.keyboard.on("keydown-A", () => this.setIndex(0));
     this.input.keyboard.on("keydown-D", () => this.setIndex(1));
     this.input.keyboard.on("keydown-ENTER", () => this.confirmSelection());
+    this.input.keyboard.on("keydown-F", () => this.toggleFullscreen());
   }
 
   setIndex(index) {
@@ -137,5 +138,13 @@ export default class CharacterSelectScene extends Phaser.Scene {
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);
     this.scene.start("WorldMapScene");
+  }
+
+  toggleFullscreen() {
+    if (this.scale.isFullscreen) {
+      this.scale.stopFullscreen();
+    } else {
+      this.scale.startFullscreen();
+    }
   }
 }
