@@ -3,6 +3,7 @@ import { playMusic } from "../../soundManager.js";
 import DialogManager from "../../dialogManager.js";
 import TopHud from "../../ui/topHud.js";
 import CoordinateDebugger from "../../utils/coordinateDebugger.js";
+import ShieldManager from "../../utils/ShieldManager.js";
 
 export default class DesertRuinScene extends Phaser.Scene {
   constructor() {
@@ -131,6 +132,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.companionFruit.setDepth(6);
     this.companionFruit.setVisible(false);
     this.facing = new Phaser.Math.Vector2(1, 0);
+    this.shield.attach(this.player);
   }
 
   resetState() {
@@ -146,6 +148,13 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.consumables = {
       honey: saveData.consumables?.honey ?? 0,
     };
+    this.equipment = {
+      shield: saveData.equipment?.shield ?? false,
+    };
+    if (!this.shield) {
+      this.shield = new ShieldManager(this);
+    }
+    this.shield.initFromSave(saveData);
     this.levelCompleted = (saveData.completedLevels || []).includes("Wuestenruine");
     this.ruinStoredCoins = 0;
     this.ruinTransferAt = 0;
@@ -180,6 +189,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     if (this.stopAllSounds) {
       this.stopAllSounds(true);
     }
+    this.shield?.destroy();
   }
 
   createBushes() {
@@ -267,11 +277,13 @@ export default class DesertRuinScene extends Phaser.Scene {
       health: this.health,
       maxHealth: this.maxHealth,
       consumables: this.consumables,
+      passiveOwned: this.equipment.shield,
       activeDisabled: false,
       showCompanion: true,
       companionHealth: this.companionHealth,
       companionRespawnRatio: 0,
     });
+    this.shield.setHud(this.hud);
 
     this.add
       .text(14, 580, "Pfeiltasten zum bewegen, Früchte heilen, Schlag Truhen für Münzen", {
@@ -409,6 +421,7 @@ export default class DesertRuinScene extends Phaser.Scene {
         ? 1 - Math.min(1, (this.companionRespawnAt - this.time.now) / this.helperHideDuration)
         : 0,
     });
+    this.shield?.syncHud();
   }
 
   updateHearts() {
@@ -636,6 +649,10 @@ export default class DesertRuinScene extends Phaser.Scene {
         ...saveData.consumables,
         ...this.consumables,
       },
+      equipment: {
+        ...saveData.equipment,
+        ...this.equipment,
+      },
     };
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);
@@ -808,6 +825,9 @@ export default class DesertRuinScene extends Phaser.Scene {
   }
 
   damagePlayer(amount) {
+    if (this.shield?.tryBlockHit()) {
+      return;
+    }
     this.health = Math.max(0, this.health - amount);
     this.updateHearts();
     this.flashDamage();
@@ -1100,6 +1120,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     if (this.isSwinging) {
       this.positionSword();
     }
+    this.shield?.update();
 
     const isOnRuin = Phaser.Geom.Intersects.RectangleToRectangle(
       this.player.getBounds(),

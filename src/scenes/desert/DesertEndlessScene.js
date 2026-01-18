@@ -2,6 +2,7 @@ import { saveProgress } from "../../saveManager.js";
 import { playMusic, bumpMusicRate } from "../../soundManager.js";
 import TopHud from "../../ui/topHud.js";
 import MonsterSpawner from "./MonsterSpawner.js";
+import ShieldManager from "../../utils/ShieldManager.js";
 import CoordinateDebugger from "../../utils/coordinateDebugger.js";
 
 export default class DesertEndlessScene extends Phaser.Scene {
@@ -143,6 +144,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
     this.companionFruit.setDepth(6);
     this.companionFruit.setVisible(false);
     this.facing = new Phaser.Math.Vector2(1, 0);
+    this.shield.attach(this.player);
   }
 
   resetState() {
@@ -156,6 +158,13 @@ export default class DesertEndlessScene extends Phaser.Scene {
     this.consumables = {
       honey: saveData.consumables?.honey ?? 0,
     };
+    this.equipment = {
+      shield: saveData.equipment?.shield ?? false,
+    };
+    if (!this.shield) {
+      this.shield = new ShieldManager(this);
+    }
+    this.shield.initFromSave(saveData);
     this.lastAttackAt = 0;
     this.swordDidHit = false;
     this.swordSwingId = 0;
@@ -191,6 +200,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
     if (this.stopAllSounds) {
       this.stopAllSounds(true);
     }
+    this.shield?.destroy();
   }
 
   createBushes() {
@@ -268,11 +278,13 @@ export default class DesertEndlessScene extends Phaser.Scene {
       health: this.health,
       maxHealth: this.maxHealth,
       consumables: this.consumables,
+      passiveOwned: this.equipment.shield,
       activeDisabled: false,
       showCompanion: true,
       companionHealth: this.companionHealth,
       companionRespawnRatio: 0,
     });
+    this.shield.setHud(this.hud);
 
     this.add
       .text(14, 580, "Pfeiltasten zum bewegen, Früchte heilen, Schlag Truhen für Münzen", {
@@ -432,6 +444,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
         ? 1 - Math.min(1, (this.companionRespawnAt - this.time.now) / this.helperHideDuration)
         : 0,
     });
+    this.shield?.syncHud();
   }
 
   updateHearts() {
@@ -862,6 +875,10 @@ export default class DesertEndlessScene extends Phaser.Scene {
         ...saveData.consumables,
         ...this.consumables,
       },
+      equipment: {
+        ...saveData.equipment,
+        ...this.equipment,
+      },
     };
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);
@@ -1181,6 +1198,9 @@ export default class DesertEndlessScene extends Phaser.Scene {
   }
 
   damagePlayer(amount) {
+    if (this.shield?.tryBlockHit()) {
+      return;
+    }
     this.health = Math.max(0, this.health - amount);
     this.updateHearts();
     this.flashDamage();
@@ -1420,6 +1440,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
     if (this.isSwinging) {
       this.positionSword();
     }
+    this.shield?.update();
 
     this.monsters.getChildren().forEach((monster) => {
       this.updateMonsterBarPosition(monster);

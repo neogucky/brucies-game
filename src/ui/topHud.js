@@ -11,6 +11,7 @@ export default class TopHud {
     this.setStones(this.stones);
     this.setHealth(options.health ?? options.maxHealth ?? 5, options.maxHealth ?? 5);
     this.setConsumableCount(this.consumableCount);
+    this.setPassiveOwned(Boolean(options.passiveOwned));
     if (options.showCompanion) {
       this.setCompanionStatus({
         health: options.companionHealth ?? 1,
@@ -92,8 +93,17 @@ export default class TopHud {
         .setOrigin(0.5);
       const overlay = this.scene.add.rectangle(x, y, frameWidth - 6, frameHeight - 6, 0x6f6f6f, 0.55);
       overlay.setVisible(false);
+      const barWidth = 46;
+      const barHeight = 6;
+      const barBg = this.scene.add
+        .rectangle(x, y + 44, barWidth, barHeight, 0x3a2a1a, 0.7)
+        .setVisible(false);
+      const barFill = this.scene.add
+        .rectangle(x - barWidth / 2, y + 44, 2, barHeight - 2, 0xf2e3c5, 0.9)
+        .setOrigin(0, 0.5)
+        .setVisible(false);
 
-      this.items[item.key] = { frame, label, hint, count, icon, overlay };
+      this.items[item.key] = { frame, label, hint, count, icon, overlay, barBg, barFill, barWidth };
     });
 
     if (this.options.showCompanion) {
@@ -171,6 +181,33 @@ export default class TopHud {
     }
     item.label.setColor(disabled ? "#8b8373" : "#4b3824");
     item.hint.setColor(disabled ? "#8b8373" : "#4b3824");
+  }
+
+  setPassiveOwned(owned) {
+    const item = this.items.passive;
+    if (!item) return;
+    const alpha = owned ? 1 : 0.25;
+    item.icon.setAlpha(alpha);
+    item.label.setText(owned ? "Schild" : "Leer");
+    item.hint.setColor(owned ? "#4b3824" : "#8b8373");
+    item.label.setColor(owned ? "#4b3824" : "#8b8373");
+  }
+
+  setPassiveCooldown({ owned, active, ratio }) {
+    const item = this.items.passive;
+    if (!item) return;
+    if (!owned) {
+      item.barBg.setVisible(false);
+      item.barFill.setVisible(false);
+      return;
+    }
+    const showBar = !active;
+    item.barBg.setVisible(showBar);
+    item.barFill.setVisible(showBar);
+    if (showBar) {
+      const width = (item.barWidth - 4) * ratio;
+      item.barFill.displayWidth = Math.max(2, width);
+    }
   }
 
   setCompanionStatus({ health, respawnRatio }) {

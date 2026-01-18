@@ -14,6 +14,7 @@ export default class DialogManager {
     this.index = 0;
     this.onClose = options.onClose || null;
     this.portraitKey = options.portraitKey || null;
+    this.optionsIndex = 0;
     if (!this.container) {
       this.createUI(position);
     } else {
@@ -116,22 +117,45 @@ export default class DialogManager {
     }
     this.text.setText(page.text);
     if (page.options && page.options.length > 0) {
-      this.hint.setText(page.options.map((opt) => opt.label).join("  "));
-      page.options.forEach((opt) => {
-        const handler = () => {
-          if (opt.onSelect) opt.onSelect();
-          if (!opt.keepOpen) {
-            this.hide();
-          }
-        };
-        this.scene.input.keyboard.once(`keydown-${opt.key.toUpperCase()}`, handler);
-        this.keyHandlers.push({ key: opt.key.toUpperCase(), handler });
-      });
+      this.optionsIndex = Math.min(this.optionsIndex, page.options.length - 1);
+      this.renderOptions(page.options);
+      const handleUp = () => this.moveOption(-1, page.options);
+      const handleDown = () => this.moveOption(1, page.options);
+      const handleEnter = () => this.selectOption(page.options);
+      this.scene.input.keyboard.on("keydown-UP", handleUp);
+      this.scene.input.keyboard.on("keydown-DOWN", handleDown);
+      this.scene.input.keyboard.on("keydown-ENTER", handleEnter);
+      this.keyHandlers.push({ key: "UP", handler: handleUp });
+      this.keyHandlers.push({ key: "DOWN", handler: handleDown });
+      this.keyHandlers.push({ key: "ENTER", handler: handleEnter });
     } else {
       this.hint.setText("Leertaste zum Weiterblättern");
       const handler = () => this.nextPage();
       this.scene.input.keyboard.once("keydown-SPACE", handler);
       this.keyHandlers.push({ key: "SPACE", handler });
+    }
+  }
+
+  renderOptions(options) {
+    const lines = options.map((opt, index) => {
+      const prefix = index === this.optionsIndex ? ">" : " ";
+      return `${prefix} ${opt.label}`;
+    });
+    this.hint.setText(lines.join("\n"));
+  }
+
+  moveOption(delta, options) {
+    if (!options || options.length === 0) return;
+    this.optionsIndex = Phaser.Math.Wrap(this.optionsIndex + delta, 0, options.length);
+    this.renderOptions(options);
+  }
+
+  selectOption(options) {
+    const opt = options[this.optionsIndex];
+    if (!opt) return;
+    if (opt.action) opt.action();
+    if (!opt.keepOpen) {
+      this.hide();
     }
   }
 

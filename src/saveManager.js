@@ -10,6 +10,9 @@ export const defaultSave = {
   consumables: {
     honey: 0,
   },
+  equipment: {
+    shield: false,
+  },
   settings: {
     autoAim: false,
   },

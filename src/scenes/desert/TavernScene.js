@@ -40,6 +40,7 @@ export default class TavernScene extends Phaser.Scene {
   addUI() {
     this.coins = this.getSaveData().coins ?? 0;
     this.honeyCount = this.getSaveData().consumables?.honey ?? 0;
+    this.hasShield = this.getSaveData().equipment?.shield ?? false;
     this.health = this.getSaveData().health ?? 5;
     this.maxHealth = 5;
     
@@ -48,17 +49,16 @@ export default class TavernScene extends Phaser.Scene {
       health: this.health,
       maxHealth: this.maxHealth,
       consumables: { honey: this.honeyCount },
+      passiveOwned: this.hasShield,
       activeDisabled: true,
       showCompanion: true,
       companionHealth: 1,
       companionRespawnRatio: 0,
     });
 
-    const hintText = this.isUnderground
-      ? "Esc = Zurück zur Unterwelt"
-      : "Esc = Zurück zur Karte";
+    const hintText = "Esc = Zurück zur Karte";
     this.add
-      .text(40, 590, hintText, {
+      .text(14, 590, hintText, {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "16px",
         color: "#ffffff",
@@ -135,27 +135,77 @@ export default class TavernScene extends Phaser.Scene {
     this.showPurchaseDialog();
   }
 
+  buyShield() {
+    if (this.isLoading) return;
+    if (this.hasShield) return;
+    const price = 100;
+    if (this.coins < price) {
+      this.showNotEnoughCoinsDialog();
+      return;
+    }
+    this.coins -= price;
+    this.hasShield = true;
+    if (this.hud) {
+      this.hud.setCoins(this.coins);
+      this.hud.setPassiveOwned(true);
+    }
+    this.saveInventory();
+    this.showShieldPurchaseDialog();
+  }
+
   showGreetingDialog() {
     this.dialog.show(this.buildShopDialog(), "bottom", { portraitKey: "tavern-barkeeper" });
   }
 
   buildShopDialog() {
+    const options = [
+      { label: "Honigsaft (10)", action: () => this.buyHoney() },
+    ];
+    if (!this.hasShield) {
+      options.push({ label: "Schild (100)", action: () => this.buyShield() });
+    }
     return [
       { text: "Willkommen in meiner Taverne, Sir Ritter!" },
       {
-        text: "Willst du Honigsaft kaufen? \nEr heilt dich und deinen Begleiter um ein Herz!",
-        options: [{ key: "K", label: "[K] kaufen", onSelect: () => this.buyHoney(), keepOpen: true }],
+        text: "Was möchtest du kaufen?",
+        options,
       },
     ];
   }
 
   showPurchaseDialog() {
+    const options = [
+      { label: "Honigsaft (10)", action: () => this.buyHoney() },
+    ];
+    if (!this.hasShield) {
+      options.push({ label: "Schild (100)", action: () => this.buyShield() });
+    }
     this.dialog.show(
       [
         { text: "Hier ist der Honigsaft, darf es noch etwas sein?" },
         {
-          text: "Willst du heilenden Honigsaft kaufen?",
-          options: [{ key: "K", label: "[K] kaufen", onSelect: () => this.buyHoney(), keepOpen: true }],
+          text: "Was möchtest du kaufen?",
+          options,
+        },
+      ],
+      "bottom",
+      { portraitKey: "tavern-barkeeper" }
+    );
+  }
+
+  showShieldPurchaseDialog() {
+    const options = [
+      { label: "Honigsaft (10)", action: () => this.buyHoney() },
+    ];
+    if (!this.hasShield) {
+      options.push({ label: "Schild (100)", action: () => this.buyShield() });
+    }
+    this.dialog.show(
+      [
+        { text: "Hier ist mein alter Schild\nHoffentlich wird er dich beschützen!" },
+        {
+          text: "Was möchtest du kaufen?",
+          options,
         },
       ],
       "bottom",
@@ -164,12 +214,18 @@ export default class TavernScene extends Phaser.Scene {
   }
 
   showNotEnoughCoinsDialog() {
+    const options = [
+      { label: "Honigsaft (10)", action: () => this.buyHoney() },
+    ];
+    if (!this.hasShield) {
+      options.push({ label: "Schild (100)", action: () => this.buyShield() });
+    }
     this.dialog.show(
       [
         { text: "Du hast leider nicht genügend Münzen." },
         {
-          text: "Willst du heilenden Honigsaft kaufen?",
-          options: [{ key: "K", label: "[K] kaufen", onSelect: () => this.buyHoney(), keepOpen: true }],
+          text: "Was möchtest du kaufen?",
+          options,
         },
       ],
       "bottom",
@@ -190,6 +246,10 @@ export default class TavernScene extends Phaser.Scene {
       consumables: {
         ...saveData.consumables,
         honey: this.honeyCount,
+      },
+      equipment: {
+        ...saveData.equipment,
+        shield: this.hasShield,
       },
     };
     this.registry.set("saveData", nextSave);

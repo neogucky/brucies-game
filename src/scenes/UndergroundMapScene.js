@@ -49,6 +49,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
       health: this.health,
       maxHealth: this.maxHealth,
       consumables: this.consumables,
+      passiveOwned: saveData.equipment?.shield ?? false,
       activeDisabled: true,
       showCompanion: true,
       companionHealth: 1,
