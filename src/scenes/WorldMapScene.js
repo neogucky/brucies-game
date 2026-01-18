@@ -1,6 +1,7 @@
 import { saveProgress } from "../saveManager.js";
 import { playMusic } from "../soundManager.js";
 import TopHud from "../ui/topHud.js";
+import CoordinateDebugger from "../utils/coordinateDebugger.js";
 
 const NODES = [
   {
@@ -67,6 +68,7 @@ export default class WorldMapScene extends Phaser.Scene {
     this.wasd = this.input.keyboard.addKeys("W,A,S,D");
     this.input.keyboard.on("keydown-ENTER", () => this.startCurrentLevel());
     this.input.keyboard.on("keydown-T", () => this.useConsumable());
+    this.coordDebugger = new CoordinateDebugger(this);
     this.handleKeyDown = (event) => {
       if (event.code === "Escape") {
         this.time.delayedCall(0, () => {
@@ -124,19 +126,22 @@ export default class WorldMapScene extends Phaser.Scene {
     }
     const fremdweg = NODES.find((node) => node.id === "Fremdweg");
     if (fremdweg && this.unlocked.has("Fremdweg")) {
-      graphics.strokeLineShape(
-        new Phaser.Geom.Line(
-          fremdweg.x,
-          fremdweg.y + 20,
-          fremdweg.x,
-          Math.min(590, fremdweg.y + 90)
-        )
-      );
+      const saveData = this.registry.get("saveData") || {};
+      if (saveData.completedLevels?.includes("Fremdweg")) {
+        graphics.strokeLineShape(
+          new Phaser.Geom.Line(
+            fremdweg.x,
+            fremdweg.y + 20,
+            fremdweg.x,
+            Math.min(590, fremdweg.y + 90)
+          )
+        );
+      }
     }
   }
 
   createNodes() {
-    const saveData = this.registry.get("saveData");
+    const saveData = this.registry.get("saveData") || {};
     this.unlocked = new Set(saveData.unlockedLevels || []);
     this.nodeSprites = new Map();
 
@@ -161,6 +166,10 @@ export default class WorldMapScene extends Phaser.Scene {
         }
       } else if (node.id === "Taverne" && isUnlocked) {
         icon = this.add.image(node.x, node.y, "tavern-map").setScale(0.3);
+      } else if (node.id === "Fremdweg" && isUnlocked) {
+        const isCompleted = saveData.completedLevels?.includes("Fremdweg");
+        const quarryKey = isCompleted ? "worldmap-quarry-tunnel" : "worldmap-quarry";
+        icon = this.add.image(node.x, node.y, quarryKey).setScale(0.3);
       } else {
         icon = this.add.image(node.x, node.y, "worldmap-ruin").setScale(0.281);
         icon.setAlpha(isUnlocked ? 1 : 0.35);
@@ -246,6 +255,12 @@ export default class WorldMapScene extends Phaser.Scene {
     const down = this.cursors.down.isDown || this.wasd.S.isDown;
 
     if (down && this.currentNode?.id === "Fremdweg") {
+      const saveData = this.registry.get("saveData") || {};
+      if (!saveData.completedLevels?.includes("Fremdweg")) {
+        this.lockText.setText("Der Weg nach unten ist noch versperrt.");
+        this.time.delayedCall(1000, () => this.lockText.setText(""));
+        return;
+      }
       this.scene.start("UndergroundMapScene");
       return;
     }

@@ -2,6 +2,7 @@ import { saveProgress } from "../../saveManager.js";
 import { playMusic } from "../../soundManager.js";
 import DialogManager from "../../dialogManager.js";
 import TopHud from "../../ui/topHud.js";
+import CoordinateDebugger from "../../utils/coordinateDebugger.js";
 
 export default class TavernScene extends Phaser.Scene {
   constructor() {
@@ -25,6 +26,7 @@ export default class TavernScene extends Phaser.Scene {
     this.input.keyboard.on("keydown-ESC", () =>
       this.scene.start(this.isUnderground ? "UndergroundMapScene" : "WorldMapScene")
     );
+    this.coordDebugger = new CoordinateDebugger(this);
   }
 
   addBackground() {

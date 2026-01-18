@@ -1,6 +1,7 @@
 import { saveProgress } from "../saveManager.js";
 import { playMusic } from "../soundManager.js";
 import TopHud from "../ui/topHud.js";
+import CoordinateDebugger from "../utils/coordinateDebugger.js";
 
 const NODES = [
   {
@@ -46,6 +47,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
     this.input.keyboard.on("keydown-UP", returnToDesert);
     this.input.keyboard.on("keydown-W", returnToDesert);
     this.input.keyboard.on("keydown-ESC", returnToDesert);
+    this.coordDebugger = new CoordinateDebugger(this);
   }
 
   addBackground() {
@@ -62,7 +64,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
     path.strokeLineShape(new Phaser.Geom.Line(NODES[0].x, 40, NODES[0].x, NODES[0].y + 18));
     this.nodeSprites = new Map();
     NODES.forEach((node) => {
-      const icon = this.add.image(node.x, node.y, "tavern-map").setScale(0.3);
+      const icon = this.add.image(node.x, node.y, "underground-shop-map").setScale(0.3);
       this.nodeSprites.set(node.id, { icon });
     });
   }

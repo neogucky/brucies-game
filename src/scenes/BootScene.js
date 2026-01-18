@@ -36,9 +36,13 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("worldmap-ruin", "assets/worldmap/ruin.png");
     this.load.image("worldmap-ruin-repaired", "assets/worldmap/ruin_repaired.png");
     this.load.image("desert-bg", "assets/desert/desert.png");
+    this.load.image("desert-quarry-bg", "assets/desert/desert_quarry.png");
     this.load.image("worldmap-bg", "assets/worldmap/desert_world.png");
+    this.load.image("worldmap-quarry", "assets/worldmap/quarry.png");
+    this.load.image("worldmap-quarry-tunnel", "assets/worldmap/quarry_tunnel.png");
     this.load.image("worldmap-underground-bg", "assets/worldmap/underground_world.png");
     this.load.image("tavern-map", "assets/worldmap/tavern.png");
+    this.load.image("underground-shop-map", "assets/worldmap/underground_shop.png");
     this.load.image("underground-shop", "assets/underground/underground_shop.png");
     this.load.image("underground-shop-loading", "assets/underground/underground_shop_loading.png");
     this.load.image("tavern-bg", "assets/tavern/tavern.png");

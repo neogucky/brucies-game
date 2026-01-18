@@ -1,6 +1,7 @@
 import { saveProgress } from "../../saveManager.js";
 import { playMusic } from "../../soundManager.js";
 import TopHud from "../../ui/topHud.js";
+import CoordinateDebugger from "../../utils/coordinateDebugger.js";
 
 export default class DesertRuinScene extends Phaser.Scene {
   constructor() {
@@ -64,6 +65,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.input.keyboard.on("keydown-SPACE", () => this.swingSword());
     this.input.keyboard.on("keydown-T", () => this.useConsumable());
     this.input.keyboard.on("keydown-ESC", () => this.openExitPrompt());
+    this.coordDebugger = new CoordinateDebugger(this);
     this.events.once("shutdown", () => {
       if (!this.skipShutdownSave) {
         this.saveInventory();

@@ -2,6 +2,7 @@ import { saveProgress } from "../../saveManager.js";
 import { playMusic, bumpMusicRate } from "../../soundManager.js";
 import TopHud from "../../ui/topHud.js";
 import MonsterSpawner from "./MonsterSpawner.js";
+import CoordinateDebugger from "../../utils/coordinateDebugger.js";
 
 export default class DesertEndlessScene extends Phaser.Scene {
   constructor() {
@@ -69,6 +70,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
     this.input.keyboard.on("keydown-T", () => this.useConsumable());
     this.input.keyboard.on("keydown-ESC", () => this.openExitPrompt());
     this.input.keyboard.on("keydown-ONE", () => this.spawnBossNow());
+    this.coordDebugger = new CoordinateDebugger(this);
     this.events.once("shutdown", () => {
       if (!this.skipShutdownSave) {
         this.saveInventory();

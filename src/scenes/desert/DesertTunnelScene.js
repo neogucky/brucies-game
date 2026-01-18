@@ -2,6 +2,7 @@ import { saveProgress } from "../../saveManager.js";
 import { playMusic, bumpMusicRate } from "../../soundManager.js";
 import TopHud from "../../ui/topHud.js";
 import MonsterSpawner from "./MonsterSpawner.js";
+import CoordinateDebugger from "../../utils/coordinateDebugger.js";
 
 export default class DesertTunnelScene extends Phaser.Scene {
   constructor() {
@@ -54,9 +55,9 @@ export default class DesertTunnelScene extends Phaser.Scene {
     this.createTunnel();
     this.createUI();
     this.createBushes();
-    this.createStonePiles();
     this.createChests();
     this.createMonsters();
+    this.createRollingStones();
     this.createSword();
     this.createRespawnTimers();
     this.createAudio();
@@ -69,6 +70,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
     this.input.keyboard.on("keydown-T", () => this.useConsumable());
     this.input.keyboard.on("keydown-ESC", () => this.openExitPrompt());
     this.input.keyboard.on("keydown-ONE", () => this.spawnBossNow());
+    this.coordDebugger = new CoordinateDebugger(this);
     this.events.once("shutdown", () => {
       if (!this.skipShutdownSave) {
         this.saveInventory();
@@ -84,7 +86,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
   }
 
   addBackground() {
-    const bg = this.add.image(480, 300, "desert-bg");
+    const bg = this.add.image(480, 300, "desert-quarry-bg");
     const scale = Math.max(960 / bg.width, 600 / bg.height);
     bg.setScale(scale);
   }
@@ -166,6 +168,9 @@ export default class DesertTunnelScene extends Phaser.Scene {
     if (this.companionAttackTween) {
       this.companionAttackTween.stop();
     }
+    if (this.rollingStoneEvent) {
+      this.rollingStoneEvent.remove(false);
+    }
     if (this.monsters && this.monsters.children) {
       this.monsters.clear(true, true);
     }
@@ -174,6 +179,12 @@ export default class DesertTunnelScene extends Phaser.Scene {
     }
     if (this.fruits && this.fruits.children) {
       this.fruits.clear(true, true);
+    }
+    if (this.rollingStones && this.rollingStones.children) {
+      this.rollingStones.clear(true, true);
+    }
+    if (this.stonePiles && this.stonePiles.children) {
+      this.stonePiles.clear(true, true);
     }
     if (this.stopAllSounds) {
       this.stopAllSounds(true);
@@ -204,7 +215,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
       .setStroke("#3b2a17", 2);
 
     this.add
-      .text(950, 590, "Wüstentunnel", {
+      .text(950, 590, "Steinbruch", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "16px",
         color: "#ffffff",
@@ -528,20 +539,26 @@ export default class DesertTunnelScene extends Phaser.Scene {
     }
   }
 
-  createStonePiles() {
+  createRollingStones() {
+    this.rollingStones = this.physics.add.group();
     this.stonePiles = this.physics.add.staticGroup();
-    this.stonePileSpots = [
-      { x: 140, y: 260 },
-      { x: 320, y: 480 },
-      { x: 520, y: 220 },
-      { x: 680, y: 380 },
-      { x: 820, y: 260 },
-    ];
-    this.stonePileSpots.forEach((spot) => {
-      const pile = this.add.image(spot.x, spot.y, "desert-stone-pile");
-      pile.setScale(0.9);
-      this.physics.add.existing(pile, true);
-      this.stonePiles.add(pile);
+
+    this.physics.add.overlap(this.rollingStones, this.player, (_, stone) => {
+      this.handleRollingStoneHit(stone, "player");
+    });
+    this.physics.add.overlap(this.rollingStones, this.monsters, (_, stone, monster) => {
+      this.handleRollingStoneHit(stone, monster);
+    });
+
+    this.rollingStoneEvent = this.time.addEvent({
+      delay: 7000,
+      loop: true,
+      callback: () => {
+        if (!this.isPaused && !this.isGameOver && !this.isComplete) {
+          this.spawnRollingStone();
+        }
+        this.rollingStoneEvent.delay = Phaser.Math.Between(6000, 11000);
+      },
     });
   }
 
@@ -556,6 +573,47 @@ export default class DesertTunnelScene extends Phaser.Scene {
       { x: 800, y: 260 },
     ];
     this.chestSlots = this.chestSpots.map(() => false);
+  }
+
+  spawnRollingStone() {
+    const x = 672;
+    const y = 39;
+    const angleDeg = Phaser.Math.Between(160, 270);
+    const angleRad = Phaser.Math.DegToRad(angleDeg - 90);
+    const speed = Phaser.Math.Between(140, 200);
+    const stone = this.add.image(x, y, "desert-stone-pile").setOrigin(0.5);
+    stone.setScale(0.7);
+    stone.setDepth(4);
+    this.physics.add.existing(stone);
+    stone.body.setCircle(Math.max(8, stone.displayWidth * 0.35));
+    stone.body.setAllowGravity(false);
+    const velocity = {
+      x: Math.cos(angleRad) * speed,
+      y: Math.sin(angleRad) * speed,
+    };
+    stone.body.setVelocity(velocity.x, velocity.y);
+    stone.setData("velocity", velocity);
+    stone.setData("isRollingStone", true);
+    this.rollingStones.add(stone);
+  }
+
+  handleRollingStoneHit(stone, target) {
+    if (!stone.active || stone.getData("converted")) return;
+    stone.setData("converted", true);
+    if (target === "player") {
+      this.damagePlayer(2);
+    } else if (target !== "sword" && target?.active) {
+      this.damageMonster(target, 2);
+    }
+    this.convertToStonePile(stone);
+  }
+
+  convertToStonePile(stone) {
+    const pile = this.add.image(stone.x, stone.y, "desert-stone-pile");
+    pile.setScale(0.9);
+    this.physics.add.existing(pile, true);
+    this.stonePiles.add(pile);
+    stone.destroy();
   }
 
   createMonsters() {
@@ -597,6 +655,11 @@ export default class DesertTunnelScene extends Phaser.Scene {
     this.physics.add.overlap(this.swordHitbox, this.stonePiles, () => {
       this.registerSwordHit();
       this.addStones(10);
+    });
+
+    this.physics.add.overlap(this.swordHitbox, this.rollingStones, (_, stone) => {
+      this.registerSwordHit();
+      this.handleRollingStoneHit(stone, "sword");
     });
   }
 
@@ -1374,6 +1437,19 @@ export default class DesertTunnelScene extends Phaser.Scene {
 
     if (this.isSwinging) {
       this.positionSword();
+    }
+
+    if (this.rollingStones) {
+      this.rollingStones.getChildren().forEach((stone) => {
+        if (!stone.active) return;
+        const velocity = stone.getData("velocity");
+        if (velocity && stone.body) {
+          stone.body.setVelocity(velocity.x, velocity.y);
+        }
+        if (stone.x < -60 || stone.x > 1020 || stone.y < -60 || stone.y > 660) {
+          stone.destroy();
+        }
+      });
     }
 
     const isOnTunnel = Phaser.Geom.Intersects.RectangleToRectangle(
