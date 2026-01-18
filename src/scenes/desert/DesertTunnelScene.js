@@ -54,6 +54,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
     this.createPlayer();
     this.createTunnel();
     this.createUI();
+    this.createBlockedZone();
     this.createBushes();
     this.createChests();
     this.createMonsters();
@@ -254,6 +255,13 @@ export default class DesertTunnelScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
     this.promptBox.add([promptShade, promptPanel, this.promptText, this.promptHint]);
+  }
+
+  createBlockedZone() {
+    const block = this.add.rectangle(664.5, 80, 303, 158, 0x000000, 0);
+    this.physics.add.existing(block, true);
+    this.blockedZone = block;
+    this.physics.add.collider(this.player, block);
   }
 
   createAudio() {
@@ -579,22 +587,24 @@ export default class DesertTunnelScene extends Phaser.Scene {
   spawnRollingStone() {
     const x = 672;
     const y = 39;
-    const angleDeg = Phaser.Math.Between(160, 270);
-    const angleRad = Phaser.Math.DegToRad(angleDeg - 90);
     const speed = Phaser.Math.Between(140, 200);
-    const stone = this.add.image(x, y, "desert-stone-pile").setOrigin(0.5);
+    const stone = this.add.image(x, y, "desert-stone-rolling").setOrigin(0.5);
     stone.setScale(0.7);
     stone.setDepth(4);
     this.physics.add.existing(stone);
-    stone.body.setCircle(Math.max(8, stone.displayWidth * 0.35));
+    stone.body.setCircle(Math.max(10, stone.displayWidth * 0.45));
     stone.body.setAllowGravity(false);
+    const dx = this.player.x - x;
+    const dy = this.player.y - y;
+    const length = Math.hypot(dx, dy) || 1;
     const velocity = {
-      x: Math.cos(angleRad) * speed,
-      y: Math.sin(angleRad) * speed,
+      x: (dx / length) * speed,
+      y: (dy / length) * speed,
     };
     stone.body.setVelocity(velocity.x, velocity.y);
     stone.setData("velocity", velocity);
     stone.setData("isRollingStone", true);
+    stone.setData("spinSpeed", Phaser.Math.Between(120, 200));
     this.rollingStones.add(stone);
   }
 
@@ -602,19 +612,41 @@ export default class DesertTunnelScene extends Phaser.Scene {
     if (!stone.active || stone.getData("converted")) return;
     stone.setData("converted", true);
     if (target === "player") {
-      this.damagePlayer(2);
+      this.damagePlayer(3);
     } else if (target !== "sword" && target?.active) {
-      this.damageMonster(target, 2);
+      this.damageMonster(target, 3);
     }
-    this.convertToStonePile(stone);
+    const lockMs = target === "sword" ? 250 : 0;
+    const x = stone.x;
+    const y = stone.y;
+    if (stone.body) {
+      stone.body.setVelocity(0, 0);
+      stone.body.enable = false;
+    }
+    if (this.rollingStones) {
+      this.rollingStones.remove(stone);
+    }
+    stone.setActive(false).setVisible(false);
+    this.convertToStonePileAt(x, y, lockMs);
+    stone.destroy();
   }
 
-  convertToStonePile(stone) {
-    const pile = this.add.image(stone.x, stone.y, "desert-stone-pile");
+  convertToStonePileAt(x, y, lockMs = 0) {
+    const pile = this.add.image(x, y, "desert-stone-3");
     pile.setScale(0.9);
+    pile.setData("stoneHits", 3);
+    if (lockMs > 0) {
+      pile.setData("stoneLockedUntil", this.time.now + lockMs);
+    }
     this.physics.add.existing(pile, true);
     this.stonePiles.add(pile);
-    stone.destroy();
+  }
+
+  updateStonePileVisual(pile, remaining) {
+    const nextKey = remaining === 2 ? "desert-stone-2" : remaining === 1 ? "desert-stone-1" : null;
+    if (!nextKey) return;
+    if (pile.texture?.key === nextKey) return;
+    pile.setTexture(nextKey);
   }
 
   createMonsters() {
@@ -653,9 +685,22 @@ export default class DesertTunnelScene extends Phaser.Scene {
       this.openChest(chest);
     });
 
-    this.physics.add.overlap(this.swordHitbox, this.stonePiles, () => {
+    this.physics.add.overlap(this.swordHitbox, this.stonePiles, (_, pile) => {
+      if (!pile.active) return;
+      const lockedUntil = pile.getData("stoneLockedUntil") || 0;
+      if (this.time.now < lockedUntil) return;
+      if (this.swordHitTargets && this.swordHitTargets.has(pile)) return;
+      if (this.swordHitTargets) {
+        this.swordHitTargets.add(pile);
+      }
       this.registerSwordHit();
+      const remaining = (pile.getData("stoneHits") ?? 3) - 1;
+      pile.setData("stoneHits", remaining);
       this.addStones(10);
+      this.updateStonePileVisual(pile, remaining);
+      if (remaining <= 0) {
+        pile.destroy();
+      }
     });
 
     this.physics.add.overlap(this.swordHitbox, this.rollingStones, (_, stone) => {
@@ -1443,9 +1488,46 @@ export default class DesertTunnelScene extends Phaser.Scene {
     if (this.rollingStones) {
       this.rollingStones.getChildren().forEach((stone) => {
         if (!stone.active) return;
+        if (!stone.getData("converted")) {
+          const stoneRadius =
+            stone.body?.radius ?? Math.max(10, (stone.displayWidth || 0) * 0.45);
+          const playerRadius =
+            (this.player.body?.width ?? this.player.displayWidth) * 0.5;
+          const playerDist = Phaser.Math.Distance.Between(
+            stone.x,
+            stone.y,
+            this.player.x,
+            this.player.y
+          );
+          if (playerDist <= stoneRadius + playerRadius) {
+            this.handleRollingStoneHit(stone, "player");
+            return;
+          }
+          const monsters = this.monsters?.getChildren() || [];
+          for (let i = 0; i < monsters.length; i += 1) {
+            const monster = monsters[i];
+            if (!monster.active || monster.getData("emerging")) continue;
+            const monsterRadius =
+              (monster.body?.width ?? monster.displayWidth) * 0.5;
+            const monsterDist = Phaser.Math.Distance.Between(
+              stone.x,
+              stone.y,
+              monster.x,
+              monster.y
+            );
+            if (monsterDist <= stoneRadius + monsterRadius) {
+              this.handleRollingStoneHit(stone, monster);
+              break;
+            }
+          }
+        }
         const velocity = stone.getData("velocity");
         if (velocity && stone.body) {
           stone.body.setVelocity(velocity.x, velocity.y);
+        }
+        const spin = stone.getData("spinSpeed");
+        if (spin) {
+          stone.angle -= (spin * this.game.loop.delta) / 1000;
         }
         if (stone.x < -60 || stone.x > 1020 || stone.y < -60 || stone.y > 660) {
           stone.destroy();
