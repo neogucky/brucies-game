@@ -238,7 +238,7 @@ export default class DessertMapScene extends Phaser.Scene {
 
   createPlayerMarker() {
     const saveData = this.registry.get("saveData");
-    const currentId = saveData.currentLevel || "Wuestenruine";
+    const currentId = saveData.mapState?.desertNode || saveData.currentLevel || "Wuestenruine";
     const startNode = NODES.find((node) => node.id === currentId) || NODES[0];
     this.currentNode = startNode;
     const isFemale = saveData.playerGender === "female";
@@ -334,6 +334,16 @@ export default class DessertMapScene extends Phaser.Scene {
         this.time.delayedCall(1000, () => this.lockText.setText(""));
         return;
       }
+      const nextSave = {
+        ...saveData,
+        currentLevel: "UnderShop",
+        mapState: {
+          ...saveData.mapState,
+          desertNode: this.currentNode.id,
+        },
+      };
+      this.registry.set("saveData", nextSave);
+      saveProgress(nextSave);
       const edgeY = Math.min(590, this.currentNode.y + 90);
       const duration = this.getTravelDuration(this.currentNode.y + 2, edgeY);
       this.isMoving = true;
@@ -439,6 +449,10 @@ export default class DessertMapScene extends Phaser.Scene {
     const nextSave = {
       ...saveData,
       currentLevel: this.currentNode.id,
+      mapState: {
+        ...saveData.mapState,
+        desertNode: this.currentNode.id,
+      },
     };
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);

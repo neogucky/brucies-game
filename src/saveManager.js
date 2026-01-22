@@ -17,6 +17,10 @@ export const defaultSave = {
     autoAim: false,
   },
   playerGender: "male",
+  mapState: {
+    desertNode: "Wuestenruine",
+    undergroundNode: "UnderShop",
+  },
   lastPlayed: null,
 };
 

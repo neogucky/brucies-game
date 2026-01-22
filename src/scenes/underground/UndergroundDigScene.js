@@ -28,10 +28,14 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.gateOffsetY = 5;
     this.keyOffsetX = 0;
     this.keyOffsetY = 0;
+    this.gateTriggerTiles = new Set();
     this.levelMap = null;
+    this.keyCollected = false;
+    this.levelCompleted = false;
   }
 
   create() {
+    this.resetSceneState();
     this.addBackground();
     this.createPlayer();
     this.loadLevelMap();
@@ -51,6 +55,36 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.input.mouse.disableContextMenu();
     this.input.on("pointerdown", this.handlePointerDown, this);
     this.coordDebugger = new CoordinateDebugger(this);
+  }
+
+  resetSceneState() {
+    this.isPaused = false;
+    this.isEditorMode = false;
+    this.isHitboxEditMode = false;
+    this.isSwinging = false;
+    this.keyCollected = false;
+    this.levelCompleted = false;
+    this.facingX = 1;
+    this.startCol = null;
+    this.startRow = null;
+    if (this.swingTimer) {
+      this.swingTimer.remove(false);
+      this.swingTimer = null;
+    }
+    if (this.gate) {
+      this.gate.destroy();
+      this.gate = null;
+    }
+    if (this.keyItem) {
+      this.keyItem.destroy();
+      this.keyItem = null;
+    }
+    if (this.physics?.world?.isPaused) {
+      this.physics.world.resume();
+    }
+    if (this.time?.paused) {
+      this.time.paused = false;
+    }
   }
 
   ensureSaveState() {
@@ -104,10 +138,10 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.standDisplayWidth = this.player.displayWidth;
     this.standDisplayHeight = this.player.displayHeight;
     this.hitboxConfig = {
-      widthPx: 44,
-      heightPx: 140,
-      offsetX: 14,
-      offsetY: 2,
+      widthPx: 60,
+      heightPx: 110,
+      offsetX: 40,
+      offsetY: 35,
     };
     this.hitboxConfig.bottomOffsetPx =
       this.player.displayHeight -
@@ -123,7 +157,8 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, 960, 600);
     this.physics.world.gravity.y = 900;
 
-    this.swordHitbox = this.add.rectangle(-100, -100, 47, 32, 0xff0000, 0);
+    this.swordHitbox = this.add.rectangle(-100, -100, 47, 32, 0xff0000, 0.15);
+    this.swordHitbox.setStrokeStyle(2, 0xff0000);
     this.swordHitbox.setVisible(false);
   }
 
@@ -201,6 +236,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.applyBoundaryBlocks();
     this.placeGate();
     this.placeKey();
+    this.setGateTriggerTiles();
     this.physics.add.collider(this.player, this.blocks);
   }
 
@@ -340,7 +376,6 @@ export default class UndergroundDigScene extends Phaser.Scene {
       gfx.destroy();
     };
 
-    createTexture("block-earth", 0x6e4b2b, 0x3f2a17);
     createTexture("block-stone", 0x7a7f86, 0x3c4047);
     createTexture("block-black", 0x141414, 0x000000);
   }
@@ -354,7 +389,11 @@ export default class UndergroundDigScene extends Phaser.Scene {
       this.blockMap.delete(key);
     }
     const texture =
-      type === "black" ? "block-black" : type === "stone" ? "block-stone" : "block-earth";
+      type === "black"
+        ? "block-black"
+        : type === "stone"
+          ? "block-stone"
+          : "underground-earth";
     const x = col * this.tileSize;
     const y = row * this.tileSize;
     const block = this.blocks.create(x, y, texture);
@@ -429,10 +468,25 @@ export default class UndergroundDigScene extends Phaser.Scene {
     }
     const keyX = (keyCol + 0.5) * this.tileSize + this.keyOffsetX;
     const keyY = (keyRow + 1) * this.tileSize + this.keyOffsetY;
-    this.keyItem = this.add.image(keyX, keyY, "ui-coin");
+    this.keyItem = this.add.image(keyX, keyY, "ui-key");
     this.keyItem.setOrigin(0.5, 1);
     this.keyItem.setScale(0.55);
     this.keyItem.setDepth(2);
+  }
+
+  setGateTriggerTiles() {
+    if (!this.tileSize) return;
+    const rect = { x: 84, y: 391, width: 26, height: 24 };
+    const colStart = Math.floor(rect.x / this.tileSize);
+    const colEnd = Math.floor((rect.x + rect.width - 1) / this.tileSize);
+    const rowStart = Math.floor(rect.y / this.tileSize);
+    const rowEnd = Math.floor((rect.y + rect.height - 1) / this.tileSize);
+    const targetRow = Math.max(rowStart, rowEnd);
+    const tiles = new Set();
+    for (let col = colStart; col <= colEnd; col += 1) {
+      tiles.add(`${col},${targetRow}`);
+    }
+    this.gateTriggerTiles = tiles;
   }
 
   getGateGridPos() {
@@ -736,6 +790,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
       this.player.setTexture(hitTexture);
     }
     this.updateSwordHitbox();
+    this.swordHitbox.setVisible(true);
     if (this.swingTimer) {
       this.swingTimer.remove(false);
     }
@@ -746,6 +801,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
       if (standingTexture) {
         this.player.setTexture(standingTexture);
       }
+      this.swordHitbox.setVisible(false);
       this.isSwinging = false;
     });
   }
@@ -761,7 +817,8 @@ export default class UndergroundDigScene extends Phaser.Scene {
         centerY -= 10;
       }
     }
-    this.swordHitbox.setPosition(this.player.x + offsetX, centerY);
+    const hitboxYOffset = this.isDucking ? 12 : 5;
+    this.swordHitbox.setPosition(this.player.x + offsetX, centerY + hitboxYOffset);
   }
 
   createUI() {
@@ -779,6 +836,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
       showCompanion: true,
       companionHealth: 1,
       companionRespawnRatio: 0,
+      keyCollected: this.keyCollected,
     });
     this.hud.setDepth(60);
 
@@ -873,6 +931,81 @@ export default class UndergroundDigScene extends Phaser.Scene {
     if (this.isSwinging) {
       this.updateSwordHitbox();
     }
+    this.checkKeyPickup();
+    this.checkGateUnlock();
+  }
+
+  checkKeyPickup() {
+    if (this.keyCollected || !this.keyItem || !this.player?.body) return;
+    const playerRect = new Phaser.Geom.Rectangle(
+      this.player.body.x,
+      this.player.body.y,
+      this.player.body.width,
+      this.player.body.height
+    );
+    const keyRect = this.keyItem.getBounds();
+    if (!Phaser.Geom.Intersects.RectangleToRectangle(playerRect, keyRect)) return;
+    this.keyCollected = true;
+    this.keyItem.destroy();
+    this.keyItem = null;
+    if (this.hud && typeof this.hud.setKeyCollected === "function") {
+      this.hud.setKeyCollected(true);
+    }
+  }
+
+  checkGateUnlock() {
+    if (!this.keyCollected || this.levelCompleted || !this.player?.body) return;
+    const playerRect = new Phaser.Geom.Rectangle(
+      this.player.body.x,
+      this.player.body.y,
+      this.player.body.width,
+      this.player.body.height
+    );
+    let onTrigger = false;
+    this.gateTriggerTiles?.forEach((key) => {
+      if (onTrigger) return;
+      const [colStr, rowStr] = key.split(",");
+      const col = Number(colStr);
+      const row = Number(rowStr);
+      if (Number.isNaN(col) || Number.isNaN(row)) return;
+      const tileRect = new Phaser.Geom.Rectangle(
+        col * this.tileSize,
+        row * this.tileSize,
+        this.tileSize,
+        this.tileSize
+      );
+      if (Phaser.Geom.Intersects.RectangleToRectangle(playerRect, tileRect)) {
+        onTrigger = true;
+      }
+    });
+    if (!onTrigger) return;
+    this.winLevel();
+  }
+
+  winLevel() {
+    this.levelCompleted = true;
+    this.isPaused = true;
+    this.player.body.setVelocity(0, 0);
+    this.time.paused = true;
+    this.physics.world.pause();
+    this.promptBox.setVisible(true);
+    this.promptText.setText("Du hast das Tor geoeffnet!");
+    this.promptHint.setText("Enter zur Karte");
+
+    this.input.keyboard.once("keydown-ENTER", () => {
+      const saveData = this.registry.get("saveData") || {};
+      const completed = new Set(saveData.completedLevels || []);
+      completed.add("UnderDig");
+      const nextSave = {
+        ...saveData,
+        completedLevels: Array.from(completed),
+        currentLevel: "UnderShop",
+      };
+      this.registry.set("saveData", nextSave);
+      saveProgress(nextSave);
+      this.time.paused = false;
+      this.scene.start("UndergroundMapScene");
+    });
   }
 
   canStandUp() {

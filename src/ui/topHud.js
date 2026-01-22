@@ -6,11 +6,13 @@ export default class TopHud {
     this.hearts = [];
     this.consumableCount = options.consumables?.honey ?? 0;
     this.stones = options.stones ?? 0;
+    this.keyCollected = Boolean(options.keyCollected);
     this.create();
     this.setCoins(options.coins ?? 0);
     this.setStones(this.stones);
     this.setHealth(options.health ?? options.maxHealth ?? 5, options.maxHealth ?? 5);
     this.setConsumableCount(this.consumableCount);
+    this.setKeyCollected(this.keyCollected);
     this.setPassiveOwned(Boolean(options.passiveOwned));
     if (options.showCompanion) {
       this.setCompanionStatus({
@@ -35,6 +37,10 @@ export default class TopHud {
       .setOrigin(0, 0.5)
       .setStroke("#433320", 3);
 
+    this.keyIcon = this.scene.add.image(28, 44, "ui-key").setOrigin(0.5);
+    this.keyIcon.setScale(0.38);
+    this.keyIcon.setVisible(false);
+
     if (this.options.showStones) {
       this.stoneIcon = this.scene.add.image(28, 44, "ui-stone").setOrigin(0.5);
       this.stoneIcon.setScale(0.78);
@@ -57,6 +63,7 @@ export default class TopHud {
     const items = [
       this.coinIcon,
       this.coinText,
+      this.keyIcon,
       this.stoneIcon,
       this.stoneText,
       ...this.hearts,
@@ -166,6 +173,12 @@ export default class TopHud {
 
   setCoins(value) {
     this.coinText.setText(`${value}`);
+  }
+
+  setKeyCollected(collected) {
+    if (!this.keyIcon) return;
+    this.keyCollected = Boolean(collected);
+    this.keyIcon.setVisible(this.keyCollected);
   }
 
   setStones(value) {

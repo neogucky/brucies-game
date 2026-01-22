@@ -59,6 +59,7 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("underground-shop-loading", "assets/underground/underground_shop_loading.png");
     this.load.image("underground-bg", "assets/underground/underground.png");
     this.load.image("underground-gate", "assets/underground/gate.png");
+    this.load.image("underground-earth", "assets/underground/earth_tile.png");
     this.load.json("underground-dig-map", "assets/levels/underground_dig.json");
     this.load.image("tavern-bg", "assets/tavern/tavern.png");
     this.load.image("tavern-loading", "assets/tavern/tavern_loading.png");
@@ -67,6 +68,7 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("item-shield", "assets/common/items/shield.png");
     this.load.image("item-honey", "assets/common/items/honey-juice.png");
     this.load.image("item-companion", "assets/common/items/companion.png");
+    this.load.image("ui-key", "assets/common/items/key.png");
     this.load.image("companion-running", "assets/common/characters/companien_running.png");
     this.load.image("companion-searching", "assets/common/characters/companion_searching.png");
     this.load.image("companion-detected", "assets/common/characters/companion_detected.png");

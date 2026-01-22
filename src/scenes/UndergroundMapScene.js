@@ -172,7 +172,8 @@ export default class UndergroundMapScene extends Phaser.Scene {
 
   createPlayerMarker() {
     const saveData = this.registry.get("saveData") || {};
-    const currentId = saveData.currentLevel || "UnderShop";
+    const currentId =
+      saveData.mapState?.undergroundNode || saveData.currentLevel || "UnderShop";
     const startNode = NODES.find((node) => node.id === currentId) || NODES[0];
     this.currentNode = startNode;
     const isFemale = saveData.playerGender === "female";
@@ -239,6 +240,10 @@ export default class UndergroundMapScene extends Phaser.Scene {
     const nextSave = {
       ...saveData,
       currentLevel: this.currentNode.id,
+      mapState: {
+        ...saveData.mapState,
+        undergroundNode: this.currentNode.id,
+      },
     };
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);
@@ -251,9 +256,14 @@ export default class UndergroundMapScene extends Phaser.Scene {
 
   returnToDesert() {
     const saveData = this.registry.get("saveData") || {};
+    const desertNode = saveData.mapState?.desertNode ?? "Fremdweg";
     const nextSave = {
       ...saveData,
-      currentLevel: "Fremdweg",
+      currentLevel: desertNode,
+      mapState: {
+        ...saveData.mapState,
+        undergroundNode: this.currentNode?.id ?? saveData.mapState?.undergroundNode,
+      },
     };
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);
