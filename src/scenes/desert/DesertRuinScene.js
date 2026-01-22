@@ -286,7 +286,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.shield.setHud(this.hud);
 
     this.add
-      .text(14, 580, "Pfeiltasten zum bewegen, Früchte heilen, Schlag Truhen für Münzen", {
+      .text(14, 575, "Pfeiltasten zum bewegen, Früchte heilen, Schlag Truhen für Münzen", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "14px",
         color: "#ffffff",
@@ -295,7 +295,7 @@ export default class DesertRuinScene extends Phaser.Scene {
       .setStroke("#3b2a17", 2);
 
     this.add
-      .text(950, 590, "Wüstenruine", {
+      .text(945, 585, "Wüstenruine", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "16px",
         color: "#ffffff",
@@ -397,9 +397,13 @@ export default class DesertRuinScene extends Phaser.Scene {
       this.startBarLabel.destroy();
       this.startBarLabel = null;
     }
-    this.isPaused = false;
     this.canPromptRuin = true;
-    this.physics.world.resume();
+    if (this.levelCompleted) {
+      this.isPaused = false;
+      this.physics.world.resume();
+      this.time.paused = false;
+      return;
+    }
     this.showIntroDialog();
   };
 
@@ -1013,6 +1017,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.isPaused = true;
     this.player.body.setVelocity(0, 0);
     this.physics.world.pause();
+    this.time.paused = true;
     this.dialog.show(
       [
         { text: "Der Ritter hat eine alte Ruine gefunden!" },
@@ -1021,6 +1026,7 @@ export default class DesertRuinScene extends Phaser.Scene {
       "bottom",
       {
         onClose: () => {
+          this.time.paused = false;
           this.physics.world.resume();
           this.isPaused = false;
         },

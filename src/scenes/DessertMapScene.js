@@ -281,7 +281,7 @@ export default class DessertMapScene extends Phaser.Scene {
 
   createUI() {
     this.hintText = this.add
-      .text(14, 590, "Pfeile/WASD = Bewegen, Enter = Start, Esc = Menü", {
+      .text(14, 585, "Pfeile/WASD = Bewegen, Enter = Start, Esc = Menü", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "14px",
         color: "#ffffff",
@@ -298,7 +298,7 @@ export default class DessertMapScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(945, 590, "Wüsten-Land", {
+      .text(940, 585, "Wüsten-Land", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "16px",
         color: "#ffffff",

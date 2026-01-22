@@ -37,6 +37,9 @@ export default class ShieldManager {
     this.active = false;
     this.cooldownStartedAt = this.scene.time.now;
     this.cooldownUntil = this.scene.time.now + this.cooldownMs;
+    if (this.scene.sound?.play) {
+      this.scene.sound.play("sfx-shield-impact");
+    }
     if (this.bubble) {
       this.bubble.setVisible(false);
     }

@@ -29,8 +29,15 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("ui-heart-empty", "assets/common/ui/heart_empty.png");
     this.load.image("knight-standing", "assets/common/characters/knight_standing.png");
     this.load.image("knight-hitting", "assets/common/characters/knight_hitting.png");
+    this.load.image("knight-crouching", "assets/common/characters/knight_crouching.png");
+    this.load.image("knight-crouching-hitting", "assets/common/characters/knight_crouching_hitting.png");
     this.load.image("knight-female-standing", "assets/common/characters/knight_female_standing.png");
     this.load.image("knight-female-hitting", "assets/common/characters/knight_female_hitting.png");
+    this.load.image("knight-female-crouching", "assets/common/characters/knight_female_crouching.png");
+    this.load.image(
+      "knight-female-crouching-hitting",
+      "assets/common/characters/knight_female_crouching_hitting.png"
+    );
     this.load.image("desert-ruin", "assets/desert/ruin.png");
     this.load.image("desert-ruin-repaired", "assets/desert/ruin_repaired.png");
     this.load.image("desert-stone-rolling", "assets/desert/stone_rolling.png");
@@ -50,6 +57,9 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("underground-shop-map", "assets/worldmap/underground_shop.png");
     this.load.image("underground-shop", "assets/underground/underground_shop.png");
     this.load.image("underground-shop-loading", "assets/underground/underground_shop_loading.png");
+    this.load.image("underground-bg", "assets/underground/underground.png");
+    this.load.image("underground-gate", "assets/underground/gate.png");
+    this.load.json("underground-dig-map", "assets/levels/underground_dig.json");
     this.load.image("tavern-bg", "assets/tavern/tavern.png");
     this.load.image("tavern-loading", "assets/tavern/tavern_loading.png");
     this.load.image("tavern-barkeeper", "assets/tavern/barkeeper.png");
@@ -85,6 +95,10 @@ export default class BootScene extends Phaser.Scene {
     this.load.audio("sfx-power-attack", "assets/common/sounds/power-attack.wav");
     this.load.audio("sfx-explosion", "assets/common/sounds/explosion.wav");
     this.load.audio("sfx-monster-death", "assets/common/sounds/monster_death.wav");
+    this.load.audio("sfx-stone-rolling", "assets/common/sounds/stone_rolling.wav");
+    this.load.audio("sfx-stone-hit", "assets/common/sounds/stone_hitting.wav");
+    this.load.audio("sfx-shield-impact", "assets/common/sounds/shield_impact.wav");
+    this.load.audio("sfx-stone-collected", "assets/common/sounds/stone_collected.wav");
     this.load.audio("music-desert", "assets/common/sounds/music-desert.mp3");
     this.load.audio("music-menu", "assets/common/sounds/music-menu.mp3");
     this.load.audio("music-world", "assets/common/sounds/music-world.mp3");

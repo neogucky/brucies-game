@@ -24,10 +24,10 @@ export default class TopHud {
   }
 
   create() {
-    this.coinIcon = this.scene.add.image(28, 30, "ui-coin").setOrigin(0.5);
+    this.coinIcon = this.scene.add.image(28, 20, "ui-coin").setOrigin(0.5);
     this.coinIcon.setScale(0.49);
     this.coinText = this.scene.add
-      .text(50, 30, "Münzen: 0", {
+      .text(45, 20, "0", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "18px",
         color: "#f7e3c0",
@@ -36,10 +36,10 @@ export default class TopHud {
       .setStroke("#433320", 3);
 
     if (this.options.showStones) {
-      this.stoneIcon = this.scene.add.image(28, 54, "ui-stone").setOrigin(0.5);
+      this.stoneIcon = this.scene.add.image(28, 44, "ui-stone").setOrigin(0.5);
       this.stoneIcon.setScale(0.78);
       this.stoneText = this.scene.add
-        .text(50, 54, "Steine: 0", {
+        .text(45, 44, "0", {
           fontFamily: "Trebuchet MS, sans-serif",
           fontSize: "16px",
           color: "#f7e3c0",
@@ -50,6 +50,26 @@ export default class TopHud {
 
     this.createItems();
     this.createHearts();
+    this.setDepth(50);
+  }
+
+  setDepth(depth) {
+    const items = [
+      this.coinIcon,
+      this.coinText,
+      this.stoneIcon,
+      this.stoneText,
+      ...this.hearts,
+    ];
+    Object.values(this.items || {}).forEach((item) => {
+      if (!item) return;
+      items.push(item.frame, item.label, item.hint, item.count, item.icon, item.overlay, item.barBg, item.barFill);
+    });
+    items.forEach((item) => {
+      if (item && item.setDepth) {
+        item.setDepth(depth);
+      }
+    });
   }
 
   createItems() {
@@ -68,7 +88,7 @@ export default class TopHud {
     items.forEach((item, index) => {
       const x = startX + index * spacing;
       const frame = this.scene.add.rectangle(x, y, frameWidth, frameHeight, 0xf2e3c5, 0.8);
-      frame.setStrokeStyle(2, 0x8a6b44);
+      frame.setStrokeStyle(3, 0xdbc1a0);
       const label = this.scene.add
         .text(x, y - 4, item.label, {
           fontFamily: "Trebuchet MS, sans-serif",
@@ -116,9 +136,9 @@ export default class TopHud {
         0xf2e3c5,
         0.8
       );
-      frame.setStrokeStyle(2, 0x8a6b44);
+      frame.setStrokeStyle(3, 0xdbc1a0);
       const icon = this.scene.add.image(companionX, y, "item-companion").setScale(0.26);
-      const heart = this.scene.add.image(companionX, y + 40, "ui-heart").setScale(0.42);
+      const heart = this.scene.add.image(companionX, y + 37, "ui-heart").setScale(0.42);
       const barWidth = 46;
       const barHeight = 6;
       const barBg = this.scene.add
@@ -136,21 +156,21 @@ export default class TopHud {
   createHearts() {
     const maxHealth = this.options.maxHealth ?? 5;
     const spacing = 26;
-    const startX = 930 - (maxHealth - 1) * spacing;
+    const startX = 925 - (maxHealth - 1) * spacing;
     for (let i = 0; i < maxHealth; i += 1) {
-      const heart = this.scene.add.image(startX + i * spacing, 30, "ui-heart");
-      heart.setScale(0.7);
+      const heart = this.scene.add.image(startX + i * spacing, 20, "ui-heart");
+      heart.setScale(0.63);
       this.hearts.push(heart);
     }
   }
 
   setCoins(value) {
-    this.coinText.setText(`Münzen: ${value}`);
+    this.coinText.setText(`${value}`);
   }
 
   setStones(value) {
     if (!this.stoneText) return;
-    this.stoneText.setText(`Steine: ${value}`);
+    this.stoneText.setText(`${value}`);
   }
 
   setHealth(value, max = this.options.maxHealth ?? 5) {

@@ -58,7 +58,7 @@ export default class TavernScene extends Phaser.Scene {
 
     const hintText = "Esc = Zurück zur Karte";
     this.add
-      .text(14, 590, hintText, {
+      .text(14, 585, hintText, {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "16px",
         color: "#ffffff",
@@ -67,7 +67,7 @@ export default class TavernScene extends Phaser.Scene {
 
     const locationText = this.isUnderground ? "Unterwelt-Shop" : "Taverne";
     this.add
-      .text(950, 590, locationText, {
+      .text(945, 585, locationText, {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "16px",
         color: "#ffffff",

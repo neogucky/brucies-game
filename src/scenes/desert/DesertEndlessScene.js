@@ -287,7 +287,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
     this.shield.setHud(this.hud);
 
     this.add
-      .text(14, 580, "Pfeiltasten zum bewegen, Früchte heilen, Schlag Truhen für Münzen", {
+      .text(14, 575, "Pfeiltasten zum bewegen, Früchte heilen, Schlag Truhen für Münzen", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "14px",
         color: "#ffffff",
@@ -296,7 +296,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
       .setStroke("#3b2a17", 2);
 
     this.playtimeText = this.add
-      .text(14, 560, "Zeit: 00:00", {
+      .text(14, 555, "Zeit: 00:00", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "14px",
         color: "#ffffff",
@@ -305,7 +305,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
       .setStroke("#3b2a17", 2);
 
     this.add
-      .text(950, 590, "Wüstenendlos", {
+      .text(945, 585, "Wüstenendlos", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "16px",
         color: "#ffffff",

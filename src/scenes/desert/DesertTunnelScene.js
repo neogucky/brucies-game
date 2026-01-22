@@ -54,6 +54,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
     this.rollingStoneBaseMax = 11000;
     this.levelStartAt = 0;
     this.timerText = null;
+    this.activeStoneSounds = new Set();
   }
 
   create() {
@@ -92,6 +93,11 @@ export default class DesertTunnelScene extends Phaser.Scene {
       });
       this.activeDigSounds?.clear();
       this.sound.stopByKey?.("sfx-monster-dig");
+      this.activeStoneSounds?.forEach((sound) => {
+        sound.stop();
+        sound.destroy();
+      });
+      this.activeStoneSounds?.clear();
     });
   }
 
@@ -215,6 +221,13 @@ export default class DesertTunnelScene extends Phaser.Scene {
       this.stopAllSounds(true);
     }
     this.shield?.destroy();
+    if (this.activeStoneSounds) {
+      this.activeStoneSounds.forEach((sound) => {
+        sound.stop();
+        sound.destroy();
+      });
+      this.activeStoneSounds.clear();
+    }
   }
 
   createUI() {
@@ -234,7 +247,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
     this.shield.setHud(this.hud);
 
     this.add
-      .text(14, 580, "Pfeiltasten zum bewegen, Früchte heilen, Schwert = Sammeln", {
+      .text(14, 575, "Pfeiltasten zum bewegen, Früchte heilen, Schwert = Sammeln", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "14px",
         color: "#ffffff",
@@ -243,7 +256,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
       .setStroke("#3b2a17", 2);
 
     this.add
-      .text(950, 590, "Steinbruch", {
+      .text(940, 585, "Steinbruch", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "16px",
         color: "#ffffff",
@@ -252,7 +265,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
       .setStroke("#3b2a17", 2);
 
     this.timerText = this.add
-      .text(14, 560, "Zeit: 0:00", {
+      .text(14, 555, "Zeit: 0:00", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "14px",
         color: "#ffffff",
@@ -304,6 +317,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
     this.isPaused = true;
     this.player.body.setVelocity(0, 0);
     this.physics.world.pause();
+    this.time.paused = true;
     this.dialog.show(
       [
         {
@@ -317,8 +331,10 @@ export default class DesertTunnelScene extends Phaser.Scene {
       {
         portraitKey: "desert-mole-running",
         onClose: () => {
+          this.time.paused = false;
           this.physics.world.resume();
           this.isPaused = false;
+          this.beginSession();
         },
       }
     );
@@ -342,6 +358,9 @@ export default class DesertTunnelScene extends Phaser.Scene {
       powerAttack: this.sound.add("sfx-power-attack"),
       explosion: this.sound.add("sfx-explosion"),
       monsterDeath: this.sound.add("sfx-monster-death"),
+      stoneRolling: this.sound.add("sfx-stone-rolling"),
+      stoneHit: this.sound.add("sfx-stone-hit"),
+      stoneCollected: this.sound.add("sfx-stone-collected"),
     };
   }
 
@@ -388,9 +407,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
         this.startBarLabel.destroy();
         this.startBarLabel = null;
       }
-      this.isPaused = false;
-      this.physics.world.resume();
-      this.beginSession();
+      this.showIntroDialog();
     };
 
     const duration = 2500;
@@ -408,7 +425,6 @@ export default class DesertTunnelScene extends Phaser.Scene {
     this.createSpawners();
     this.startSpawners();
     this.scheduleEscalations();
-    this.showIntroDialog();
   }
 
   createSpawners() {
@@ -672,12 +688,22 @@ export default class DesertTunnelScene extends Phaser.Scene {
     stone.setData("velocity", velocity);
     stone.setData("isRollingStone", true);
     stone.setData("spinSpeed", Phaser.Math.Between(120, 200));
+    if (this.sfx?.stoneRolling) {
+      const rollingSound = this.sound.add("sfx-stone-rolling", { loop: true, volume: 0.6 });
+      rollingSound.play();
+      stone.setData("rollingSound", rollingSound);
+      this.activeStoneSounds.add(rollingSound);
+    }
     this.rollingStones.add(stone);
   }
 
   handleRollingStoneHit(stone, target) {
     if (!stone.active || stone.getData("converted")) return;
     stone.setData("converted", true);
+    this.shakeCameraBurst();
+    if (this.sfx?.stoneHit) {
+      this.sfx.stoneHit.play();
+    }
     if (target === "player") {
       this.damagePlayer(3);
     } else if (target !== "sword" && target?.active) {
@@ -692,6 +718,13 @@ export default class DesertTunnelScene extends Phaser.Scene {
     }
     if (this.rollingStones) {
       this.rollingStones.remove(stone);
+    }
+    const rollingSound = stone.getData("rollingSound");
+    if (rollingSound) {
+      rollingSound.stop();
+      rollingSound.destroy();
+      this.activeStoneSounds?.delete(rollingSound);
+      stone.setData("rollingSound", null);
     }
     stone.setActive(false).setVisible(false);
     this.convertToStonePileAt(x, y, lockMs);
@@ -764,6 +797,9 @@ export default class DesertTunnelScene extends Phaser.Scene {
       const remaining = (pile.getData("stoneHits") ?? 3) - 1;
       pile.setData("stoneHits", remaining);
       this.addStones(10);
+      if (this.sfx?.stoneCollected) {
+        this.sfx.stoneCollected.play();
+      }
       this.updateStonePileVisual(pile, remaining);
       if (remaining <= 0) {
         pile.destroy();
@@ -1629,6 +1665,12 @@ export default class DesertTunnelScene extends Phaser.Scene {
           stone.angle -= (spin * this.game.loop.delta) / 1000;
         }
         if (stone.x < -60 || stone.x > 1020 || stone.y < -60 || stone.y > 660) {
+          const rollingSound = stone.getData("rollingSound");
+          if (rollingSound) {
+            rollingSound.stop();
+            rollingSound.destroy();
+            this.activeStoneSounds?.delete(rollingSound);
+          }
           stone.destroy();
         }
       });
