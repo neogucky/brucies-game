@@ -69,6 +69,7 @@ export default class DessertMapScene extends Phaser.Scene {
       showCompanion: true,
       companionHealth: 1,
       companionRespawnRatio: 0,
+      keyCollected: Boolean(saveData.undergroundKeyCollected),
     });
 
     this.cursors = this.input.keyboard.createCursorKeys();

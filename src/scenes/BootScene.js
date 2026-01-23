@@ -83,6 +83,7 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("desert-stone-pile", "assets/desert/stone_pile.svg");
     this.load.image("chest-closed", "assets/desert/chest_closed.png");
     this.load.image("chest-open", "assets/desert/chest_open.png");
+    this.load.image("chest-opened", "assets/desert/chest_open.png");
     this.load.audio("sfx-chest-hit", "assets/common/sounds/chest_hit.wav");
     this.load.audio("sfx-coin", "assets/common/sounds/coin.wav");
     this.load.audio("sfx-companion-hit", "assets/common/sounds/companion_hit.wav");

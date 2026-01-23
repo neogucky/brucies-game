@@ -2,6 +2,7 @@ import { saveProgress } from "../saveManager.js";
 import { playMusic } from "../soundManager.js";
 import TopHud from "../ui/topHud.js";
 import CoordinateDebugger from "../utils/coordinateDebugger.js";
+import DialogManager from "../dialogManager.js";
 
 const NODES = [
   {
@@ -9,7 +10,7 @@ const NODES = [
     label: "Händlerin",
     x: 445,
     y: 210,
-    neighbors: { left: "UnderDig" },
+    neighbors: { left: "UnderDig", downLeft: "Schluesseltor" },
   },
   {
     id: "UnderDig",
@@ -17,6 +18,20 @@ const NODES = [
     x: 192,
     y: 127,
     neighbors: { right: "UnderShop" },
+  },
+  {
+    id: "Schluesseltor",
+    label: "Schluesseltor",
+    x: 338,
+    y: 340,
+    neighbors: { upRight: "UnderShop", left: "Schluesselweg" },
+  },
+  {
+    id: "Schluesselweg",
+    label: "Schluesselweg",
+    x: 191,
+    y: 307,
+    neighbors: { right: "Schluesseltor" },
   },
 ];
 
@@ -27,6 +42,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
     this.entryFromDesert = false;
     this.travelSpeed = 260;
     this.isMoving = false;
+    this.isDialogOpen = false;
   }
 
   init(data) {
@@ -61,18 +77,24 @@ export default class UndergroundMapScene extends Phaser.Scene {
       showCompanion: true,
       companionHealth: 1,
       companionRespawnRatio: 0,
+      keyCollected: Boolean(saveData.undergroundKeyCollected),
     });
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys("W,A,S,D");
     this.input.keyboard.on("keydown-ENTER", () => this.startCurrentLevel());
     this.input.keyboard.on("keydown-T", () => this.useConsumable());
-    const returnToDesert = () => this.returnToDesert();
+    const returnToDesert = () => {
+      if (this.currentNode?.id === "UnderShop") {
+        this.returnToDesert();
+      }
+    };
     this.input.keyboard.on("keydown-UP", returnToDesert);
     this.input.keyboard.on("keydown-W", returnToDesert);
     this.input.keyboard.on("keydown-ESC", () => this.scene.start("MainMenuScene"));
     this.coordDebugger = new CoordinateDebugger(this);
     this.input.keyboard.on("keydown-F", () => this.toggleFullscreen());
+    this.dialog = new DialogManager(this);
   }
 
   ensureUnlocks() {
@@ -80,6 +102,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
     const unlocked = new Set(saveData.unlockedLevels || []);
     unlocked.add("UnderShop");
     unlocked.add("UnderDig");
+    unlocked.add("Schluesseltor");
     if (unlocked.size !== (saveData.unlockedLevels || []).length) {
       const nextSave = { ...saveData, unlockedLevels: Array.from(unlocked) };
       this.registry.set("saveData", nextSave);
@@ -104,8 +127,10 @@ export default class UndergroundMapScene extends Phaser.Scene {
     this.nodeSprites = new Map();
     NODES.forEach((node) => {
       const isUnlocked = this.unlocked.has(node.id);
-      const iconKey = node.id === "UnderShop" ? "underground-shop-map" : "worldmap-ruin";
-      const iconScale = node.id === "UnderShop" ? 0.3 : 0.26;
+      const iconKey =
+        node.id === "UnderShop" ? "underground-shop-map" : "worldmap-ruin";
+      const iconScale =
+        node.id === "UnderShop" ? 0.3 : node.id === "Schluesseltor" ? 0.22 : 0.26;
       const icon = this.add.image(node.x, node.y, iconKey).setScale(iconScale);
       icon.setAlpha(isUnlocked ? 1 : 0.35);
       icon.setDepth(2);
@@ -190,25 +215,28 @@ export default class UndergroundMapScene extends Phaser.Scene {
     this.companionMarker.setDepth(5);
 
     if (this.entryFromDesert) {
+      this.entryFromDesert = false;
+      const shop = NODES.find((node) => node.id === "UnderShop");
+      if (!shop) return;
+      this.currentNode = shop;
       const edgeY = 40;
-      const duration = this.getTravelDuration(edgeY, startNode.y + 6);
-      this.playerMarker.setPosition(startNode.x, edgeY);
-      this.companionMarker.setPosition(startNode.x - 18, edgeY + 12);
+      const duration = this.getTravelDuration(edgeY, shop.y + 6);
+      this.playerMarker.setPosition(shop.x, edgeY);
+      this.companionMarker.setPosition(shop.x - 18, edgeY + 12);
       this.isMoving = true;
       this.tweens.add({
         targets: this.playerMarker,
-        x: startNode.x,
-        y: startNode.y + 6,
+        x: shop.x,
+        y: shop.y + 6,
         duration,
         onComplete: () => {
-          this.entryFromDesert = false;
           this.isMoving = false;
         },
       });
       this.tweens.add({
         targets: this.companionMarker,
-        x: startNode.x - 18,
-        y: startNode.y + 12,
+        x: shop.x - 18,
+        y: shop.y + 12,
         duration: duration + 40,
       });
     }
@@ -232,11 +260,45 @@ export default class UndergroundMapScene extends Phaser.Scene {
       })
       .setOrigin(1, 1)
       .setStroke("#3b2a17", 2);
+    this.lockText = this.add
+      .text(480, 520, "", {
+        fontFamily: "Trebuchet MS, sans-serif",
+        fontSize: "16px",
+        color: "#6b2f26",
+      })
+      .setOrigin(0.5);
   }
 
   startCurrentLevel() {
     if (!this.currentNode) return;
     const saveData = this.registry.get("saveData") || {};
+    if (!this.unlocked.has(this.currentNode.id)) {
+      return;
+    }
+    if (this.currentNode.id === "Schluesseltor") {
+      if (!saveData.undergroundKeyCollected) {
+        this.showDialog("Verschlossen!");
+        return;
+      }
+      const unlocked = new Set(saveData.unlockedLevels || []);
+      if (!unlocked.has("Schluesselweg")) {
+        unlocked.add("Schluesselweg");
+        const nextSave = {
+          ...saveData,
+          unlockedLevels: Array.from(unlocked),
+        };
+        this.registry.set("saveData", nextSave);
+        saveProgress(nextSave);
+        this.showDialog("Du hast das Tor aufgeschlossen!", () => this.scene.restart());
+      } else {
+        this.showDialog("Der Schluesselturm ist bereits geöffnet!");
+      }
+      return;
+    }
+    if (this.currentNode.id === "Schluesselweg") {
+      this.showDialog("Hier entsteht bald ein Level");
+      return;
+    }
     const nextSave = {
       ...saveData,
       currentLevel: this.currentNode.id,
@@ -324,11 +386,20 @@ export default class UndergroundMapScene extends Phaser.Scene {
   }
 
   update() {
-    if (this.isMoving) return;
+    if (this.isMoving || this.isDialogOpen) return;
     const left = this.cursors.left.isDown || this.wasd.A.isDown;
     const right = this.cursors.right.isDown || this.wasd.D.isDown;
     const up = this.cursors.up.isDown || this.wasd.W.isDown;
     const down = this.cursors.down.isDown || this.wasd.S.isDown;
+
+    if (up && this.currentNode?.id === "UnderShop") {
+      this.returnToDesert();
+      return;
+    }
+    if (up && this.currentNode?.id === "Schluesseltor") {
+      this.tryMove({ x: 1, y: -1 });
+      return;
+    }
 
     if (left) this.tryMove({ x: -1, y: 0 });
     else if (right) this.tryMove({ x: 1, y: 0 });
@@ -342,6 +413,17 @@ export default class UndergroundMapScene extends Phaser.Scene {
       this.companionMarker.x = Phaser.Math.Linear(this.companionMarker.x, targetX, 0.12);
       this.companionMarker.y = Phaser.Math.Linear(this.companionMarker.y, targetY, 0.12);
     }
+  }
+
+  showDialog(text, onClose) {
+    if (!this.dialog) return;
+    this.isDialogOpen = true;
+    this.dialog.show([{ text }], "middle", {
+      onClose: () => {
+        this.isDialogOpen = false;
+        if (onClose) onClose();
+      },
+    });
   }
 
   tryMove(direction) {

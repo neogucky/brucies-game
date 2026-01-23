@@ -56,6 +56,8 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.createAudio();
     playMusic(this, "music-world");
     this.ensureSaveState();
+    this.events.once("shutdown", this.handleShutdown, this);
+    this.events.once("destroy", this.handleShutdown, this);
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys("W,A,S,D");
@@ -92,9 +94,12 @@ export default class UndergroundDigScene extends Phaser.Scene {
       this.keyItem.destroy();
       this.keyItem = null;
     }
-    if (this.chests) {
-      this.chests.clear(true, true);
-      this.chests = null;
+    this.destroyGroup(this.chests);
+    this.chests = null;
+    this.destroyGroup(this.blocks);
+    this.blocks = null;
+    if (this.blockMap) {
+      this.blockMap.clear();
     }
     if (this.companionDebugGraphics) {
       this.companionDebugGraphics.destroy();
@@ -104,11 +109,52 @@ export default class UndergroundDigScene extends Phaser.Scene {
       this.companionShield.destroy();
       this.companionShield = null;
     }
+    if (this.playerBlockCollider) {
+      this.physics?.world?.removeCollider(this.playerBlockCollider);
+      this.playerBlockCollider = null;
+    }
+    if (this.companionBlockCollider) {
+      this.physics?.world?.removeCollider(this.companionBlockCollider);
+      this.companionBlockCollider = null;
+    }
     if (this.physics?.world?.isPaused) {
       this.physics.world.resume();
     }
     if (this.time?.paused) {
       this.time.paused = false;
+    }
+  }
+
+  destroyGroup(group) {
+    if (!group) return;
+    if (group.destroy) {
+      group.destroy(true);
+      return;
+    }
+    if (group.clear) {
+      group.clear(true, true);
+    }
+  }
+
+  handleShutdown() {
+    this.isPaused = true;
+    if (this.sfx?.levitating?.isPlaying) {
+      this.sfx.levitating.stop();
+    }
+    this.destroyGroup(this.chests);
+    this.chests = null;
+    this.destroyGroup(this.blocks);
+    this.blocks = null;
+    if (this.playerBlockCollider) {
+      this.physics?.world?.removeCollider(this.playerBlockCollider);
+      this.playerBlockCollider = null;
+    }
+    if (this.companionBlockCollider) {
+      this.physics?.world?.removeCollider(this.companionBlockCollider);
+      this.companionBlockCollider = null;
+    }
+    if (this.physics?.world) {
+      this.physics.world.pause();
     }
   }
 
@@ -263,7 +309,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.placeKey();
     this.placeChests();
     this.setGateTriggerTiles();
-    this.physics.add.collider(this.player, this.blocks);
+    this.playerBlockCollider = this.physics.add.collider(this.player, this.blocks);
   }
 
   createCompanion() {
@@ -277,7 +323,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.companion.setDepth(0);
     this.companion.body.setSize(20, 26, true);
     this.companion.body.setCollideWorldBounds(true);
-    this.physics.add.collider(this.companion, this.blocks);
+    this.companionBlockCollider = this.physics.add.collider(this.companion, this.blocks);
     const targetTile = this.getCompanionTargetTile() || {
       col: Math.floor(this.player.x / this.tileSize),
       row: Math.floor((this.player.y - 1) / this.tileSize),
@@ -524,6 +570,14 @@ export default class UndergroundDigScene extends Phaser.Scene {
     const keyData = this.levelMap?.key;
     let keyCol = (this.startCol ?? 0) + 1;
     let keyRow = this.startRow ?? 0;
+    const saveData = this.registry.get("saveData") || {};
+    if (saveData.undergroundKeyCollected) {
+      if (this.keyItem) {
+        this.keyItem.destroy();
+        this.keyItem = null;
+      }
+      return;
+    }
     if (keyData && Number.isFinite(keyData.col) && Number.isFinite(keyData.row)) {
       keyCol = keyData.col;
       keyRow = keyData.row;
@@ -548,6 +602,8 @@ export default class UndergroundDigScene extends Phaser.Scene {
       this.chests.clear(true, true);
     }
     this.chests = this.physics.add.staticGroup();
+    const saveData = this.registry.get("saveData") || {};
+    const openedChests = saveData.undergroundDigChests || {};
     const emptyAt = (col, row) => !this.blockMap.has(`${col},${row}`);
     const clampCol = (col) => Phaser.Math.Clamp(col, 1, (this.gridCols ?? 1) - 2);
     const clampRow = (row) => Phaser.Math.Clamp(row, 1, (this.gridRows ?? 1) - 2);
@@ -580,8 +636,8 @@ export default class UndergroundDigScene extends Phaser.Scene {
     }
 
     const spots = [
-      { col: chest1Col, row: chest1Row },
-      { col: chest2Col, row: chest2Row },
+      { id: "gate", col: chest1Col, row: chest1Row },
+      { id: "topRight", col: chest2Col, row: chest2Row },
     ];
     spots.forEach((spot) => {
       const chest = this.add.image(
@@ -591,7 +647,12 @@ export default class UndergroundDigScene extends Phaser.Scene {
       );
       chest.setScale(0.45);
       chest.setDepth(2);
-      chest.setData("opened", false);
+      chest.setData("id", spot.id);
+      const alreadyOpened = Boolean(openedChests[spot.id]);
+      chest.setData("opened", alreadyOpened);
+      if (alreadyOpened) {
+        chest.setTexture("chest-opened");
+      }
       this.physics.add.existing(chest, true);
       this.chests.add(chest);
     });
@@ -889,7 +950,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     if (this.isPaused || this.isEditorMode) return;
     this.startSwing();
     const hitBounds = this.swordHitbox.getBounds();
-    if (this.chests) {
+    if (this.chests?.children?.size) {
       const chestCandidates = this.chests.getChildren();
       for (let i = 0; i < chestCandidates.length; i += 1) {
         const chest = chestCandidates[i];
@@ -899,6 +960,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
         return;
       }
     }
+    if (!this.blocks?.children?.size) return;
     const candidates = this.blocks.getChildren();
     let hitEarth = false;
     let hitBlocked = false;
@@ -975,6 +1037,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
   openChest(chest) {
     if (!chest.active || chest.getData("opened")) return;
     chest.setData("opened", true);
+    const chestId = chest.getData("id");
     if (this.sfx?.chestHit) {
       this.sfx.chestHit.play();
     }
@@ -982,7 +1045,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     if (this.sfx?.coin) {
       this.sfx.coin.play();
     }
-    chest.setTexture("chest-open");
+    chest.setTexture("chest-opened");
     const coin = this.add.circle(chest.x, chest.y - 8, 6, 0xf5d37a);
     this.tweens.add({
       targets: coin,
@@ -991,11 +1054,19 @@ export default class UndergroundDigScene extends Phaser.Scene {
       duration: 450,
       onComplete: () => coin.destroy(),
     });
-    this.time.delayedCall(1000, () => {
-      if (chest.active) {
-        chest.destroy();
-      }
-    });
+    // Keep opened chest visible for future visits.
+    if (chestId) {
+      const saveData = this.registry.get("saveData") || {};
+      const nextSave = {
+        ...saveData,
+        undergroundDigChests: {
+          ...(saveData.undergroundDigChests || {}),
+          [chestId]: true,
+        },
+      };
+      this.registry.set("saveData", nextSave);
+      saveProgress(nextSave);
+    }
   }
 
   addCoins(amount) {
@@ -1029,6 +1100,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.health = saveData.health ?? this.maxHealth;
     this.coinsCollected = saveData.coins ?? 0;
     this.consumables = { ...(saveData.consumables || {}) };
+    this.keyCollected = Boolean(saveData.undergroundKeyCollected || this.keyCollected);
     this.hud = new TopHud(this, {
       coins: this.coinsCollected,
       health: this.health,
@@ -1371,6 +1443,13 @@ export default class UndergroundDigScene extends Phaser.Scene {
     if (this.hud && typeof this.hud.setKeyCollected === "function") {
       this.hud.setKeyCollected(true);
     }
+    const saveData = this.registry.get("saveData") || {};
+    const nextSave = {
+      ...saveData,
+      undergroundKeyCollected: true,
+    };
+    this.registry.set("saveData", nextSave);
+    saveProgress(nextSave);
   }
 
   checkGateUnlock() {
@@ -1420,6 +1499,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
         ...saveData,
         completedLevels: Array.from(completed),
         currentLevel: "UnderShop",
+        undergroundKeyCollected: this.keyCollected,
       };
       this.registry.set("saveData", nextSave);
       saveProgress(nextSave);
