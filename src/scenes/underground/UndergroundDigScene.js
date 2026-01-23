@@ -32,6 +32,17 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.levelMap = null;
     this.keyCollected = false;
     this.levelCompleted = false;
+    this.chests = null;
+    this.coinsPerChest = 500;
+    this.companion = null;
+    this.companionMode = "hop";
+    this.companionLastHop = 0;
+    this.companionLastProgressAt = 0;
+    this.companionLastDistance = null;
+    this.companionFarSince = 0;
+    this.companionFlyBase = null;
+    this.companionShield = null;
+    this.companionDebugGraphics = null;
   }
 
   create() {
@@ -40,7 +51,9 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.createPlayer();
     this.loadLevelMap();
     this.createBlocks();
+    this.createCompanion();
     this.createUI();
+    this.createAudio();
     playMusic(this, "music-world");
     this.ensureSaveState();
 
@@ -78,6 +91,18 @@ export default class UndergroundDigScene extends Phaser.Scene {
     if (this.keyItem) {
       this.keyItem.destroy();
       this.keyItem = null;
+    }
+    if (this.chests) {
+      this.chests.clear(true, true);
+      this.chests = null;
+    }
+    if (this.companionDebugGraphics) {
+      this.companionDebugGraphics.destroy();
+      this.companionDebugGraphics = null;
+    }
+    if (this.companionShield) {
+      this.companionShield.destroy();
+      this.companionShield = null;
     }
     if (this.physics?.world?.isPaused) {
       this.physics.world.resume();
@@ -236,8 +261,51 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.applyBoundaryBlocks();
     this.placeGate();
     this.placeKey();
+    this.placeChests();
     this.setGateTriggerTiles();
     this.physics.add.collider(this.player, this.blocks);
+  }
+
+  createCompanion() {
+    if (this.companion) {
+      this.companion.destroy();
+      this.companion = null;
+    }
+    this.companion = this.physics.add.image(this.player.x, this.player.y, "companion-running");
+    this.companion.setOrigin(0.5, 1);
+    this.companion.setScale(0.48);
+    this.companion.setDepth(0);
+    this.companion.body.setSize(20, 26, true);
+    this.companion.body.setCollideWorldBounds(true);
+    this.physics.add.collider(this.companion, this.blocks);
+    const targetTile = this.getCompanionTargetTile() || {
+      col: Math.floor(this.player.x / this.tileSize),
+      row: Math.floor((this.player.y - 1) / this.tileSize),
+    };
+    this.companion.setPosition(
+      (targetTile.col + 0.5) * this.tileSize,
+      (targetTile.row + 1) * this.tileSize
+    );
+    if (this.companion.body) {
+      this.companion.body.reset(this.companion.x, this.companion.y);
+    }
+    this.companion.body.setVelocity(0, 0);
+    if (this.companionDebugGraphics) {
+      this.companionDebugGraphics.destroy();
+      this.companionDebugGraphics = null;
+    }
+    if (!this.companionShield) {
+      this.companionShield = this.add.ellipse(this.companion.x, this.companion.y - 14, 36, 36, 0x5fb8ff, 0.15);
+      this.companionShield.setStrokeStyle(2, 0x8fd2ff, 0.9);
+      this.companionShield.setDepth(6);
+      this.companionShield.setVisible(false);
+    }
+    this.companionMode = "hop";
+    this.companionLastHop = 0;
+    this.companionLastProgressAt = 0;
+    this.companionLastDistance = null;
+    this.companionFarSince = 0;
+    this.companionFlyBase = null;
   }
 
   toggleHitboxEditor() {
@@ -390,9 +458,9 @@ export default class UndergroundDigScene extends Phaser.Scene {
     }
     const texture =
       type === "black"
-        ? "block-black"
+        ? "underground-onyx"
         : type === "stone"
-          ? "block-stone"
+          ? "underground-stone"
           : "underground-earth";
     const x = col * this.tileSize;
     const y = row * this.tileSize;
@@ -472,6 +540,61 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.keyItem.setOrigin(0.5, 1);
     this.keyItem.setScale(0.55);
     this.keyItem.setDepth(2);
+  }
+
+  placeChests() {
+    if (!this.tileSize || !this.blockMap) return;
+    if (this.chests) {
+      this.chests.clear(true, true);
+    }
+    this.chests = this.physics.add.staticGroup();
+    const emptyAt = (col, row) => !this.blockMap.has(`${col},${row}`);
+    const clampCol = (col) => Phaser.Math.Clamp(col, 1, (this.gridCols ?? 1) - 2);
+    const clampRow = (row) => Phaser.Math.Clamp(row, 1, (this.gridRows ?? 1) - 2);
+
+    const gatePos = this.getGateGridPos();
+    const gateCol = gatePos?.col ?? this.startCol ?? 1;
+    const gateRow = gatePos?.row ?? this.startRow ?? 1;
+    let chest1Row = clampRow(gateRow - 6);
+    let chest1Col = clampCol(gateCol - 1);
+    for (let offset = 0; offset <= 4; offset += 1) {
+      const testRow = clampRow(chest1Row - offset);
+      if (emptyAt(chest1Col, testRow)) {
+        chest1Row = testRow;
+        break;
+      }
+    }
+
+    let chest2Col = clampCol((this.gridCols ?? 2) - 2);
+    let chest2Row = 1;
+    let found = false;
+    for (let row = 1; row <= (this.gridRows ?? 1) - 2 && !found; row += 1) {
+      for (let col = (this.gridCols ?? 2) - 2; col >= 1; col -= 1) {
+        if (emptyAt(col, row)) {
+          chest2Col = col;
+          chest2Row = row;
+          found = true;
+          break;
+        }
+      }
+    }
+
+    const spots = [
+      { col: chest1Col, row: chest1Row },
+      { col: chest2Col, row: chest2Row },
+    ];
+    spots.forEach((spot) => {
+      const chest = this.add.image(
+        (spot.col + 0.5) * this.tileSize,
+        (spot.row + 1) * this.tileSize + 20,
+        "chest-closed"
+      );
+      chest.setScale(0.45);
+      chest.setDepth(2);
+      chest.setData("opened", false);
+      this.physics.add.existing(chest, true);
+      this.chests.add(chest);
+    });
   }
 
   setGateTriggerTiles() {
@@ -766,17 +889,45 @@ export default class UndergroundDigScene extends Phaser.Scene {
     if (this.isPaused || this.isEditorMode) return;
     this.startSwing();
     const hitBounds = this.swordHitbox.getBounds();
+    if (this.chests) {
+      const chestCandidates = this.chests.getChildren();
+      for (let i = 0; i < chestCandidates.length; i += 1) {
+        const chest = chestCandidates[i];
+        if (!chest.active) continue;
+        if (!Phaser.Geom.Intersects.RectangleToRectangle(hitBounds, chest.getBounds())) continue;
+        this.openChest(chest);
+        return;
+      }
+    }
     const candidates = this.blocks.getChildren();
+    let hitEarth = false;
+    let hitBlocked = false;
     for (let i = 0; i < candidates.length; i += 1) {
       const block = candidates[i];
       if (!block.active) continue;
-      if (block.getData("type") !== "earth") continue;
       if (!Phaser.Geom.Intersects.RectangleToRectangle(hitBounds, block.getBounds())) continue;
+      const type = block.getData("type");
+      if (type !== "earth") {
+        hitBlocked = true;
+        continue;
+      }
       const col = block.getData("col");
       const row = block.getData("row");
       this.blocks.remove(block, true, true);
       this.blockMap.delete(`${col},${row}`);
+      hitEarth = true;
+      break;
+    }
+    if (hitEarth && this.sfx?.diggingEarth) {
+      this.sfx.diggingEarth.play();
       return;
+    }
+    if (hitBlocked && this.sfx?.diggingFailed) {
+      this.sfx.diggingFailed.play();
+      return;
+    }
+    if (this.sfx?.swordSlash) {
+      this.sfx.swordSlash.play();
     }
   }
 
@@ -790,7 +941,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
       this.player.setTexture(hitTexture);
     }
     this.updateSwordHitbox();
-    this.swordHitbox.setVisible(true);
+    this.swordHitbox.setVisible(false);
     if (this.swingTimer) {
       this.swingTimer.remove(false);
     }
@@ -817,8 +968,60 @@ export default class UndergroundDigScene extends Phaser.Scene {
         centerY -= 10;
       }
     }
-    const hitboxYOffset = this.isDucking ? 12 : 5;
+    const hitboxYOffset = this.isDucking ? 12 : 3;
     this.swordHitbox.setPosition(this.player.x + offsetX, centerY + hitboxYOffset);
+  }
+
+  openChest(chest) {
+    if (!chest.active || chest.getData("opened")) return;
+    chest.setData("opened", true);
+    if (this.sfx?.chestHit) {
+      this.sfx.chestHit.play();
+    }
+    this.addCoins(this.coinsPerChest);
+    if (this.sfx?.coin) {
+      this.sfx.coin.play();
+    }
+    chest.setTexture("chest-open");
+    const coin = this.add.circle(chest.x, chest.y - 8, 6, 0xf5d37a);
+    this.tweens.add({
+      targets: coin,
+      y: coin.y - 20,
+      alpha: 0,
+      duration: 450,
+      onComplete: () => coin.destroy(),
+    });
+    this.time.delayedCall(1000, () => {
+      if (chest.active) {
+        chest.destroy();
+      }
+    });
+  }
+
+  addCoins(amount) {
+    this.coinsCollected += amount;
+    if (this.hud) {
+      this.hud.setCoins(this.coinsCollected);
+    }
+    this.saveInventory();
+  }
+
+  saveInventory() {
+    const saveData = this.registry.get("saveData") || {};
+    const nextSave = {
+      ...saveData,
+      health: this.health,
+      coins: this.coinsCollected,
+      consumables: {
+        ...saveData.consumables,
+        ...this.consumables,
+      },
+      equipment: {
+        ...saveData.equipment,
+      },
+    };
+    this.registry.set("saveData", nextSave);
+    saveProgress(nextSave);
   }
 
   createUI() {
@@ -838,7 +1041,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
       companionRespawnRatio: 0,
       keyCollected: this.keyCollected,
     });
-    this.hud.setDepth(60);
+    this.hud.setDepth(200);
 
     this.hintText = this.add
       .text(14, 585, "Pfeile/A/D = Bewegen, W/Oben = Springen, Leertaste = Graben, Esc = Menu", {
@@ -884,9 +1087,25 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.promptBox.add([promptShade, promptPanel, this.promptText, this.promptHint]);
   }
 
+  createAudio() {
+    this.sfx = {
+      swordSlash: this.sound.add("sfx-sword-slash"),
+      diggingEarth: this.sound.add("sfx-digging-earth"),
+      diggingFailed: this.sound.add("sfx-digging-failed"),
+      jump: this.sound.add("sfx-jump"),
+      companionHop: this.sound.add("sfx-jump", { volume: 0.3 }),
+      levitating: this.sound.add("sfx-levitating", { loop: true, volume: 1 }),
+      chestHit: this.sound.add("sfx-chest-hit"),
+      coin: this.sound.add("sfx-coin"),
+    };
+  }
+
   update() {
     if (this.isPaused || this.isEditorMode || this.isHitboxEditMode) {
       this.player.body.setVelocity(0, 0);
+      if (this.companion?.body) {
+        this.companion.body.setVelocity(0, 0);
+      }
       return;
     }
     const speed = 180;
@@ -927,12 +1146,213 @@ export default class UndergroundDigScene extends Phaser.Scene {
     const jumpPressed = this.cursors.up.isDown || this.wasd.W.isDown;
     if (jumpPressed && !this.isDucking && this.player.body.blocked.down) {
       this.player.body.setVelocityY(-390);
+      if (this.sfx?.jump) {
+        this.sfx.jump.play();
+      }
     }
     if (this.isSwinging) {
       this.updateSwordHitbox();
     }
+    this.updateCompanion();
     this.checkKeyPickup();
     this.checkGateUnlock();
+  }
+
+  updateCompanion() {
+    if (!this.companion?.body || !this.tileSize) return;
+    const targetTile = this.getCompanionTargetTile();
+    if (!targetTile) return;
+    const currentTile = this.getCompanionTilePosition();
+    const atTarget =
+      currentTile &&
+      currentTile.col === targetTile.col &&
+      currentTile.row === targetTile.row &&
+      this.companion.body.blocked.down;
+    const targetPos = {
+      x: (targetTile.col + 0.5) * this.tileSize,
+      y: (targetTile.row + 1) * this.tileSize,
+    };
+    // Debug visuals disabled.
+    if (this.companionMode === "fly") {
+      this.updateCompanionFly(targetPos);
+      return;
+    }
+    if (atTarget) {
+      this.setCompanionIdle();
+      return;
+    }
+    this.updateCompanionHop(targetPos);
+  }
+
+  startCompanionClimb() {
+    if (!this.companion?.body) return;
+    this.companionClimbing = true;
+    this.companion.body.setAllowGravity(false);
+    this.companion.body.setVelocityX(0);
+    this.companion.body.setVelocityY(-30);
+  }
+
+  stopCompanionClimb() {
+    if (!this.companion?.body) return;
+    this.companionClimbing = false;
+    this.companion.body.setAllowGravity(true);
+  }
+
+  getCompanionTargetTile() {
+    if (!this.tileSize) return null;
+    const playerCol = Math.floor(this.player.x / this.tileSize);
+    const playerFeetY = this.player?.y ?? this.getPlayerFeetY();
+    const playerRow = Math.floor((playerFeetY - 1) / this.tileSize) - 1;
+    const left = { col: playerCol - 1, row: playerRow };
+    const right = { col: playerCol + 1, row: playerRow };
+    const isStandable = (candidate) => {
+      if (
+        candidate.col < 0 ||
+        candidate.row < 0 ||
+        candidate.col >= (this.gridCols ?? 1) ||
+        candidate.row >= (this.gridRows ?? 1)
+      ) {
+        return false;
+      }
+      if (this.blockMap.has(`${candidate.col},${candidate.row}`)) return false;
+      if (candidate.row + 1 >= (this.gridRows ?? 1)) return false;
+      return this.blockMap.has(`${candidate.col},${candidate.row + 1}`);
+    };
+    const standableCandidates = [left, right].filter(isStandable);
+    if (standableCandidates.length) {
+      if (standableCandidates.length === 1) return standableCandidates[0];
+      const leftCenter = (left.col + 0.5) * this.tileSize;
+      const rightCenter = (right.col + 0.5) * this.tileSize;
+      const leftDistance = Math.abs(this.companion.x - leftCenter);
+      const rightDistance = Math.abs(this.companion.x - rightCenter);
+      return leftDistance <= rightDistance ? left : right;
+    }
+    return { col: playerCol, row: playerRow };
+  }
+
+  getCompanionTilePosition() {
+    const col = Math.floor(this.companion.x / this.tileSize);
+    const feetY = this.companion?.y ?? this.companion?.body?.bottom ?? 0;
+    const row = Math.floor((feetY - 1) / this.tileSize);
+    return { col, row };
+  }
+
+
+  setCompanionIdle() {
+    if (!this.companion?.body) return;
+    this.companion.body.setVelocity(0, 0);
+    this.companion.setTexture("companion-searching");
+    this.updateCompanionShield(false);
+    this.companionFarSince = 0;
+    if (this.sfx?.levitating?.isPlaying) {
+      this.sfx.levitating.stop();
+    }
+  }
+
+  updateCompanionHop(targetPos) {
+    if (!this.companion?.body) return;
+    const now = this.time.now;
+    const dx = targetPos.x - this.companion.x;
+    const dy = targetPos.y - this.companion.y;
+    const distance = Math.hypot(dx, dy);
+    const distanceTiles = distance / this.tileSize;
+    if (distanceTiles > 2) {
+      if (!this.companionFarSince) {
+        this.companionFarSince = now;
+      } else if (now - this.companionFarSince > 1000) {
+        this.startCompanionFly(targetPos);
+        return;
+      }
+    } else {
+      this.companionFarSince = 0;
+    }
+    if (distance < this.tileSize * 0.2 && this.companion.body.blocked.down) {
+      this.setCompanionIdle();
+      return;
+    }
+    this.companionLastDistance = distance;
+    const speed = 160;
+    if (Math.abs(dx) > 2) {
+      this.companion.body.setVelocityX(Math.sign(dx) * speed);
+      this.companion.setFlipX(dx < 0);
+    } else {
+      this.companion.body.setVelocityX(0);
+    }
+    if (this.companion.body.blocked.down && now - this.companionLastHop > 420) {
+      this.companion.body.setVelocityY(-160);
+      this.companionLastHop = now;
+      if (this.sfx?.companionHop) {
+        this.sfx.companionHop.play();
+      }
+    }
+    this.companion.setTexture("companion-running");
+    this.updateCompanionShield(false);
+  }
+
+  startCompanionFly(targetPos) {
+    if (!this.companion?.body) return;
+    this.companionMode = "fly";
+    this.companionFlyBase = { x: this.companion.x, y: this.companion.y };
+    this.companion.body.setAllowGravity(false);
+    this.companion.body.setVelocity(0, 0);
+    this.companion.body.setEnable(false);
+    this.updateCompanionShield(true);
+    if (this.sfx?.levitating && !this.sfx.levitating.isPlaying) {
+      this.sfx.levitating.play();
+    }
+    this.companionLastDistance = null;
+    this.companionLastProgressAt = this.time.now;
+    this.updateCompanionFly(targetPos);
+  }
+
+  updateCompanionFly(targetPos) {
+    if (!this.companion || !this.companionFlyBase) return;
+    const delta = Math.min(0.05, (this.game?.loop?.delta ?? 16) / 1000);
+    const dx = targetPos.x - this.companionFlyBase.x;
+    const dy = targetPos.y - this.companionFlyBase.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance < 2) {
+      this.finishCompanionFly(targetPos);
+      return;
+    }
+    const speed = 168;
+    const step = Math.min(distance, speed * delta);
+    const nx = dx / (distance || 1);
+    const ny = dy / (distance || 1);
+    this.companionFlyBase.x += nx * step;
+    this.companionFlyBase.y += ny * step;
+    const sway = Math.sin(this.time.now / 220) * 10;
+    this.companion.setPosition(this.companionFlyBase.x + sway, this.companionFlyBase.y);
+    this.updateCompanionShield(true);
+  }
+
+  finishCompanionFly(targetPos) {
+    if (!this.companion?.body) return;
+    this.companionMode = "hop";
+    this.companionFlyBase = null;
+    this.companion.setPosition(targetPos.x, targetPos.y);
+    this.companion.body.setEnable(true);
+    this.companion.body.setAllowGravity(true);
+    this.companion.body.reset(this.companion.x, this.companion.y);
+    this.companionLastDistance = null;
+    this.companionLastProgressAt = this.time.now;
+    this.companionFarSince = 0;
+    this.updateCompanionShield(false);
+    if (this.sfx?.levitating?.isPlaying) {
+      this.sfx.levitating.stop();
+    }
+  }
+
+  updateCompanionShield(visible) {
+    if (!this.companionShield || !this.companion) return;
+    this.companionShield.setVisible(visible);
+    if (visible) {
+      this.companionShield.setPosition(this.companion.x, this.companion.y - 14);
+    }
+  }
+
+  drawCompanionDebug(targetTile, hasPlan) {
+    // Debug visuals disabled.
   }
 
   checkKeyPickup() {

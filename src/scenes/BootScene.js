@@ -60,6 +60,8 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("underground-bg", "assets/underground/underground.png");
     this.load.image("underground-gate", "assets/underground/gate.png");
     this.load.image("underground-earth", "assets/underground/earth_tile.png");
+    this.load.image("underground-stone", "assets/underground/stone_tile.png");
+    this.load.image("underground-onyx", "assets/underground/onyx_tile.png");
     this.load.json("underground-dig-map", "assets/levels/underground_dig.json");
     this.load.image("tavern-bg", "assets/tavern/tavern.png");
     this.load.image("tavern-loading", "assets/tavern/tavern_loading.png");
@@ -101,6 +103,13 @@ export default class BootScene extends Phaser.Scene {
     this.load.audio("sfx-stone-hit", "assets/common/sounds/stone_hitting.wav");
     this.load.audio("sfx-shield-impact", "assets/common/sounds/shield_impact.wav");
     this.load.audio("sfx-stone-collected", "assets/common/sounds/stone_collected.wav");
+    this.load.audio("sfx-digging-earth", "assets/common/sounds/digging_earth.wav");
+    this.load.audio("sfx-digging-failed", "assets/common/sounds/digging_failed.wav");
+    this.load.audio("sfx-jump", "assets/common/sounds/jump.wav");
+    this.load.audio("sfx-levitating", "assets/common/sounds/levitating.wav");
+    this.load.audio("sfx-digging-earth", "assets/common/sounds/digging_earth.wav");
+    this.load.audio("sfx-digging-failed", "assets/common/sounds/digging_failed.wav");
+    this.load.audio("sfx-jump", "assets/common/sounds/jump.wav");
     this.load.audio("music-desert", "assets/common/sounds/music-desert.mp3");
     this.load.audio("music-menu", "assets/common/sounds/music-menu.mp3");
     this.load.audio("music-world", "assets/common/sounds/music-world.mp3");
