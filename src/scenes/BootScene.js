@@ -53,16 +53,20 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("worldmap-quarry", "assets/worldmap/quarry.png");
     this.load.image("worldmap-quarry-tunnel", "assets/worldmap/quarry_tunnel.png");
     this.load.image("worldmap-underground-bg", "assets/worldmap/underground_world.png");
+    this.load.image("worldmap-keytower", "assets/worldmap/keytower.png");
+    this.load.image("worldmap-keytower-open", "assets/worldmap/keytower_open.png");
     this.load.image("tavern-map", "assets/worldmap/tavern.png");
     this.load.image("underground-shop-map", "assets/worldmap/underground_shop.png");
     this.load.image("underground-shop", "assets/underground/underground_shop.png");
     this.load.image("underground-shop-loading", "assets/underground/underground_shop_loading.png");
     this.load.image("underground-bg", "assets/underground/underground.png");
+    this.load.image("underground-bg-alt", "assets/underground/underground_alt.png");
     this.load.image("underground-gate", "assets/underground/gate.png");
     this.load.image("underground-earth", "assets/underground/earth_tile.png");
     this.load.image("underground-stone", "assets/underground/stone_tile.png");
     this.load.image("underground-onyx", "assets/underground/onyx_tile.png");
     this.load.json("underground-dig-map", "assets/levels/underground_dig.json");
+    this.load.json("underground-keytower-map", "assets/levels/underground_keytower.json");
     this.load.image("tavern-bg", "assets/tavern/tavern.png");
     this.load.image("tavern-loading", "assets/tavern/tavern_loading.png");
     this.load.image("tavern-barkeeper", "assets/tavern/barkeeper.png");
@@ -108,6 +112,7 @@ export default class BootScene extends Phaser.Scene {
     this.load.audio("sfx-digging-failed", "assets/common/sounds/digging_failed.wav");
     this.load.audio("sfx-jump", "assets/common/sounds/jump.wav");
     this.load.audio("sfx-levitating", "assets/common/sounds/levitating.wav");
+    this.load.audio("sfx-key-open", "assets/common/sounds/key_open.wav");
     this.load.audio("sfx-digging-earth", "assets/common/sounds/digging_earth.wav");
     this.load.audio("sfx-digging-failed", "assets/common/sounds/digging_failed.wav");
     this.load.audio("sfx-jump", "assets/common/sounds/jump.wav");

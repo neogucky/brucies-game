@@ -9,6 +9,15 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.blockMap = new Map();
     this.isPaused = false;
     this.isEditorMode = false;
+    this.mapKey = "underground-dig-map";
+    this.levelId = "UnderDig";
+    this.locationName = "Untergrundpfad";
+    this.scrollXEnabled = false;
+    this.worldWidth = 960;
+    this.worldHeight = 600;
+    this.disableGate = false;
+    this.disableKey = false;
+    this.disableChests = false;
     this.maxHealth = 5;
     this.health = this.maxHealth;
     this.coinsCollected = 0;
@@ -43,13 +52,28 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.companionFlyBase = null;
     this.companionShield = null;
     this.companionDebugGraphics = null;
+    this.jumpCount = 0;
+    this.wasGrounded = false;
+    this.lastDownPressAt = 0;
+  }
+
+  init(data) {
+    if (data?.mapKey) {
+      this.mapKey = data.mapKey;
+    }
+    if (data?.levelId) {
+      this.levelId = data.levelId;
+    }
+    if (data?.locationName) {
+      this.locationName = data.locationName;
+    }
   }
 
   create() {
     this.resetSceneState();
+    this.loadLevelMap();
     this.addBackground();
     this.createPlayer();
-    this.loadLevelMap();
     this.createBlocks();
     this.createCompanion();
     this.createUI();
@@ -82,6 +106,9 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.facingX = 1;
     this.startCol = null;
     this.startRow = null;
+    this.jumpCount = 0;
+    this.wasGrounded = false;
+    this.lastDownPressAt = 0;
     if (this.swingTimer) {
       this.swingTimer.remove(false);
       this.swingTimer = null;
@@ -160,10 +187,10 @@ export default class UndergroundDigScene extends Phaser.Scene {
 
   ensureSaveState() {
     const saveData = this.registry.get("saveData") || {};
-    if (saveData.currentLevel !== "UnderDig") {
+    if (saveData.currentLevel !== this.levelId) {
       const nextSave = {
         ...saveData,
-        currentLevel: "UnderDig",
+        currentLevel: this.levelId,
       };
       this.registry.set("saveData", nextSave);
       saveProgress(nextSave);
@@ -171,7 +198,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
   }
 
   loadLevelMap() {
-    const cached = this.cache.json?.get("underground-dig-map");
+    const cached = this.cache.json?.get(this.mapKey);
     if (cached) {
       this.levelMap = cached;
       return;
@@ -186,10 +213,28 @@ export default class UndergroundDigScene extends Phaser.Scene {
   }
 
   addBackground() {
-    const bg = this.add.image(480, 300, "underground-bg");
-    const scale = Math.max(960 / bg.width, 600 / bg.height);
-    bg.setScale(scale);
-    bg.setDepth(-2);
+    const tileSize = this.levelMap?.tileSize ?? 38;
+    const cols = this.levelMap?.cols ?? Math.ceil(960 / tileSize);
+    const rows = this.levelMap?.rows ?? Math.ceil(600 / tileSize);
+    const width = Math.max(960, cols * tileSize);
+    const height = Math.max(600, rows * tileSize);
+    const baseKey = "underground-bg";
+    const altKey = "underground-bg-alt";
+    const baseImage = this.textures.get(baseKey)?.getSourceImage();
+    const baseWidth = baseImage?.width ?? 960;
+    const baseHeight = baseImage?.height ?? 600;
+    const scale = Math.max(960 / baseWidth, 600 / baseHeight);
+    const scaledWidth = baseWidth * scale;
+    let x = scaledWidth / 2;
+    let index = 0;
+    while (x - scaledWidth / 2 < width) {
+      const key = index % 2 === 0 ? baseKey : altKey;
+      const bg = this.add.image(x, height / 2, key);
+      bg.setScale(scale);
+      bg.setDepth(-2);
+      x += scaledWidth;
+      index += 1;
+    }
   }
 
   createPlayer() {
@@ -225,7 +270,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.player.setData("hitTexture", hitTexture);
     this.player.setData("crouchTexture", crouchTexture);
     this.player.setData("crouchHitTexture", crouchHitTexture);
-    this.physics.world.setBounds(0, 0, 960, 600);
+    this.physics.world.setBounds(0, 0, this.worldWidth, this.worldHeight);
     this.physics.world.gravity.y = 900;
 
     this.swordHitbox = this.add.rectangle(-100, -100, 47, 32, 0xff0000, 0.15);
@@ -288,10 +333,17 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.blocks = this.physics.add.staticGroup();
     this.blockMap.clear();
 
-    const cols = Math.ceil(960 / this.tileSize);
-    const rows = Math.ceil(600 / this.tileSize);
+    const cols = this.levelMap?.cols ?? Math.ceil(960 / this.tileSize);
+    const rows = this.levelMap?.rows ?? Math.ceil(600 / this.tileSize);
     this.gridCols = cols;
     this.gridRows = rows;
+    this.worldWidth = cols * this.tileSize;
+    this.worldHeight = rows * this.tileSize;
+    this.physics.world.setBounds(0, 0, this.worldWidth, this.worldHeight);
+    const camera = this.cameras.main;
+    camera.setBounds(0, 0, this.worldWidth, this.worldHeight);
+    camera.setScroll(0, 0);
+    this.scrollXEnabled = Boolean(this.levelMap?.scrollX);
     const spawnCol = this.startCol ?? this.levelMap?.start?.col ?? Math.min(cols - 2, 3);
     const spawnRow = this.startRow ?? this.levelMap?.start?.row ?? Math.min(rows - 2, 3);
     this.startCol = spawnCol;
@@ -305,10 +357,21 @@ export default class UndergroundDigScene extends Phaser.Scene {
     }
 
     this.applyBoundaryBlocks();
-    this.placeGate();
-    this.placeKey();
-    this.placeChests();
-    this.setGateTriggerTiles();
+    this.disableGate = Boolean(this.levelMap?.disableGate);
+    this.disableKey = Boolean(this.levelMap?.disableKey);
+    this.disableChests = Boolean(this.levelMap?.disableChests);
+    if (!this.disableGate) {
+      this.placeGate();
+      this.setGateTriggerTiles();
+    } else {
+      this.gateTriggerTiles = new Set();
+    }
+    if (!this.disableKey) {
+      this.placeKey();
+    }
+    if (!this.disableChests) {
+      this.placeChests();
+    }
     this.playerBlockCollider = this.physics.add.collider(this.player, this.blocks);
   }
 
@@ -659,6 +722,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
   }
 
   setGateTriggerTiles() {
+    if (this.disableGate) return;
     if (!this.tileSize) return;
     const rect = { x: 84, y: 391, width: 26, height: 24 };
     const colStart = Math.floor(rect.x / this.tileSize);
@@ -778,13 +842,13 @@ export default class UndergroundDigScene extends Phaser.Scene {
   handleDragMove(pointer, block, dragX, dragY) {
     if (!this.isEditorMode || !block) return;
     if (block === this.gate) {
-      block.x = Phaser.Math.Clamp(dragX, 0, 960);
-      block.y = Phaser.Math.Clamp(dragY, 0, 600);
+      block.x = Phaser.Math.Clamp(dragX, 0, this.worldWidth);
+      block.y = Phaser.Math.Clamp(dragY, 0, this.worldHeight);
       return;
     }
     if (block === this.keyItem) {
-      block.x = Phaser.Math.Clamp(dragX, 0, 960);
-      block.y = Phaser.Math.Clamp(dragY, 0, 600);
+      block.x = Phaser.Math.Clamp(dragX, 0, this.worldWidth);
+      block.y = Phaser.Math.Clamp(dragY, 0, this.worldHeight);
       return;
     }
     if (!block.getData) return;
@@ -792,12 +856,12 @@ export default class UndergroundDigScene extends Phaser.Scene {
     const col = Phaser.Math.Clamp(
       Math.floor(dragX / this.tileSize),
       0,
-      Math.floor(960 / this.tileSize)
+      Math.floor(this.worldWidth / this.tileSize)
     );
     const row = Phaser.Math.Clamp(
       Math.floor(dragY / this.tileSize),
       0,
-      Math.floor(600 / this.tileSize)
+      Math.floor(this.worldHeight / this.tileSize)
     );
     if (block === this.player) {
       this.setPlayerFeetPosition(col, row);
@@ -898,9 +962,15 @@ export default class UndergroundDigScene extends Phaser.Scene {
     blocks.sort((a, b) => (a.row - b.row) || (a.col - b.col));
     const payload = {
       tileSize: this.tileSize,
+      cols: this.gridCols,
+      rows: this.gridRows,
+      scrollX: this.scrollXEnabled,
+      disableGate: this.disableGate,
+      disableKey: this.disableKey,
+      disableChests: this.disableChests,
       start: { col: this.startCol ?? 0, row: this.startRow ?? 0 },
-      gate: this.getGateGridPos(),
-      key: this.getKeyGridPos(),
+      gate: this.disableGate ? null : this.getGateGridPos(),
+      key: this.disableKey ? null : this.getKeyGridPos(),
       blocks,
     };
     console.log("UndergroundDigMap:", JSON.stringify(payload));
@@ -1034,6 +1104,42 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.swordHitbox.setPosition(this.player.x + offsetX, centerY + hitboxYOffset);
   }
 
+  performDownStrike() {
+    if (this.isPaused || this.isEditorMode) return;
+    this.startSwing();
+    this.digBlockBelow();
+  }
+
+  digBlockBelow() {
+    if (!this.tileSize || !this.blockMap) {
+      if (this.sfx?.swordSlash) {
+        this.sfx.swordSlash.play();
+      }
+      return;
+    }
+    const col = Math.floor(this.player.x / this.tileSize);
+    const row = Math.floor((this.player.y - 1) / this.tileSize);
+    const block = this.blockMap.get(`${col},${row}`);
+    if (!block || !block.active) {
+      if (this.sfx?.swordSlash) {
+        this.sfx.swordSlash.play();
+      }
+      return;
+    }
+    const type = block.getData("type");
+    if (type === "earth") {
+      this.blocks.remove(block, true, true);
+      this.blockMap.delete(`${col},${row}`);
+      if (this.sfx?.diggingEarth) {
+        this.sfx.diggingEarth.play();
+      }
+      return;
+    }
+    if (this.sfx?.diggingFailed) {
+      this.sfx.diggingFailed.play();
+    }
+  }
+
   openChest(chest) {
     if (!chest.active || chest.getData("opened")) return;
     chest.setData("opened", true);
@@ -1126,7 +1232,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.hintText.setDepth(60);
 
     this.locationText = this.add
-      .text(940, 585, "Untergrundpfad", {
+      .text(940, 585, this.locationName, {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "16px",
         color: "#ffffff",
@@ -1157,6 +1263,10 @@ export default class UndergroundDigScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
     this.promptBox.add([promptShade, promptPanel, this.promptText, this.promptHint]);
+    this.hud.setScrollFactor(0);
+    this.hintText.setScrollFactor(0);
+    this.locationText.setScrollFactor(0);
+    this.promptBox.setScrollFactor(0);
   }
 
   createAudio() {
@@ -1169,6 +1279,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
       levitating: this.sound.add("sfx-levitating", { loop: true, volume: 1 }),
       chestHit: this.sound.add("sfx-chest-hit"),
       coin: this.sound.add("sfx-coin"),
+      keyOpen: this.sound.add("sfx-key-open"),
     };
   }
 
@@ -1180,6 +1291,11 @@ export default class UndergroundDigScene extends Phaser.Scene {
       }
       return;
     }
+    const grounded = this.player.body.blocked.down;
+    if (grounded && !this.wasGrounded) {
+      this.jumpCount = 0;
+    }
+    this.wasGrounded = grounded;
     const speed = 180;
     let vx = 0;
     if (this.cursors.left.isDown || this.wasd.A.isDown) vx -= speed;
@@ -1191,6 +1307,17 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.player.body.setVelocityX(vx);
 
     const duckPressed = this.cursors.down.isDown || this.wasd.S.isDown;
+    const downJustPressed = Phaser.Input.Keyboard.JustDown(this.cursors.down) ||
+      Phaser.Input.Keyboard.JustDown(this.wasd.S);
+    if (downJustPressed) {
+      const now = this.time.now;
+      if (this.lastDownPressAt && now - this.lastDownPressAt < 280) {
+        this.lastDownPressAt = 0;
+        this.performDownStrike();
+      } else {
+        this.lastDownPressAt = now;
+      }
+    }
     if (duckPressed && !this.isDucking) {
       const feetY = this.getPlayerFeetY();
       this.isDucking = true;
@@ -1215,19 +1342,56 @@ export default class UndergroundDigScene extends Phaser.Scene {
       }
     }
 
-    const jumpPressed = this.cursors.up.isDown || this.wasd.W.isDown;
-    if (jumpPressed && !this.isDucking && this.player.body.blocked.down) {
-      this.player.body.setVelocityY(-390);
-      if (this.sfx?.jump) {
+    const jumpPressed = Phaser.Input.Keyboard.JustDown(this.cursors.up) ||
+      Phaser.Input.Keyboard.JustDown(this.wasd.W);
+    if (jumpPressed && !this.isDucking) {
+      let didJump = false;
+      if (grounded) {
+        this.player.body.setVelocityY(-390);
+        this.jumpCount = 1;
+        didJump = true;
+      } else if (this.jumpCount === 1) {
+        this.player.body.setVelocityY(-390);
+        this.jumpCount = 2;
+        didJump = true;
+      }
+      if (didJump && this.sfx?.jump) {
         this.sfx.jump.play();
       }
     }
     if (this.isSwinging) {
       this.updateSwordHitbox();
     }
+    this.updateCameraScroll();
     this.updateCompanion();
     this.checkKeyPickup();
     this.checkGateUnlock();
+  }
+
+  updateCameraScroll() {
+    if (!this.scrollXEnabled) return;
+    const camera = this.cameras.main;
+    if (!camera) return;
+    const margin = this.tileSize * 5;
+    const viewLeft = camera.scrollX;
+    const viewRight = viewLeft + camera.width;
+    if (this.worldWidth <= camera.width) {
+      camera.scrollX = 0;
+      return;
+    }
+    if (this.player.x < viewLeft + margin) {
+      camera.scrollX = Phaser.Math.Clamp(
+        this.player.x - margin,
+        0,
+        this.worldWidth - camera.width
+      );
+    } else if (this.player.x > viewRight - margin) {
+      camera.scrollX = Phaser.Math.Clamp(
+        this.player.x + margin - camera.width,
+        0,
+        this.worldWidth - camera.width
+      );
+    }
   }
 
   updateCompanion() {
@@ -1328,7 +1492,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     const dy = targetPos.y - this.companion.y;
     const distance = Math.hypot(dx, dy);
     const distanceTiles = distance / this.tileSize;
-    if (distanceTiles > 2) {
+    if (distanceTiles > 3) {
       if (!this.companionFarSince) {
         this.companionFarSince = now;
       } else if (now - this.companionFarSince > 1000) {
@@ -1428,6 +1592,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
   }
 
   checkKeyPickup() {
+    if (this.disableKey) return;
     if (this.keyCollected || !this.keyItem || !this.player?.body) return;
     const playerRect = new Phaser.Geom.Rectangle(
       this.player.body.x,
@@ -1453,6 +1618,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
   }
 
   checkGateUnlock() {
+    if (this.disableGate) return;
     if (!this.keyCollected || this.levelCompleted || !this.player?.body) return;
     const playerRect = new Phaser.Geom.Rectangle(
       this.player.body.x,
@@ -1488,6 +1654,9 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.time.paused = true;
     this.physics.world.pause();
     this.promptBox.setVisible(true);
+    if (this.sfx?.keyOpen) {
+      this.sfx.keyOpen.play();
+    }
     this.promptText.setText("Du hast das Tor geoeffnet!");
     this.promptHint.setText("Enter zur Karte");
 

@@ -79,6 +79,26 @@ export default class TopHud {
     });
   }
 
+  setScrollFactor(factor) {
+    const items = [
+      this.coinIcon,
+      this.coinText,
+      this.keyIcon,
+      this.stoneIcon,
+      this.stoneText,
+      ...this.hearts,
+    ];
+    Object.values(this.items || {}).forEach((item) => {
+      if (!item) return;
+      items.push(item.frame, item.label, item.hint, item.count, item.icon, item.overlay, item.barBg, item.barFill);
+    });
+    items.forEach((item) => {
+      if (item && item.setScrollFactor) {
+        item.setScrollFactor(factor);
+      }
+    });
+  }
+
   createItems() {
     const frameWidth = 52;
     const frameHeight = 52;

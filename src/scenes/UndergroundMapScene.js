@@ -128,9 +128,15 @@ export default class UndergroundMapScene extends Phaser.Scene {
     NODES.forEach((node) => {
       const isUnlocked = this.unlocked.has(node.id);
       const iconKey =
-        node.id === "UnderShop" ? "underground-shop-map" : "worldmap-ruin";
+        node.id === "UnderShop"
+          ? "underground-shop-map"
+          : node.id === "Schluesseltor"
+          ? isUnlocked && saveData.unlockedLevels?.includes("Schluesselweg")
+            ? "worldmap-keytower-open"
+            : "worldmap-keytower"
+          : "worldmap-ruin";
       const iconScale =
-        node.id === "UnderShop" ? 0.3 : node.id === "Schluesseltor" ? 0.22 : 0.26;
+        node.id === "UnderShop" ? 0.3 : node.id === "Schluesseltor" ? 0.5 : 0.26;
       const icon = this.add.image(node.x, node.y, iconKey).setScale(iconScale);
       icon.setAlpha(isUnlocked ? 1 : 0.35);
       icon.setDepth(2);
@@ -289,14 +295,11 @@ export default class UndergroundMapScene extends Phaser.Scene {
         };
         this.registry.set("saveData", nextSave);
         saveProgress(nextSave);
+        this.sound.play("sfx-key-open");
         this.showDialog("Du hast das Tor aufgeschlossen!", () => this.scene.restart());
       } else {
         this.showDialog("Der Schluesselturm ist bereits geöffnet!");
       }
-      return;
-    }
-    if (this.currentNode.id === "Schluesselweg") {
-      this.showDialog("Hier entsteht bald ein Level");
       return;
     }
     const nextSave = {
@@ -312,7 +315,17 @@ export default class UndergroundMapScene extends Phaser.Scene {
     if (this.currentNode.id === "UnderShop") {
       this.scene.start("TavernScene", { from: "underground" });
     } else if (this.currentNode.id === "UnderDig") {
-      this.scene.start("UndergroundDigScene");
+      this.scene.start("UndergroundDigScene", {
+        mapKey: "underground-dig-map",
+        levelId: "UnderDig",
+        locationName: "Untergrundpfad",
+      });
+    } else if (this.currentNode.id === "Schluesselweg") {
+      this.scene.start("UndergroundDigScene", {
+        mapKey: "underground-keytower-map",
+        levelId: "Schluesselweg",
+        locationName: "Schluesselweg",
+      });
     }
   }
 

@@ -146,7 +146,12 @@ export default class MainMenuScene extends Phaser.Scene {
       this.registry.set("saveData", nextSave);
       saveProgress(nextSave);
     }
-    if (saveData?.currentLevel === "UnderShop" || saveData?.currentLevel === "UnderDig") {
+    if (
+      saveData?.currentLevel === "UnderShop" ||
+      saveData?.currentLevel === "UnderDig" ||
+      saveData?.currentLevel === "Schluesseltor" ||
+      saveData?.currentLevel === "Schluesselweg"
+    ) {
       this.scene.start("UndergroundMapScene");
       return;
     }
