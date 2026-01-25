@@ -125,6 +125,8 @@ export default class BootScene extends Phaser.Scene {
   create() {
     const saveData = loadSave();
     this.registry.set("saveData", { ...defaultSave, ...saveData });
+    this.installDisplaySizeGuard();
+    this.installPhaserErrorGuards();
     this.scale.on("fullscreenchange", (_, isFullscreen) => {
       document.body.classList.toggle("fullscreen", isFullscreen);
       this.scale.refresh();
@@ -139,6 +141,72 @@ export default class BootScene extends Phaser.Scene {
       saveProgress(nextSave);
     });
     this.scene.start("MainMenuScene");
+  }
+
+  installDisplaySizeGuard() {
+    const patch = (proto, name) => {
+      if (!proto || proto._safeSetDisplaySize) return;
+      const original = proto.setDisplaySize;
+      proto._safeSetDisplaySize = true;
+      proto.setDisplaySize = function setDisplaySizeSafe(width, height) {
+        const texture = this.texture;
+        const source = texture?.getSourceImage?.();
+        if (!source) {
+          const key = texture?.key ?? "unknown";
+          const sceneKey = this.scene?.scene?.key ?? "unknown";
+          console.warn(
+            `[setDisplaySize guard] Missing texture source for ${name} (key=${key}) in ${sceneKey}`
+          );
+          return this;
+        }
+        return original.call(this, width, height);
+      };
+    };
+    patch(Phaser.GameObjects.Image.prototype, "Image");
+    patch(Phaser.GameObjects.Sprite.prototype, "Sprite");
+  }
+
+  installPhaserErrorGuards() {
+    if (this._phaserErrorGuardsInstalled) return;
+    this._phaserErrorGuardsInstalled = true;
+    if (typeof window !== "undefined") {
+      window.addEventListener("error", (event) => {
+        const message = event?.error?.message || event?.message;
+        if (message && message.includes("reading 'cut'")) {
+          console.warn("[Phaser error] cut access failure", {
+            message,
+            stack: event?.error?.stack,
+          });
+        }
+      });
+    }
+    const frameProto = Phaser?.Textures?.Frame?.prototype;
+    if (!frameProto || frameProto._safeSetSize) return;
+    const original = frameProto.setSize;
+    frameProto._safeSetSize = true;
+    frameProto.setSize = function setSizeSafe(width, height, x = 0, y = 0) {
+      try {
+        if (!this.data) {
+          console.warn("[Frame.setSize guard] Missing frame data", {
+            textureKey: this.texture?.key,
+            name: this.name,
+            width,
+            height,
+          });
+          return this;
+        }
+        return original.call(this, width, height, x, y);
+      } catch (error) {
+        console.warn("[Frame.setSize error]", {
+          message: error?.message,
+          textureKey: this.texture?.key,
+          name: this.name,
+          width,
+          height,
+        });
+        throw error;
+      }
+    };
   }
 
   createLoadingUI() {

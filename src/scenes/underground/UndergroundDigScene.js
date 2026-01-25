@@ -18,6 +18,13 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.disableGate = false;
     this.disableKey = false;
     this.disableChests = false;
+    this.editorPlacement = "earth";
+    this.editorMenu = null;
+    this.coinsGroup = null;
+    this.heartsGroup = null;
+    this.molesGroup = null;
+    this.moleStates = new Map();
+    this.moleStepDelay = 180;
     this.maxHealth = 5;
     this.health = this.maxHealth;
     this.coinsCollected = 0;
@@ -55,6 +62,17 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.jumpCount = 0;
     this.wasGrounded = false;
     this.lastDownPressAt = 0;
+    this.editorPlacement = "earth";
+    this.destroyEditorMenu();
+    this.destroyGroup(this.coinsGroup);
+    this.coinsGroup = null;
+    this.destroyGroup(this.heartsGroup);
+    this.heartsGroup = null;
+    this.destroyGroup(this.molesGroup);
+    this.molesGroup = null;
+    if (this.moleStates) {
+      this.moleStates.clear();
+    }
   }
 
   init(data) {
@@ -161,6 +179,12 @@ export default class UndergroundDigScene extends Phaser.Scene {
     if (group.clear) {
       group.clear(true, true);
     }
+  }
+
+  destroyEditorMenu() {
+    if (!this.editorMenu) return;
+    this.editorMenu.container.destroy();
+    this.editorMenu = null;
   }
 
   handleShutdown() {
@@ -369,10 +393,42 @@ export default class UndergroundDigScene extends Phaser.Scene {
     if (!this.disableKey) {
       this.placeKey();
     }
-    if (!this.disableChests) {
+    this.placeMapItems();
+    this.playerBlockCollider = this.physics.add.collider(this.player, this.blocks);
+  }
+
+  placeMapItems() {
+    this.createItemGroups();
+    const mapChests = Array.isArray(this.levelMap?.chests) && this.levelMap.chests.length > 0;
+    if (mapChests) {
+      this.placeMapChests(this.levelMap.chests);
+    } else if (!this.disableChests) {
       this.placeChests();
     }
-    this.playerBlockCollider = this.physics.add.collider(this.player, this.blocks);
+    if (Array.isArray(this.levelMap?.coins)) {
+      this.placeMapCoins(this.levelMap.coins);
+    }
+    if (Array.isArray(this.levelMap?.hearts)) {
+      this.placeMapHearts(this.levelMap.hearts);
+    }
+    if (Array.isArray(this.levelMap?.moles)) {
+      this.placeMapMoles(this.levelMap.moles);
+    }
+  }
+
+  createItemGroups() {
+    if (!this.coinsGroup) {
+      this.coinsGroup = this.physics.add.staticGroup();
+      this.physics.add.overlap(this.player, this.coinsGroup, this.handleCoinPickup, null, this);
+    }
+    if (!this.heartsGroup) {
+      this.heartsGroup = this.physics.add.staticGroup();
+      this.physics.add.overlap(this.player, this.heartsGroup, this.handleHeartPickup, null, this);
+    }
+    if (!this.molesGroup) {
+      this.molesGroup = this.physics.add.group();
+      this.physics.add.collider(this.molesGroup, this.blocks);
+    }
   }
 
   createCompanion() {
@@ -600,6 +656,137 @@ export default class UndergroundDigScene extends Phaser.Scene {
     }
   }
 
+  placeMapCoins(list) {
+    if (!this.coinsGroup) return;
+    list.forEach((entry) => {
+      const col = entry?.col;
+      const row = entry?.row;
+      if (!Number.isFinite(col) || !Number.isFinite(row)) return;
+      this.placeCoinAt(col, row);
+    });
+  }
+
+  placeCoinAt(col, row) {
+    if (!this.coinsGroup) return;
+    if (this.blockMap.has(`${col},${row}`)) return;
+    if (this.hasItemAt(this.coinsGroup, col, row)) return;
+    const coin = this.coinsGroup.create(
+      (col + 0.5) * this.tileSize,
+      (row + 1) * this.tileSize,
+      "ui-coin"
+    );
+    coin.setOrigin(0.5, 1);
+    coin.setScale(0.35);
+    coin.setDepth(2);
+    coin.setData("col", col);
+    coin.setData("row", row);
+  }
+
+  placeMapHearts(list) {
+    if (!this.heartsGroup) return;
+    list.forEach((entry) => {
+      const col = entry?.col;
+      const row = entry?.row;
+      if (!Number.isFinite(col) || !Number.isFinite(row)) return;
+      this.placeHeartAt(col, row);
+    });
+  }
+
+  placeHeartAt(col, row) {
+    if (!this.heartsGroup) return;
+    if (this.blockMap.has(`${col},${row}`)) return;
+    if (this.hasItemAt(this.heartsGroup, col, row)) return;
+    const heart = this.heartsGroup.create(
+      (col + 0.5) * this.tileSize,
+      (row + 1) * this.tileSize,
+      "ui-heart"
+    );
+    heart.setOrigin(0.5, 1);
+    heart.setScale(0.45);
+    heart.setDepth(2);
+    heart.setData("col", col);
+    heart.setData("row", row);
+  }
+
+  placeMapChests(list) {
+    this.placeMapChestsWithMode(list, true);
+  }
+
+  placeMapChestsWithMode(list, replaceAll) {
+    if (replaceAll || !this.chests) {
+      if (this.chests) {
+        this.chests.clear(true, true);
+      }
+      this.chests = this.physics.add.staticGroup();
+    }
+    list.forEach((entry) => {
+      const col = entry?.col;
+      const row = entry?.row;
+      if (!Number.isFinite(col) || !Number.isFinite(row)) return;
+      if (this.blockMap.has(`${col},${row}`)) return;
+      if (this.hasItemAt(this.chests, col, row)) return;
+      const chest = this.add.image(
+        (col + 0.5) * this.tileSize,
+        (row + 1) * this.tileSize + 20,
+        "chest-closed"
+      );
+      chest.setScale(0.45);
+      chest.setDepth(2);
+      chest.setData("opened", false);
+      chest.setData("col", col);
+      chest.setData("row", row);
+      this.physics.add.existing(chest, true);
+      this.chests.add(chest);
+    });
+  }
+
+  hasItemAt(group, col, row) {
+    if (!group?.getChildren) return false;
+    const items = group.getChildren();
+    for (let i = 0; i < items.length; i += 1) {
+      const item = items[i];
+      if (!item.active) continue;
+      if (item.getData("col") === col && item.getData("row") === row) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  placeChestAt(col, row) {
+    this.placeMapChestsWithMode([{ col, row }], false);
+  }
+
+  placeMapMoles(list) {
+    if (!this.molesGroup) return;
+    list.forEach((entry) => {
+      const col = entry?.col;
+      const row = entry?.row;
+      if (!Number.isFinite(col) || !Number.isFinite(row)) return;
+      this.placeMoleAt(col, row);
+    });
+  }
+
+  placeMoleAt(col, row) {
+    if (!this.molesGroup) return;
+    if (this.hasItemAt(this.molesGroup, col, row)) return;
+    if (this.blockMap.has(`${col},${row}`)) return;
+    const mole = this.molesGroup.create(
+      (col + 0.5) * this.tileSize,
+      (row + 1) * this.tileSize,
+      "desert-mole-running"
+    );
+    mole.setOrigin(0.5, 1);
+    mole.setDepth(2);
+    mole.setScale(0.6);
+    mole.setData("col", col);
+    mole.setData("row", row);
+    mole.body.setCollideWorldBounds(true);
+    this.moleStates.set(mole, {
+      nextActionAt: this.time.now + 2000,
+    });
+  }
+
   placeGate() {
     const gateData = this.levelMap?.gate;
     let gateCol = this.startCol ?? 0;
@@ -752,6 +939,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
   }
 
   enableEditorControls() {
+    this.createItemGroups();
     this.blocks.getChildren().forEach((block) => {
       if (block.getData("type") === "black") return;
       block.setInteractive({ useHandCursor: true, draggable: true });
@@ -801,6 +989,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     if (this.isEditorMode) {
       this.isEditorMode = false;
       this.disableEditorControls();
+      this.destroyEditorMenu();
       this.time.paused = false;
       this.physics.world.resume();
       this.logMapToConsole();
@@ -960,6 +1149,10 @@ export default class UndergroundDigScene extends Phaser.Scene {
       });
     });
     blocks.sort((a, b) => (a.row - b.row) || (a.col - b.col));
+    const coins = this.collectGroupItems(this.coinsGroup);
+    const hearts = this.collectGroupItems(this.heartsGroup);
+    const chests = this.collectGroupItems(this.chests);
+    const moles = this.collectGroupItems(this.molesGroup);
     const payload = {
       tileSize: this.tileSize,
       cols: this.gridCols,
@@ -972,32 +1165,177 @@ export default class UndergroundDigScene extends Phaser.Scene {
       gate: this.disableGate ? null : this.getGateGridPos(),
       key: this.disableKey ? null : this.getKeyGridPos(),
       blocks,
+      coins,
+      chests,
+      hearts,
+      moles,
     };
     console.log("UndergroundDigMap:", JSON.stringify(payload));
   }
 
+  collectGroupItems(group) {
+    if (!group?.getChildren) return [];
+    const items = [];
+    group.getChildren().forEach((item) => {
+      if (!item.active) return;
+      const col = item.getData("col");
+      const row = item.getData("row");
+      if (!Number.isFinite(col) || !Number.isFinite(row)) return;
+      items.push({ col, row });
+    });
+    items.sort((a, b) => (a.row - b.row) || (a.col - b.col));
+    return items;
+  }
+
   handlePointerDown(pointer) {
     if (!this.isEditorMode) return;
+    if (pointer.rightButtonDown()) {
+      this.openEditorMenu(pointer);
+      return;
+    }
+    if (this.editorMenu?.visible) {
+      return;
+    }
     const col = Math.floor(pointer.worldX / this.tileSize);
     const row = Math.floor(pointer.worldY / this.tileSize);
+    if (this.editorPlacement === "remove") {
+      this.removeEditorItemAt(col, row);
+      return;
+    }
+    if (this.editorPlacement === "earth") {
+      this.placeEditorBlock(pointer, "earth");
+      return;
+    }
+    if (this.editorPlacement === "stone") {
+      this.placeEditorBlock(pointer, "stone");
+      return;
+    }
+    if (this.editorPlacement === "black") {
+      this.placeEditorBlock(pointer, "black");
+      return;
+    }
+    if (this.editorPlacement === "coin") {
+      this.placeCoinAt(col, row);
+      return;
+    }
+    if (this.editorPlacement === "chest") {
+      this.placeChestAt(col, row);
+      return;
+    }
+    if (this.editorPlacement === "heart") {
+      this.placeHeartAt(col, row);
+      return;
+    }
+    if (this.editorPlacement === "key") {
+      this.placeKeyAt(col, row);
+      return;
+    }
+    if (this.editorPlacement === "exit") {
+      this.placeGateAt(col, row);
+      return;
+    }
+    if (this.editorPlacement === "mole") {
+      this.placeMoleAt(col, row);
+      return;
+    }
+  }
+
+  openEditorMenu(pointer) {
+    const options = [
+      { label: "Remove", value: "remove" },
+      { label: "Earth", value: "earth" },
+      { label: "Stone", value: "stone" },
+      { label: "Onyx", value: "black" },
+      { label: "Coin", value: "coin" },
+      { label: "Treasure Chest", value: "chest" },
+      { label: "Exit Door", value: "exit" },
+      { label: "Key", value: "key" },
+      { label: "Heart", value: "heart" },
+      { label: "Desert Mole", value: "mole" },
+    ];
+    this.destroyEditorMenu();
+    const padding = 6;
+    const lineHeight = 18;
+    const width = 160;
+    const height = padding * 2 + options.length * lineHeight;
+    const x = Phaser.Math.Clamp(pointer.worldX + 10, 10, this.worldWidth - width - 10);
+    const y = Phaser.Math.Clamp(pointer.worldY + 10, 10, this.worldHeight - height - 10);
+    const container = this.add.container(x, y);
+    const bg = this.add.rectangle(0, 0, width, height, 0xf2e3c5, 0.95)
+      .setOrigin(0);
+    bg.setStrokeStyle(2, 0x8a6b44);
+    container.add(bg);
+    options.forEach((option, index) => {
+      const text = this.add.text(
+        padding,
+        padding + index * lineHeight,
+        option.label,
+        {
+          fontFamily: "Trebuchet MS, sans-serif",
+          fontSize: "12px",
+          color: option.value === this.editorPlacement ? "#6b2f26" : "#3b2a17",
+        }
+      );
+      text.setInteractive({ useHandCursor: true });
+      text.on("pointerdown", () => {
+        this.editorPlacement = option.value;
+        this.destroyEditorMenu();
+      });
+      container.add(text);
+    });
+    container.setDepth(200);
+    this.editorMenu = { container, visible: true };
+  }
+
+  removeEditorItemAt(col, row) {
     const key = `${col},${row}`;
     const existing = this.blockMap.get(key);
-    if (pointer.rightButtonDown()) {
-      if (!existing) return;
+    if (existing) {
       this.blockMap.delete(key);
       this.blocks.remove(existing, true, true);
       return;
     }
-    if (existing) {
-      const current = existing.getData("type");
-      if (current === "earth") {
-        this.placeBlock(col, row, "stone", true);
-      } else if (current === "stone") {
-        this.placeBlock(col, row, "black", true);
+    const removeFromGroup = (group) => {
+      if (!group?.getChildren) return false;
+      const items = group.getChildren();
+      for (let i = 0; i < items.length; i += 1) {
+        const item = items[i];
+        if (!item.active) continue;
+        if (item.getData("col") === col && item.getData("row") === row) {
+          group.remove(item, true, true);
+          return true;
+        }
       }
+      return false;
+    };
+    if (removeFromGroup(this.coinsGroup)) return;
+    if (removeFromGroup(this.heartsGroup)) return;
+    if (removeFromGroup(this.chests)) return;
+    if (removeFromGroup(this.molesGroup)) {
+      this.moleStates.forEach((_, mole) => {
+        if (!mole.active) {
+          this.moleStates.delete(mole);
+        }
+      });
       return;
     }
-    this.placeEditorBlock(pointer, "earth");
+    if (this.keyItem) {
+      const keyPos = this.getKeyGridPos();
+      if (keyPos && keyPos.col === col && keyPos.row === row) {
+        this.keyItem.destroy();
+        this.keyItem = null;
+        this.disableKey = true;
+      }
+    }
+    if (this.gate) {
+      const gatePos = this.getGateGridPos();
+      if (gatePos && gatePos.col === col && gatePos.row === row) {
+        this.gate.destroy();
+        this.gate = null;
+        this.disableGate = true;
+        this.gateTriggerTiles = new Set();
+      }
+    }
   }
 
   placeEditorBlock(pointer, type) {
@@ -1014,6 +1352,37 @@ export default class UndergroundDigScene extends Phaser.Scene {
     const key = `${col},${row}`;
     if (this.blockMap.has(key)) return;
     this.placeBlock(col, row, type);
+  }
+
+  placeGateAt(col, row) {
+    if (!this.tileSize) return;
+    if (this.gate) {
+      this.gate.destroy();
+      this.gate = null;
+    }
+    this.disableGate = false;
+    const gateX = (col + 0.5) * this.tileSize + this.gateOffsetX;
+    const gateY = row * this.tileSize + this.gateOffsetY;
+    this.gate = this.add.image(gateX, gateY, "underground-gate");
+    this.gate.setOrigin(0.5, 1);
+    this.gate.setScale(this.standScale);
+    this.gate.setDepth(-1);
+    this.setGateTriggerTiles();
+  }
+
+  placeKeyAt(col, row) {
+    if (!this.tileSize) return;
+    if (this.keyItem) {
+      this.keyItem.destroy();
+      this.keyItem = null;
+    }
+    this.disableKey = false;
+    const keyX = (col + 0.5) * this.tileSize + this.keyOffsetX;
+    const keyY = (row + 1) * this.tileSize + this.keyOffsetY;
+    this.keyItem = this.add.image(keyX, keyY, "ui-key");
+    this.keyItem.setOrigin(0.5, 1);
+    this.keyItem.setScale(0.55);
+    this.keyItem.setDepth(2);
   }
 
   digBlock() {
@@ -1138,6 +1507,26 @@ export default class UndergroundDigScene extends Phaser.Scene {
     if (this.sfx?.diggingFailed) {
       this.sfx.diggingFailed.play();
     }
+  }
+
+  handleCoinPickup(player, coin) {
+    if (!coin?.active) return;
+    this.coinsGroup.remove(coin, true, true);
+    this.addCoins(1);
+    if (this.sfx?.coin) {
+      this.sfx.coin.play();
+    }
+  }
+
+  handleHeartPickup(player, heart) {
+    if (!heart?.active) return;
+    if (this.health >= this.maxHealth) return;
+    this.heartsGroup.remove(heart, true, true);
+    this.health = Math.min(this.maxHealth, this.health + 1);
+    if (this.hud) {
+      this.hud.setHealth(this.health, this.maxHealth);
+    }
+    this.saveInventory();
   }
 
   openChest(chest) {
@@ -1363,9 +1752,159 @@ export default class UndergroundDigScene extends Phaser.Scene {
       this.updateSwordHitbox();
     }
     this.updateCameraScroll();
+    this.updateMoles();
     this.updateCompanion();
     this.checkKeyPickup();
     this.checkGateUnlock();
+  }
+
+  updateMoles() {
+    if (!this.molesGroup?.getChildren) return;
+    const now = this.time.now;
+    this.molesGroup.getChildren().forEach((mole) => {
+      if (!mole.active) return;
+      let state = this.moleStates.get(mole);
+      if (!state) {
+        state = { nextActionAt: now + 2000, steps: [], nextStepAt: 0 };
+      } else {
+        if (!Array.isArray(state.steps)) {
+          state.steps = [];
+        }
+        if (!Number.isFinite(state.nextActionAt)) {
+          state.nextActionAt = now + 2000;
+        }
+        if (!Number.isFinite(state.nextStepAt)) {
+          state.nextStepAt = 0;
+        }
+      }
+      if (state.steps.length) {
+        if (now >= state.nextStepAt) {
+          const step = state.steps.shift();
+          if (step) {
+            this.executeMoleStep(mole, step);
+          }
+          state.nextStepAt = now + this.moleStepDelay;
+          if (!state.steps.length) {
+            state.nextActionAt = now + 2000;
+          }
+        }
+        this.moleStates.set(mole, state);
+        return;
+      }
+      if (now < state.nextActionAt) {
+        this.moleStates.set(mole, state);
+        return;
+      }
+      this.planMoleAction(mole, state);
+      this.moleStates.set(mole, state);
+    });
+  }
+
+  planMoleAction(mole, state) {
+    const actions = [
+      { dx: 0, dy: 1, digSteps: 2, walkSteps: 3 },
+      { dx: 0, dy: -1, digSteps: 2, walkSteps: 3 },
+      { dx: -1, dy: 0, digSteps: 5, walkSteps: 5 },
+      { dx: 1, dy: 0, digSteps: 5, walkSteps: 5 },
+    ];
+    const choice = Phaser.Utils.Array.GetRandom(actions);
+    const digPlan = this.buildMoleDigPlan(mole, choice.dx, choice.dy, choice.digSteps);
+    if (digPlan?.length) {
+      state.steps = digPlan;
+      state.nextStepAt = this.time.now;
+      return;
+    }
+    const walkPlan = this.buildMoleWalkPlan(mole, choice.dx, choice.dy, choice.walkSteps);
+    state.steps = walkPlan;
+    state.nextStepAt = this.time.now;
+  }
+
+  buildMoleDigPlan(mole, dx, dy, steps) {
+    if (!this.tileSize || !this.blockMap) return null;
+    const { col, row } = this.getMoleTilePosition(mole);
+    const firstKey = `${col + dx},${row + dy}`;
+    const secondKey = `${col + dx * 2},${row + dy * 2}`;
+    const first = this.blockMap.get(firstKey);
+    const second = this.blockMap.get(secondKey);
+    if (!first || first.getData("type") !== "earth") return null;
+    const secondType = second?.getData("type");
+    if (!secondType || !["earth", "stone", "black"].includes(secondType)) return null;
+    const stepsList = [];
+    for (let step = 1; step <= steps; step += 1) {
+      const targetCol = col + dx * step;
+      const targetRow = row + dy * step;
+      if (targetCol < 0 || targetRow < 0 || targetCol >= this.gridCols || targetRow >= this.gridRows) {
+        break;
+      }
+      const block = this.blockMap.get(`${targetCol},${targetRow}`);
+      if (block && block.getData("type") !== "earth") {
+        break;
+      }
+      stepsList.push({
+        col: targetCol,
+        row: targetRow,
+        dig: Boolean(block),
+        dx,
+        dy,
+      });
+    }
+    return stepsList;
+  }
+
+  buildMoleWalkPlan(mole, dx, dy, steps) {
+    if (!this.tileSize || !this.blockMap) return [];
+    const { col, row } = this.getMoleTilePosition(mole);
+    const stepsList = [];
+    for (let step = 1; step <= steps; step += 1) {
+      const targetCol = col + dx * step;
+      const targetRow = row + dy * step;
+      if (targetCol < 0 || targetRow < 0 || targetCol >= this.gridCols || targetRow >= this.gridRows) {
+        break;
+      }
+      const block = this.blockMap.get(`${targetCol},${targetRow}`);
+      if (block) {
+        break;
+      }
+      stepsList.push({
+        col: targetCol,
+        row: targetRow,
+        dig: false,
+        dx,
+        dy,
+      });
+    }
+    return stepsList;
+  }
+
+  executeMoleStep(mole, step) {
+    if (!step) return;
+    if (step.dig) {
+      const block = this.blockMap.get(`${step.col},${step.row}`);
+      if (block && block.getData("type") === "earth") {
+        const bcol = block.getData("col");
+        const brow = block.getData("row");
+        this.blocks.remove(block, true, true);
+        this.blockMap.delete(`${bcol},${brow}`);
+      }
+    }
+    mole.setPosition(
+      (step.col + 0.5) * this.tileSize,
+      (step.row + 1) * this.tileSize
+    );
+    mole.setData("col", step.col);
+    mole.setData("row", step.row);
+    if (mole.body) {
+      mole.body.reset(mole.x, mole.y);
+      if (step.dx === 0 && step.dy === 1) {
+        mole.body.setVelocityY(60);
+      }
+    }
+  }
+
+  getMoleTilePosition(mole) {
+    const col = Math.floor(mole.x / this.tileSize);
+    const row = Math.floor((mole.y - 1) / this.tileSize);
+    return { col, row };
   }
 
   updateCameraScroll() {

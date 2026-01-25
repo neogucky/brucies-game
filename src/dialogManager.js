@@ -15,7 +15,8 @@ export default class DialogManager {
     this.onClose = options.onClose || null;
     this.portraitKey = options.portraitKey || null;
     this.optionsIndex = 0;
-    if (!this.container) {
+    if (!this.container || !this.container.scene || this.container.destroyed) {
+      this.container = null;
       this.createUI(position);
     } else {
       this.setPosition(position);
@@ -43,8 +44,7 @@ export default class DialogManager {
     this.portraitFrame = this.scene.add.circle(120, y - 80, 78, 0xe2c18b, 0.95);
     this.portraitFrame.setStrokeStyle(4, 0x8a6b44);
     const portraitMask = this.scene.add.circle(120, y - 80, 78, 0xffffff, 1);
-    this.portraitImage = this.scene.add.image(120, y - 80, "");
-    this.portraitImage.setDisplaySize(20, 20);
+    this.portraitImage = this.scene.add.image(120, y - 80, "ui-coin");
     this.portraitMask = portraitMask;
     this.portraitImage.setMask(portraitMask.createGeometryMask());
     portraitMask.setVisible(false);
@@ -106,8 +106,9 @@ export default class DialogManager {
     const page = this.pages[this.index];
     if (!page) return;
     if (this.portraitImage && this.portraitFrame) {
-      if (this.portraitKey) {
+      if (this.portraitKey && this.scene.textures.exists(this.portraitKey)) {
         this.portraitImage.setTexture(this.portraitKey);
+        this.applyPortraitScale();
         this.portraitImage.setVisible(true);
         this.portraitFrame.setVisible(true);
       } else {
@@ -134,6 +135,15 @@ export default class DialogManager {
       this.scene.input.keyboard.once("keydown-SPACE", handler);
       this.keyHandlers.push({ key: "SPACE", handler });
     }
+  }
+
+  applyPortraitScale() {
+    if (!this.portraitImage?.texture?.getSourceImage) return;
+    const source = this.portraitImage.texture.getSourceImage();
+    if (!source?.width || !source?.height) return;
+    const target = 120;
+    const scale = Math.min(target / source.width, target / source.height);
+    this.portraitImage.setScale(scale);
   }
 
   renderOptions(options) {

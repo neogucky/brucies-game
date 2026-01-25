@@ -171,6 +171,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
     if (!this.shield) {
       this.shield = new ShieldManager(this);
     }
+    this.shield.setHud(null);
     this.shield.initFromSave(saveData);
     this.lastAttackAt = 0;
     this.swordDidHit = false;
@@ -1538,7 +1539,10 @@ export default class DesertTunnelScene extends Phaser.Scene {
   }
 
   fitScreenImage(image, marginScale) {
-    const targetScale = Math.min(960 / image.width, 600 / image.height) * marginScale;
+    if (!image?.texture) return;
+    const source = image.texture.getSourceImage?.();
+    if (!source?.width || !source?.height) return;
+    const targetScale = Math.min(960 / source.width, 600 / source.height) * marginScale;
     image.setScale(targetScale);
   }
 
