@@ -671,7 +671,9 @@ export default class UndergroundDigScene extends Phaser.Scene {
         ? "underground-onyx"
         : type === "stone"
           ? "underground-stone"
-          : "underground-earth";
+          : type === "coin"
+            ? "underground-coin"
+            : "underground-earth";
     const x = col * this.tileSize;
     const y = row * this.tileSize;
     const block = this.blocks.create(x, y, texture);
@@ -684,6 +686,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     block.setData("type", type);
     block.setData("col", col);
     block.setData("row", row);
+    block.setData("coinHits", type === "coin" ? 3 : 0);
     block.setData("lastClickAt", 0);
     this.blockMap.set(key, block);
   }
@@ -1278,6 +1281,10 @@ export default class UndergroundDigScene extends Phaser.Scene {
       this.placeCoinAt(col, row);
       return;
     }
+    if (this.editorPlacement === "coinTile") {
+      this.placeEditorBlock(pointer, "coin");
+      return;
+    }
     if (this.editorPlacement === "chest") {
       this.placeChestAt(col, row);
       return;
@@ -1307,6 +1314,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
       { label: "Stone", value: "stone" },
       { label: "Onyx", value: "black" },
       { label: "Coin", value: "coin" },
+      { label: "Coin Tile", value: "coinTile" },
       { label: "Treasure Chest", value: "chest" },
       { label: "Exit Door", value: "exit" },
       { label: "Key", value: "key" },
@@ -1440,6 +1448,34 @@ export default class UndergroundDigScene extends Phaser.Scene {
     return true;
   }
 
+  handleCoinTileHit(block) {
+    if (!block || block.getData("type") !== "coin") return false;
+    const hitsLeft = Math.max(1, block.getData("coinHits") ?? 3) - 1;
+    block.setData("coinHits", hitsLeft);
+    this.addCoins(10);
+    if (this.sfx?.coin) {
+      this.sfx.coin.play();
+    }
+    const coinFx = this.add.image(block.x + this.tileSize / 2, block.y, "ui-coin");
+    coinFx.setScale(0.42);
+    coinFx.setDepth(5);
+    this.tweens.add({
+      targets: coinFx,
+      y: coinFx.y - 16,
+      alpha: 0,
+      duration: 200,
+      onComplete: () => coinFx.destroy(),
+    });
+    if (hitsLeft <= 0) {
+      block.setData("type", "stone");
+      block.setTexture("underground-coin-used");
+      if (block.refreshBody) {
+        block.refreshBody();
+      }
+    }
+    return true;
+  }
+
   createMoleBar(mole) {
     const barBg = this.add.rectangle(mole.x, mole.y - 26, 26, this.moleBarHeight, 0x2f1e14);
     const barFill = this.add.rectangle(mole.x, mole.y - 26, 24, this.moleBarHeight - 2, 0xc23a2c);
@@ -1568,6 +1604,10 @@ export default class UndergroundDigScene extends Phaser.Scene {
       if (!block.active) continue;
       if (!Phaser.Geom.Intersects.RectangleToRectangle(hitBounds, block.getBounds())) continue;
       const type = block.getData("type");
+      if (type === "coin") {
+        this.handleCoinTileHit(block);
+        return;
+      }
       if (type !== "earth") {
         hitBlocked = true;
         continue;
@@ -1665,6 +1705,10 @@ export default class UndergroundDigScene extends Phaser.Scene {
       return;
     }
     const type = block.getData("type");
+    if (type === "coin") {
+      this.handleCoinTileHit(block);
+      return;
+    }
     if (type === "earth") {
       this.blocks.remove(block, true, true);
       this.blockMap.delete(`${col},${row}`);
@@ -1957,6 +2001,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
       this.dashActive = false;
       return;
     }
+    const grounded = Boolean(this.player?.body?.blocked?.down);
     if (this.dashLocked) {
       const holding =
         this.cursors.left.isDown ||
@@ -1973,8 +2018,12 @@ export default class UndergroundDigScene extends Phaser.Scene {
       if (!Phaser.Input.Keyboard.JustDown(key)) return;
       const last = this.dashLastTap[name] || 0;
       if (now - last <= this.dashTapWindow) {
-        this.dashActive = true;
-        this.dashDir = dir;
+        if (grounded) {
+          this.dashActive = true;
+          this.dashDir = dir;
+        } else {
+          this.dashLastTap[name] = now;
+        }
       } else {
         this.dashLastTap[name] = now;
       }
@@ -2032,6 +2081,12 @@ export default class UndergroundDigScene extends Phaser.Scene {
       const block = this.blockMap.get(`${col},${row}`);
       if (!block || !block.active) continue;
       const type = block.getData("type");
+      if (type === "coin") {
+        if (this.handleCoinTileHit(block)) {
+          destroyed += 1;
+        }
+        continue;
+      }
       if (type !== "earth") continue;
       this.blocks.remove(block, true, true);
       this.blockMap.delete(`${col},${row}`);
@@ -2071,7 +2126,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     if (!this.scrollXEnabled) return;
     const camera = this.cameras.main;
     if (!camera) return;
-    const margin = this.tileSize * 5;
+    const margin = this.tileSize * 10;
     const viewLeft = camera.scrollX;
     const viewRight = viewLeft + camera.width;
     if (this.worldWidth <= camera.width) {

@@ -67,6 +67,8 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("underground-earth", "assets/underground/earth_tile.png");
     this.load.image("underground-stone", "assets/underground/stone_tile.png");
     this.load.image("underground-onyx", "assets/underground/onyx_tile.png");
+    this.load.image("underground-coin", "assets/underground/coin_tile.png");
+    this.load.image("underground-coin-used", "assets/underground/coin_tile_used.png");
     this.load.json("underground-dig-map", "assets/levels/underground_dig.json");
     this.load.json("underground-keytower-map", "assets/levels/underground_keytower.json");
     this.load.image("tavern-bg", "assets/tavern/tavern.png");
