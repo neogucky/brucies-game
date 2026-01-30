@@ -167,7 +167,15 @@ export default class DesertTunnelScene extends Phaser.Scene {
     };
     this.equipment = {
       shield: saveData.equipment?.shield ?? false,
+      shoes: saveData.equipment?.shoes ?? false,
     };
+    this.hasShoes = this.equipment.shoes;
+    this.dashActive = false;
+    this.dashDir = { x: 0, y: 0 };
+    this.dashLastTap = { left: 0, right: 0, up: 0, down: 0 };
+    this.dashTapWindow = 300;
+    this.dashSpeedMultiplier = 2;
+    this.dashBounceDistance = 32;
     if (!this.shield) {
       this.shield = new ShieldManager(this);
     }
@@ -238,6 +246,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
       maxHealth: this.maxHealth,
       consumables: this.consumables,
       passiveOwned: this.equipment.shield,
+      passiveShoes: this.equipment.shoes,
       activeDisabled: false,
       showCompanion: true,
       companionHealth: this.companionHealth,
@@ -310,7 +319,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
     const block = this.add.rectangle(664.5, 80, 303, 158, 0x000000, 0);
     this.physics.add.existing(block, true);
     this.blockedZone = block;
-    this.physics.add.collider(this.player, block);
+    this.physics.add.collider(this.player, block, () => this.handleDashObstacle());
   }
 
   showIntroDialog() {
@@ -1130,6 +1139,11 @@ export default class DesertTunnelScene extends Phaser.Scene {
   }
 
   handlePlayerHit(_, monster) {
+    if (this.dashActive) {
+      this.damageMonster(monster, 2);
+      this.applyDashBounce();
+      return;
+    }
     this.attemptMonsterAttack(monster, this.player);
   }
 
@@ -1399,6 +1413,9 @@ export default class DesertTunnelScene extends Phaser.Scene {
     const now = this.time.now;
     if (now - this.lastAttackAt < this.attackCooldown) return;
     this.lastAttackAt = now;
+    if (this.hud?.flashItem) {
+      this.hud.flashItem("active");
+    }
     this.swordSwingId += 1;
     this.swordHitTargets = new Set();
     this.swordDidHit = false;
@@ -1587,13 +1604,20 @@ export default class DesertTunnelScene extends Phaser.Scene {
     }
 
     const speed = 200;
+    const now = this.time.now;
+    this.updateDashState(now);
     let vx = 0;
     let vy = 0;
 
-    if (this.cursors.left.isDown || this.wasd.A.isDown) vx -= speed;
-    if (this.cursors.right.isDown || this.wasd.D.isDown) vx += speed;
-    if (this.cursors.up.isDown || this.wasd.W.isDown) vy -= speed;
-    if (this.cursors.down.isDown || this.wasd.S.isDown) vy += speed;
+    if (this.dashActive) {
+      vx = this.dashDir.x * speed * this.dashSpeedMultiplier;
+      vy = this.dashDir.y * speed * this.dashSpeedMultiplier;
+    } else {
+      if (this.cursors.left.isDown || this.wasd.A.isDown) vx -= speed;
+      if (this.cursors.right.isDown || this.wasd.D.isDown) vx += speed;
+      if (this.cursors.up.isDown || this.wasd.W.isDown) vy -= speed;
+      if (this.cursors.down.isDown || this.wasd.S.isDown) vy += speed;
+    }
 
     this.player.body.setVelocity(vx, vy);
     if (vx > 0) {
@@ -1615,6 +1639,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
       this.positionSword();
     }
     this.shield?.update();
+    this.checkDashBlocked();
 
     if (this.timerText && this.levelStartAt) {
       const elapsed = Math.max(0, this.time.now - this.levelStartAt);
@@ -1738,6 +1763,69 @@ export default class DesertTunnelScene extends Phaser.Scene {
       }
       monster.body.setVelocity(direction.x * speedValue, direction.y * speedValue);
     });
+  }
+
+  updateDashState(now) {
+    if (!this.hasShoes) {
+      this.dashActive = false;
+      return;
+    }
+    const checkTap = (key, name, dir) => {
+      if (!Phaser.Input.Keyboard.JustDown(key)) return;
+      const last = this.dashLastTap[name] || 0;
+      if (now - last <= this.dashTapWindow) {
+        this.dashActive = true;
+        this.dashDir = dir;
+      } else {
+        this.dashLastTap[name] = now;
+      }
+    };
+    checkTap(this.cursors.left, "left", { x: -1, y: 0 });
+    checkTap(this.cursors.right, "right", { x: 1, y: 0 });
+    checkTap(this.cursors.up, "up", { x: 0, y: -1 });
+    checkTap(this.cursors.down, "down", { x: 0, y: 1 });
+    checkTap(this.wasd.A, "left", { x: -1, y: 0 });
+    checkTap(this.wasd.D, "right", { x: 1, y: 0 });
+    checkTap(this.wasd.W, "up", { x: 0, y: -1 });
+    checkTap(this.wasd.S, "down", { x: 0, y: 1 });
+    if (this.dashActive) {
+      const keyDown =
+        (this.dashDir.x < 0 && (this.cursors.left.isDown || this.wasd.A.isDown)) ||
+        (this.dashDir.x > 0 && (this.cursors.right.isDown || this.wasd.D.isDown)) ||
+        (this.dashDir.y < 0 && (this.cursors.up.isDown || this.wasd.W.isDown)) ||
+        (this.dashDir.y > 0 && (this.cursors.down.isDown || this.wasd.S.isDown));
+      if (!keyDown) {
+        this.dashActive = false;
+      }
+    }
+    if (this.hud?.setShoesActive) {
+      this.hud.setShoesActive(this.dashActive);
+    }
+  }
+
+  handleDashObstacle() {
+    if (!this.dashActive) return;
+    this.applyDashBounce();
+  }
+
+  checkDashBlocked() {
+    if (!this.dashActive || !this.player?.body) return;
+    const blocked =
+      this.player.body.blocked.left ||
+      this.player.body.blocked.right ||
+      this.player.body.blocked.up ||
+      this.player.body.blocked.down;
+    if (blocked) {
+      this.applyDashBounce();
+    }
+  }
+
+  applyDashBounce() {
+    const dx = -this.dashDir.x;
+    const dy = -this.dashDir.y;
+    this.player.x += dx * this.dashBounceDistance;
+    this.player.y += dy * this.dashBounceDistance;
+    this.dashActive = false;
   }
 
   getMonsterTarget(monster) {

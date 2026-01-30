@@ -43,6 +43,9 @@ export default class ShieldManager {
     if (this.bubble) {
       this.bubble.setVisible(false);
     }
+    if (this.hud?.flashItem) {
+      this.hud.flashItem("passive");
+    }
     this.syncHud();
     return true;
   }

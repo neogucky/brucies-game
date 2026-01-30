@@ -73,6 +73,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
       maxHealth: this.maxHealth,
       consumables: this.consumables,
       passiveOwned: saveData.equipment?.shield ?? false,
+      passiveShoes: saveData.equipment?.shoes ?? false,
       activeDisabled: true,
       showCompanion: true,
       companionHealth: 1,
@@ -134,6 +135,10 @@ export default class UndergroundMapScene extends Phaser.Scene {
           ? isUnlocked && saveData.unlockedLevels?.includes("Schluesselweg")
             ? "worldmap-keytower-open"
             : "worldmap-keytower"
+          : node.id === "UnderDig"
+          ? "worldmap-underground-level"
+          : node.id === "Schluesselweg"
+          ? "worldmap-underground-molelevel"
           : "worldmap-ruin";
       const iconScale =
         node.id === "UnderShop" ? 0.3 : node.id === "Schluesseltor" ? 0.5 : 0.26;
@@ -296,7 +301,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
         this.registry.set("saveData", nextSave);
         saveProgress(nextSave);
         this.sound.play("sfx-key-open");
-        this.showDialog("Du hast das Tor aufgeschlossen!", () => this.scene.restart());
+        this.showDialog("Du hast das Tor aufgeschlossen!");
       } else {
         this.showDialog("Der Schluesselturm ist bereits geöffnet!");
       }

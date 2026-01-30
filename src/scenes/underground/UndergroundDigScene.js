@@ -2,6 +2,7 @@ import { saveProgress } from "../../saveManager.js";
 import { playMusic } from "../../soundManager.js";
 import TopHud from "../../ui/topHud.js";
 import CoordinateDebugger from "../../utils/coordinateDebugger.js";
+import DesertMoleAI from "../../utils/DesertMoleAI.js";
 
 export default class UndergroundDigScene extends Phaser.Scene {
   constructor() {
@@ -25,6 +26,19 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.molesGroup = null;
     this.moleStates = new Map();
     this.moleStepDelay = 180;
+    this.moleAIs = new Map();
+    this.moleBarHeight = 5;
+    this.debugHitboxes = false;
+    this.showDashDebug = false;
+    this.dashDebugGraphics = null;
+    this.hasShoes = false;
+    this.dashActive = false;
+    this.dashDir = 0;
+    this.dashLocked = false;
+    this.dashLastTap = { left: 0, right: 0 };
+    this.dashTapWindow = 300;
+    this.dashSpeedMultiplier = 2;
+    this.dashBounceDistance = 0;
     this.maxHealth = 5;
     this.health = this.maxHealth;
     this.coinsCollected = 0;
@@ -62,6 +76,10 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.jumpCount = 0;
     this.wasGrounded = false;
     this.lastDownPressAt = 0;
+    this.dashActive = false;
+    this.dashDir = 0;
+    this.dashLocked = false;
+    this.dashLocked = false;
     this.editorPlacement = "earth";
     this.destroyEditorMenu();
     this.destroyGroup(this.coinsGroup);
@@ -70,8 +88,14 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.heartsGroup = null;
     this.destroyGroup(this.molesGroup);
     this.molesGroup = null;
+    if (this.moleAIs) {
+      this.moleAIs.clear();
+    }
     if (this.moleStates) {
       this.moleStates.clear();
+    }
+    if (this.moleAIs) {
+      this.moleAIs.clear();
     }
   }
 
@@ -141,6 +165,15 @@ export default class UndergroundDigScene extends Phaser.Scene {
     }
     this.destroyGroup(this.chests);
     this.chests = null;
+    this.destroyGroup(this.coinsGroup);
+    this.coinsGroup = null;
+    this.destroyGroup(this.heartsGroup);
+    this.heartsGroup = null;
+    this.destroyGroup(this.molesGroup);
+    this.molesGroup = null;
+    if (this.moleAIs) {
+      this.moleAIs.clear();
+    }
     this.destroyGroup(this.blocks);
     this.blocks = null;
     if (this.blockMap) {
@@ -149,6 +182,10 @@ export default class UndergroundDigScene extends Phaser.Scene {
     if (this.companionDebugGraphics) {
       this.companionDebugGraphics.destroy();
       this.companionDebugGraphics = null;
+    }
+    if (this.dashDebugGraphics) {
+      this.dashDebugGraphics.destroy();
+      this.dashDebugGraphics = null;
     }
     if (this.companionShield) {
       this.companionShield.destroy();
@@ -194,6 +231,12 @@ export default class UndergroundDigScene extends Phaser.Scene {
     }
     this.destroyGroup(this.chests);
     this.chests = null;
+    this.destroyGroup(this.coinsGroup);
+    this.coinsGroup = null;
+    this.destroyGroup(this.heartsGroup);
+    this.heartsGroup = null;
+    this.destroyGroup(this.molesGroup);
+    this.molesGroup = null;
     this.destroyGroup(this.blocks);
     this.blocks = null;
     if (this.playerBlockCollider) {
@@ -297,9 +340,10 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, this.worldWidth, this.worldHeight);
     this.physics.world.gravity.y = 900;
 
-    this.swordHitbox = this.add.rectangle(-100, -100, 47, 32, 0xff0000, 0.15);
-    this.swordHitbox.setStrokeStyle(2, 0xff0000);
-    this.swordHitbox.setVisible(false);
+    this.swordHitbox = this.add.rectangle(-100, -100, 47, 32, 0xffffff, 0.12);
+    this.swordHitbox.setStrokeStyle(2, 0xffffff, 0.5);
+    this.swordHitbox.setVisible(this.debugHitboxes);
+    this.swordHitbox.setDepth(20);
   }
 
   applyPlayerBody(heightFactor) {
@@ -353,6 +397,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
       this.levelMap?.tileSize ??
       Math.round(Math.min(this.player.displayWidth, this.player.displayHeight) / 2);
     this.tileSize = Math.max(16, tileSize);
+    this.dashBounceDistance = this.tileSize;
     this.createBlockTextures();
     this.blocks = this.physics.add.staticGroup();
     this.blockMap.clear();
@@ -781,10 +826,25 @@ export default class UndergroundDigScene extends Phaser.Scene {
     mole.setScale(0.6);
     mole.setData("col", col);
     mole.setData("row", row);
-    mole.body.setCollideWorldBounds(true);
-    this.moleStates.set(mole, {
-      nextActionAt: this.time.now + 2000,
+    mole.setData("hp", 3);
+    mole.setData("maxHp", 3);
+    if (mole.body) {
+      mole.body.setCollideWorldBounds(true);
+      mole.body.setAllowGravity(false);
+    }
+    this.createMoleBar(mole);
+    const ai = new DesertMoleAI(this, mole, {
+      tileSize: this.tileSize,
+      blockMap: this.blockMap,
+      onDig: (digCol, digRow) => this.removeEarthAt(digCol, digRow),
+      digSoundKey: "sfx-monster-dig",
+      attackTexture: "desert-mole-attacking",
+      runTexture: "desert-mole-running",
+      canSeePlayer: () => this.moleCanSeePlayer(mole),
+      getPlayerPos: () => ({ x: this.player.x, y: this.player.y }),
+      onAttack: () => this.applyMoleAttack(mole),
     });
+    this.moleAIs.set(mole, ai);
   }
 
   placeGate() {
@@ -1312,9 +1372,9 @@ export default class UndergroundDigScene extends Phaser.Scene {
     if (removeFromGroup(this.heartsGroup)) return;
     if (removeFromGroup(this.chests)) return;
     if (removeFromGroup(this.molesGroup)) {
-      this.moleStates.forEach((_, mole) => {
+      this.moleAIs.forEach((_, mole) => {
         if (!mole.active) {
-          this.moleStates.delete(mole);
+          this.moleAIs.delete(mole);
         }
       });
       return;
@@ -1370,6 +1430,96 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.setGateTriggerTiles();
   }
 
+  removeEarthAt(col, row) {
+    const block = this.blockMap.get(`${col},${row}`);
+    if (!block || block.getData("type") !== "earth") return false;
+    const bcol = block.getData("col");
+    const brow = block.getData("row");
+    this.blocks.remove(block, true, true);
+    this.blockMap.delete(`${bcol},${brow}`);
+    return true;
+  }
+
+  createMoleBar(mole) {
+    const barBg = this.add.rectangle(mole.x, mole.y - 26, 26, this.moleBarHeight, 0x2f1e14);
+    const barFill = this.add.rectangle(mole.x, mole.y - 26, 24, this.moleBarHeight - 2, 0xc23a2c);
+    barBg.setOrigin(0.5);
+    barFill.setOrigin(0.5);
+    barBg.setDepth(4);
+    barFill.setDepth(5);
+    mole.setData("barBg", barBg);
+    mole.setData("barFill", barFill);
+    this.updateMoleBar(mole);
+  }
+
+  updateMoleBar(mole) {
+    const barBg = mole.getData("barBg");
+    const barFill = mole.getData("barFill");
+    if (!barBg || !barFill) return;
+    const maxHp = mole.getData("maxHp") || 3;
+    const hp = mole.getData("hp") || 0;
+    const ratio = Phaser.Math.Clamp(hp / maxHp, 0, 1);
+    barFill.displayWidth = Math.max(2, 24 * ratio);
+  }
+
+  updateMoleBarPosition(mole) {
+    const barBg = mole.getData("barBg");
+    const barFill = mole.getData("barFill");
+    if (!barBg || !barFill) return;
+    const y = mole.y - 26;
+    barBg.setPosition(mole.x, y);
+    barFill.setPosition(mole.x, y);
+  }
+
+  destroyMole(mole) {
+    const barBg = mole.getData("barBg");
+    const barFill = mole.getData("barFill");
+    if (barBg) barBg.destroy();
+    if (barFill) barFill.destroy();
+    this.moleAIs.delete(mole);
+    mole.destroy();
+  }
+
+  damageMole(mole, amount) {
+    const currentHp = mole.getData("hp") ?? 0;
+    const nextHp = Math.max(0, currentHp - amount);
+    mole.setData("hp", nextHp);
+    this.updateMoleBar(mole);
+    if (nextHp <= 0) {
+      this.destroyMole(mole);
+    }
+  }
+
+  moleCanSeePlayer(mole) {
+    if (!mole?.active || !this.player) return false;
+    const moleRow = Math.floor((mole.y - 1) / this.tileSize);
+    const playerRow = Math.floor((this.player.y - 1) / this.tileSize);
+    if (moleRow !== playerRow) return false;
+    const moleCol = Math.floor(mole.x / this.tileSize);
+    const playerCol = Math.floor(this.player.x / this.tileSize);
+    const start = Math.min(moleCol, playerCol) + 1;
+    const end = Math.max(moleCol, playerCol) - 1;
+    for (let col = start; col <= end; col += 1) {
+      if (this.blockMap.has(`${col},${moleRow}`)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  applyMoleAttack(mole) {
+    const now = this.time.now;
+    const nextAttackAt = mole.getData("nextAttackAt") || 0;
+    if (now < nextAttackAt) return;
+    mole.setData("nextAttackAt", now + 800);
+    if (this.health <= 0) return;
+    this.health = Math.max(0, this.health - 1);
+    if (this.hud) {
+      this.hud.setHealth(this.health, this.maxHealth);
+    }
+    this.saveInventory();
+  }
+
   placeKeyAt(col, row) {
     if (!this.tileSize) return;
     if (this.keyItem) {
@@ -1389,6 +1539,16 @@ export default class UndergroundDigScene extends Phaser.Scene {
     if (this.isPaused || this.isEditorMode) return;
     this.startSwing();
     const hitBounds = this.swordHitbox.getBounds();
+    if (this.molesGroup?.getChildren) {
+      const moles = this.molesGroup.getChildren();
+      for (let i = 0; i < moles.length; i += 1) {
+        const mole = moles[i];
+        if (!mole.active) continue;
+        if (!Phaser.Geom.Intersects.RectangleToRectangle(hitBounds, mole.getBounds())) continue;
+        this.damageMole(mole, 1);
+        return;
+      }
+    }
     if (this.chests?.children?.size) {
       const chestCandidates = this.chests.getChildren();
       for (let i = 0; i < chestCandidates.length; i += 1) {
@@ -1435,6 +1595,9 @@ export default class UndergroundDigScene extends Phaser.Scene {
   startSwing() {
     if (this.isSwinging) return;
     this.isSwinging = true;
+    if (this.hud?.flashItem) {
+      this.hud.flashItem("active");
+    }
     const hitTexture = this.isDucking
       ? this.player.getData("crouchHitTexture")
       : this.player.getData("hitTexture");
@@ -1442,7 +1605,9 @@ export default class UndergroundDigScene extends Phaser.Scene {
       this.player.setTexture(hitTexture);
     }
     this.updateSwordHitbox();
-    this.swordHitbox.setVisible(false);
+    if (this.debugHitboxes) {
+      this.swordHitbox.setVisible(true);
+    }
     if (this.swingTimer) {
       this.swingTimer.remove(false);
     }
@@ -1453,7 +1618,9 @@ export default class UndergroundDigScene extends Phaser.Scene {
       if (standingTexture) {
         this.player.setTexture(standingTexture);
       }
-      this.swordHitbox.setVisible(false);
+      if (!this.debugHitboxes) {
+        this.swordHitbox.setVisible(false);
+      }
       this.isSwinging = false;
     });
   }
@@ -1468,6 +1635,8 @@ export default class UndergroundDigScene extends Phaser.Scene {
       if (this.cursors.up.isDown || this.wasd.W.isDown) {
         centerY -= 10;
       }
+    } else if (this.cursors.up.isDown || this.wasd.W.isDown) {
+      centerY -= 10;
     }
     const hitboxYOffset = this.isDucking ? 12 : 3;
     this.swordHitbox.setPosition(this.player.x + offsetX, centerY + hitboxYOffset);
@@ -1596,12 +1765,14 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.coinsCollected = saveData.coins ?? 0;
     this.consumables = { ...(saveData.consumables || {}) };
     this.keyCollected = Boolean(saveData.undergroundKeyCollected || this.keyCollected);
+    this.hasShoes = Boolean(saveData.equipment?.shoes);
     this.hud = new TopHud(this, {
       coins: this.coinsCollected,
       health: this.health,
       maxHealth: this.maxHealth,
       consumables: this.consumables,
       passiveOwned: saveData.equipment?.shield ?? false,
+      passiveShoes: saveData.equipment?.shoes ?? false,
       activeDisabled: false,
       showCompanion: true,
       companionHealth: 1,
@@ -1686,9 +1857,17 @@ export default class UndergroundDigScene extends Phaser.Scene {
     }
     this.wasGrounded = grounded;
     const speed = 180;
+    const now = this.time.now;
+    this.updateDashState(now);
     let vx = 0;
-    if (this.cursors.left.isDown || this.wasd.A.isDown) vx -= speed;
-    if (this.cursors.right.isDown || this.wasd.D.isDown) vx += speed;
+    if (this.dashLocked) {
+      vx = 0;
+    } else if (this.dashActive) {
+      vx = this.dashDir * speed * this.dashSpeedMultiplier;
+    } else {
+      if (this.cursors.left.isDown || this.wasd.A.isDown) vx -= speed;
+      if (this.cursors.right.isDown || this.wasd.D.isDown) vx += speed;
+    }
     if (vx !== 0) {
       this.facingX = vx > 0 ? 1 : -1;
       this.player.setFlipX(vx > 0);
@@ -1751,6 +1930,8 @@ export default class UndergroundDigScene extends Phaser.Scene {
     if (this.isSwinging) {
       this.updateSwordHitbox();
     }
+    this.checkDashBlocked();
+    this.checkDashMoleHit();
     this.updateCameraScroll();
     this.updateMoles();
     this.updateCompanion();
@@ -1759,152 +1940,131 @@ export default class UndergroundDigScene extends Phaser.Scene {
   }
 
   updateMoles() {
-    if (!this.molesGroup?.getChildren) return;
+    if (!this.molesGroup?.getChildren || !this.molesGroup.children) return;
     const now = this.time.now;
+    const delta = this.game?.loop?.delta ?? 16;
     this.molesGroup.getChildren().forEach((mole) => {
       if (!mole.active) return;
-      let state = this.moleStates.get(mole);
-      if (!state) {
-        state = { nextActionAt: now + 2000, steps: [], nextStepAt: 0 };
-      } else {
-        if (!Array.isArray(state.steps)) {
-          state.steps = [];
-        }
-        if (!Number.isFinite(state.nextActionAt)) {
-          state.nextActionAt = now + 2000;
-        }
-        if (!Number.isFinite(state.nextStepAt)) {
-          state.nextStepAt = 0;
-        }
-      }
-      if (state.steps.length) {
-        if (now >= state.nextStepAt) {
-          const step = state.steps.shift();
-          if (step) {
-            this.executeMoleStep(mole, step);
-          }
-          state.nextStepAt = now + this.moleStepDelay;
-          if (!state.steps.length) {
-            state.nextActionAt = now + 2000;
-          }
-        }
-        this.moleStates.set(mole, state);
-        return;
-      }
-      if (now < state.nextActionAt) {
-        this.moleStates.set(mole, state);
-        return;
-      }
-      this.planMoleAction(mole, state);
-      this.moleStates.set(mole, state);
+      const ai = this.moleAIs.get(mole);
+      if (!ai) return;
+      ai.update(now, delta);
+      this.updateMoleBarPosition(mole);
     });
   }
 
-  planMoleAction(mole, state) {
-    const actions = [
-      { dx: 0, dy: 1, digSteps: 2, walkSteps: 3 },
-      { dx: 0, dy: -1, digSteps: 2, walkSteps: 3 },
-      { dx: -1, dy: 0, digSteps: 5, walkSteps: 5 },
-      { dx: 1, dy: 0, digSteps: 5, walkSteps: 5 },
-    ];
-    const choice = Phaser.Utils.Array.GetRandom(actions);
-    const digPlan = this.buildMoleDigPlan(mole, choice.dx, choice.dy, choice.digSteps);
-    if (digPlan?.length) {
-      state.steps = digPlan;
-      state.nextStepAt = this.time.now;
+  updateDashState(now) {
+    if (!this.hasShoes) {
+      this.dashActive = false;
       return;
     }
-    const walkPlan = this.buildMoleWalkPlan(mole, choice.dx, choice.dy, choice.walkSteps);
-    state.steps = walkPlan;
-    state.nextStepAt = this.time.now;
-  }
-
-  buildMoleDigPlan(mole, dx, dy, steps) {
-    if (!this.tileSize || !this.blockMap) return null;
-    const { col, row } = this.getMoleTilePosition(mole);
-    const firstKey = `${col + dx},${row + dy}`;
-    const secondKey = `${col + dx * 2},${row + dy * 2}`;
-    const first = this.blockMap.get(firstKey);
-    const second = this.blockMap.get(secondKey);
-    if (!first || first.getData("type") !== "earth") return null;
-    const secondType = second?.getData("type");
-    if (!secondType || !["earth", "stone", "black"].includes(secondType)) return null;
-    const stepsList = [];
-    for (let step = 1; step <= steps; step += 1) {
-      const targetCol = col + dx * step;
-      const targetRow = row + dy * step;
-      if (targetCol < 0 || targetRow < 0 || targetCol >= this.gridCols || targetRow >= this.gridRows) {
-        break;
+    if (this.dashLocked) {
+      const holding =
+        this.cursors.left.isDown ||
+        this.wasd.A.isDown ||
+        this.cursors.right.isDown ||
+        this.wasd.D.isDown;
+      if (!holding) {
+        this.dashLocked = false;
       }
-      const block = this.blockMap.get(`${targetCol},${targetRow}`);
-      if (block && block.getData("type") !== "earth") {
-        break;
-      }
-      stepsList.push({
-        col: targetCol,
-        row: targetRow,
-        dig: Boolean(block),
-        dx,
-        dy,
-      });
+      this.dashActive = false;
+      return;
     }
-    return stepsList;
-  }
-
-  buildMoleWalkPlan(mole, dx, dy, steps) {
-    if (!this.tileSize || !this.blockMap) return [];
-    const { col, row } = this.getMoleTilePosition(mole);
-    const stepsList = [];
-    for (let step = 1; step <= steps; step += 1) {
-      const targetCol = col + dx * step;
-      const targetRow = row + dy * step;
-      if (targetCol < 0 || targetRow < 0 || targetCol >= this.gridCols || targetRow >= this.gridRows) {
-        break;
+    const checkTap = (key, name, dir) => {
+      if (!Phaser.Input.Keyboard.JustDown(key)) return;
+      const last = this.dashLastTap[name] || 0;
+      if (now - last <= this.dashTapWindow) {
+        this.dashActive = true;
+        this.dashDir = dir;
+      } else {
+        this.dashLastTap[name] = now;
       }
-      const block = this.blockMap.get(`${targetCol},${targetRow}`);
-      if (block) {
-        break;
-      }
-      stepsList.push({
-        col: targetCol,
-        row: targetRow,
-        dig: false,
-        dx,
-        dy,
-      });
-    }
-    return stepsList;
-  }
-
-  executeMoleStep(mole, step) {
-    if (!step) return;
-    if (step.dig) {
-      const block = this.blockMap.get(`${step.col},${step.row}`);
-      if (block && block.getData("type") === "earth") {
-        const bcol = block.getData("col");
-        const brow = block.getData("row");
-        this.blocks.remove(block, true, true);
-        this.blockMap.delete(`${bcol},${brow}`);
+    };
+    checkTap(this.cursors.left, "left", -1);
+    checkTap(this.cursors.right, "right", 1);
+    checkTap(this.wasd.A, "left", -1);
+    checkTap(this.wasd.D, "right", 1);
+    if (this.dashActive) {
+      const keyDown =
+        (this.dashDir < 0 && (this.cursors.left.isDown || this.wasd.A.isDown)) ||
+        (this.dashDir > 0 && (this.cursors.right.isDown || this.wasd.D.isDown));
+      if (!keyDown) {
+        this.dashActive = false;
       }
     }
-    mole.setPosition(
-      (step.col + 0.5) * this.tileSize,
-      (step.row + 1) * this.tileSize
-    );
-    mole.setData("col", step.col);
-    mole.setData("row", step.row);
-    if (mole.body) {
-      mole.body.reset(mole.x, mole.y);
-      if (step.dx === 0 && step.dy === 1) {
-        mole.body.setVelocityY(60);
-      }
+    if (this.hud?.setShoesActive) {
+      this.hud.setShoesActive(this.dashActive);
     }
   }
 
-  getMoleTilePosition(mole) {
-    const col = Math.floor(mole.x / this.tileSize);
-    const row = Math.floor((mole.y - 1) / this.tileSize);
-    return { col, row };
+  checkDashBlocked() {
+    if (!this.dashActive || !this.player?.body) return;
+    if (this.player.body.blocked.left || this.player.body.blocked.right) {
+      this.tryDashBreakBlock();
+      this.applyDashBounce();
+    }
+  }
+
+  tryDashBreakBlock() {
+    if (!this.blocks?.children?.size || !this.blockMap || !this.player?.body || !this.tileSize) {
+      return false;
+    }
+    const body = this.player.body;
+    const frontX = this.dashDir < 0 ? body.x - 1 : body.x + body.width;
+    const col = Math.floor(frontX / this.tileSize);
+    const rowStart = Math.floor(body.y / this.tileSize);
+    const rowEnd = Math.floor((body.y + body.height - 1) / this.tileSize);
+    if (this.showDashDebug) {
+      if (!this.dashDebugGraphics) {
+        this.dashDebugGraphics = this.add.graphics();
+        this.dashDebugGraphics.setDepth(200);
+      }
+      this.dashDebugGraphics.clear();
+      this.dashDebugGraphics.lineStyle(2, 0x00e5ff, 0.9);
+      this.dashDebugGraphics.strokeRect(
+        col * this.tileSize,
+        rowStart * this.tileSize,
+        this.tileSize,
+        (rowEnd - rowStart + 1) * this.tileSize
+      );
+    }
+    let destroyed = 0;
+    for (let row = rowStart; row <= rowEnd; row += 1) {
+      const block = this.blockMap.get(`${col},${row}`);
+      if (!block || !block.active) continue;
+      const type = block.getData("type");
+      if (type !== "earth") continue;
+      this.blocks.remove(block, true, true);
+      this.blockMap.delete(`${col},${row}`);
+      destroyed += 1;
+    }
+    if (destroyed > 0 && this.sfx?.diggingEarth) {
+      this.sfx.diggingEarth.play();
+    }
+    return destroyed > 0;
+  }
+
+  checkDashMoleHit() {
+    if (!this.dashActive || !this.molesGroup?.getChildren) return;
+    const hitBounds = this.player.getBounds();
+    const moles = this.molesGroup.getChildren();
+    for (let i = 0; i < moles.length; i += 1) {
+      const mole = moles[i];
+      if (!mole.active) continue;
+      if (!Phaser.Geom.Intersects.RectangleToRectangle(hitBounds, mole.getBounds())) continue;
+      this.damageMole(mole, 2);
+      this.tryDashBreakBlock();
+      this.applyDashBounce();
+      return;
+    }
+  }
+
+  applyDashBounce() {
+    this.player.x -= this.dashDir * this.dashBounceDistance;
+    this.dashActive = false;
+    this.dashLocked = true;
+    if (this.player?.body) {
+      this.player.body.setVelocityX(0);
+    }
   }
 
   updateCameraScroll() {

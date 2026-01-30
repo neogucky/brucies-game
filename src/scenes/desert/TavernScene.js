@@ -41,6 +41,7 @@ export default class TavernScene extends Phaser.Scene {
     this.coins = this.getSaveData().coins ?? 0;
     this.honeyCount = this.getSaveData().consumables?.honey ?? 0;
     this.hasShield = this.getSaveData().equipment?.shield ?? false;
+    this.hasShoes = this.getSaveData().equipment?.shoes ?? false;
     this.health = this.getSaveData().health ?? 5;
     this.maxHealth = 5;
     
@@ -50,6 +51,7 @@ export default class TavernScene extends Phaser.Scene {
       maxHealth: this.maxHealth,
       consumables: { honey: this.honeyCount },
       passiveOwned: this.hasShield,
+      passiveShoes: this.hasShoes,
       activeDisabled: true,
       showCompanion: true,
       companionHealth: 1,
@@ -153,6 +155,24 @@ export default class TavernScene extends Phaser.Scene {
     this.showShieldPurchaseDialog();
   }
 
+  buyShoes() {
+    if (this.isLoading) return;
+    if (this.hasShoes) return;
+    const price = 300;
+    if (this.coins < price) {
+      this.showNotEnoughCoinsDialog();
+      return;
+    }
+    this.coins -= price;
+    this.hasShoes = true;
+    if (this.hud) {
+      this.hud.setCoins(this.coins);
+      this.hud.setShoesOwned(true);
+    }
+    this.saveInventory();
+    this.showShoesPurchaseDialog();
+  }
+
   showGreetingDialog() {
     this.dialog.show(this.buildShopDialog(), "bottom", { portraitKey: "tavern-barkeeper" });
   }
@@ -163,6 +183,9 @@ export default class TavernScene extends Phaser.Scene {
     ];
     if (!this.hasShield) {
       options.push({ label: "Schild (100)", action: () => this.buyShield() });
+    }
+    if (this.isUnderground && !this.hasShoes) {
+      options.push({ label: "Geflügelte Schuhe (300)", action: () => this.buyShoes() });
     }
     return [
       { text: "Willkommen in meiner Taverne, Sir Ritter!" },
@@ -179,6 +202,9 @@ export default class TavernScene extends Phaser.Scene {
     ];
     if (!this.hasShield) {
       options.push({ label: "Schild (100)", action: () => this.buyShield() });
+    }
+    if (this.isUnderground && !this.hasShoes) {
+      options.push({ label: "Geflügelte Schuhe (300)", action: () => this.buyShoes() });
     }
     this.dialog.show(
       [
@@ -200,6 +226,9 @@ export default class TavernScene extends Phaser.Scene {
     if (!this.hasShield) {
       options.push({ label: "Schild (100)", action: () => this.buyShield() });
     }
+    if (this.isUnderground && !this.hasShoes) {
+      options.push({ label: "Geflügelte Schuhe (300)", action: () => this.buyShoes() });
+    }
     this.dialog.show(
       [
         { text: "Hier ist mein alter Schild\nHoffentlich wird er dich beschützen!" },
@@ -219,6 +248,9 @@ export default class TavernScene extends Phaser.Scene {
     ];
     if (!this.hasShield) {
       options.push({ label: "Schild (100)", action: () => this.buyShield() });
+    }
+    if (this.isUnderground && !this.hasShoes) {
+      options.push({ label: "Geflügelte Schuhe (300)", action: () => this.buyShoes() });
     }
     this.dialog.show(
       [
@@ -250,10 +282,34 @@ export default class TavernScene extends Phaser.Scene {
       equipment: {
         ...saveData.equipment,
         shield: this.hasShield,
+        shoes: this.hasShoes,
       },
     };
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);
+  }
+
+  showShoesPurchaseDialog() {
+    const options = [
+      { label: "Honigsaft (10)", action: () => this.buyHoney() },
+    ];
+    if (!this.hasShield) {
+      options.push({ label: "Schild (100)", action: () => this.buyShield() });
+    }
+    if (this.isUnderground && !this.hasShoes) {
+      options.push({ label: "Geflügelte Schuhe (300)", action: () => this.buyShoes() });
+    }
+    this.dialog.show(
+      [
+        { text: "Geflügelte Schuhe für schnelle Beine!" },
+        {
+          text: "Was möchtest du kaufen?",
+          options,
+        },
+      ],
+      "bottom",
+      { portraitKey: "tavern-barkeeper" }
+    );
   }
 
   toggleFullscreen() {

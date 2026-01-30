@@ -7,6 +7,9 @@ export default class TopHud {
     this.consumableCount = options.consumables?.honey ?? 0;
     this.stones = options.stones ?? 0;
     this.keyCollected = Boolean(options.keyCollected);
+    this.shoesOwned = Boolean(options.passiveShoes);
+    this.bootsTextureKey = "item-boots";
+    this.passiveOwned = Boolean(options.passiveOwned);
     this.create();
     this.setCoins(options.coins ?? 0);
     this.setStones(this.stones);
@@ -14,6 +17,8 @@ export default class TopHud {
     this.setConsumableCount(this.consumableCount);
     this.setKeyCollected(this.keyCollected);
     this.setPassiveOwned(Boolean(options.passiveOwned));
+    this.setShoesOwned(this.shoesOwned);
+    this.setShoesActive(false);
     if (options.showCompanion) {
       this.setCompanionStatus({
         health: options.companionHealth ?? 1,
@@ -70,7 +75,16 @@ export default class TopHud {
     ];
     Object.values(this.items || {}).forEach((item) => {
       if (!item) return;
-      items.push(item.frame, item.label, item.hint, item.count, item.icon, item.overlay, item.barBg, item.barFill);
+      items.push(
+        item.frame,
+        item.hint,
+        item.count,
+        item.icon,
+        item.overlay,
+        item.barBg,
+        item.barFill,
+        item.bootsIcon
+      );
     });
     items.forEach((item) => {
       if (item && item.setDepth) {
@@ -90,7 +104,16 @@ export default class TopHud {
     ];
     Object.values(this.items || {}).forEach((item) => {
       if (!item) return;
-      items.push(item.frame, item.label, item.hint, item.count, item.icon, item.overlay, item.barBg, item.barFill);
+      items.push(
+        item.frame,
+        item.hint,
+        item.count,
+        item.icon,
+        item.overlay,
+        item.barBg,
+        item.barFill,
+        item.bootsIcon
+      );
     });
     items.forEach((item) => {
       if (item && item.setScrollFactor) {
@@ -100,6 +123,7 @@ export default class TopHud {
   }
 
   createItems() {
+    this.ensureBootsTexture();
     const frameWidth = 52;
     const frameHeight = 52;
     const spacing = 80;
@@ -107,22 +131,15 @@ export default class TopHud {
     const y = 36;
 
     const items = [
-      { key: "active", label: "Schwert", hint: "Leertaste", icon: "item-sword" },
-      { key: "passive", label: "Schild", hint: "Passiv", icon: "item-shield" },
-      { key: "consumable", label: "Leer", hint: "T", icon: "item-honey" },
+      { key: "active", hint: "Leertaste", icon: "item-sword" },
+      { key: "passive", hint: "Passiv", icon: "item-shield" },
+      { key: "consumable", hint: "T", icon: "item-honey" },
     ];
 
     items.forEach((item, index) => {
       const x = startX + index * spacing;
       const frame = this.scene.add.rectangle(x, y, frameWidth, frameHeight, 0xf2e3c5, 0.8);
       frame.setStrokeStyle(3, 0xdbc1a0);
-      const label = this.scene.add
-        .text(x, y - 4, item.label, {
-          fontFamily: "Trebuchet MS, sans-serif",
-          fontSize: "12px",
-          color: "#4b3824",
-        })
-        .setOrigin(0.5);
       const icon = this.scene.add.image(x, y, item.icon).setScale(0.266);
       const hint = this.scene.add
         .text(x, y + 36, item.hint, {
@@ -140,6 +157,11 @@ export default class TopHud {
         .setOrigin(0.5);
       const overlay = this.scene.add.rectangle(x, y, frameWidth - 6, frameHeight - 6, 0x6f6f6f, 0.55);
       overlay.setVisible(false);
+      let bootsIcon = null;
+      if (item.key === "passive") {
+        bootsIcon = this.scene.add.image(x + 16, y + 16, this.bootsTextureKey).setScale(0.22);
+        bootsIcon.setVisible(false);
+      }
       const barWidth = 46;
       const barHeight = 6;
       const barBg = this.scene.add
@@ -150,7 +172,7 @@ export default class TopHud {
         .setOrigin(0, 0.5)
         .setVisible(false);
 
-      this.items[item.key] = { frame, label, hint, count, icon, overlay, barBg, barFill, barWidth };
+      this.items[item.key] = { frame, hint, count, icon, overlay, barBg, barFill, barWidth, bootsIcon };
     });
 
     if (this.options.showCompanion) {
@@ -178,6 +200,28 @@ export default class TopHud {
 
       this.items.companion = { frame, icon, heart, barBg, barFill, barWidth };
     }
+  }
+
+  ensureBootsTexture() {
+    if (this.scene.textures.exists("item-winged-shoes")) {
+      this.bootsTextureKey = "item-winged-shoes";
+      return;
+    }
+    if (this.scene.textures.exists("item-boots")) {
+      this.bootsTextureKey = "item-boots";
+      return;
+    }
+    const size = 40;
+    const gfx = this.scene.make.graphics({ x: 0, y: 0, add: false });
+    gfx.fillStyle(0xf1e1c4, 1);
+    gfx.fillRect(6, 10, 28, 20);
+    gfx.fillStyle(0x8a6b44, 1);
+    gfx.fillRect(6, 26, 28, 8);
+    gfx.lineStyle(2, 0x6c5134, 1);
+    gfx.strokeRect(6, 10, 28, 24);
+    gfx.generateTexture("item-boots", size, size);
+    this.bootsTextureKey = "item-boots";
+    gfx.destroy();
   }
 
   createHearts() {
@@ -216,8 +260,6 @@ export default class TopHud {
 
   setConsumableCount(count) {
     this.consumableCount = count;
-    const label = count > 0 ? "Honigsaft" : "Leer";
-    this.items.consumable.label.setText(label);
     this.items.consumable.count.setText(count > 0 ? `x${count}` : "");
     this.items.consumable.icon.setAlpha(count > 0 ? 1 : 0.25);
     this.items.consumable.hint.setColor(count > 0 ? "#4b3824" : "#8b8373");
@@ -229,21 +271,78 @@ export default class TopHud {
     item.overlay.setVisible(false);
     const alpha = disabled ? 0.25 : 1;
     item.icon.setAlpha(alpha);
-    if (key === "active") {
-      item.label.setText("");
-    }
-    item.label.setColor(disabled ? "#8b8373" : "#4b3824");
     item.hint.setColor(disabled ? "#8b8373" : "#4b3824");
   }
 
   setPassiveOwned(owned) {
     const item = this.items.passive;
     if (!item) return;
+    this.passiveOwned = Boolean(owned);
     const alpha = owned ? 1 : 0.25;
     item.icon.setAlpha(alpha);
-    item.label.setText(owned ? "Schild" : "Leer");
+    if (owned) {
+      item.icon.setTexture("item-shield");
+    } else if (this.shoesOwned) {
+      item.icon.setTexture(this.bootsTextureKey);
+      item.icon.setAlpha(1);
+    }
     item.hint.setColor(owned ? "#4b3824" : "#8b8373");
-    item.label.setColor(owned ? "#4b3824" : "#8b8373");
+  }
+
+  setShoesOwned(owned) {
+    const item = this.items.passive;
+    if (!item || !item.bootsIcon) return;
+    this.shoesOwned = Boolean(owned);
+    if (!this.passiveOwned && this.shoesOwned) {
+      item.icon.setTexture(this.bootsTextureKey);
+      item.icon.setAlpha(1);
+      item.hint.setColor("#4b3824");
+      item.bootsIcon.setVisible(false);
+      return;
+    }
+    item.bootsIcon.setVisible(Boolean(owned));
+  }
+
+  setShoesActive(active) {
+    const item = this.items.passive;
+    if (!item) return;
+    const target = this.passiveOwned ? item.bootsIcon : item.icon;
+    if (!target) return;
+    if (active) {
+      if (this.shoesBlinkTween) return;
+      this.shoesBlinkTween = this.scene.tweens.add({
+        targets: target,
+        alpha: { from: 1, to: 0.35 },
+        duration: 180,
+        yoyo: true,
+        repeat: -1,
+      });
+    } else if (this.shoesBlinkTween) {
+      this.shoesBlinkTween.stop();
+      this.shoesBlinkTween = null;
+      target.setAlpha(1);
+    }
+  }
+
+  flashItem(key) {
+    const item = this.items[key];
+    if (!item || !item.icon) return;
+    if (item.flashTween) {
+      item.flashTween.stop();
+      item.flashTween = null;
+      item.icon.setAlpha(1);
+    }
+    item.flashTween = this.scene.tweens.add({
+      targets: item.icon,
+      alpha: { from: 1, to: 0.35 },
+      duration: 45,
+      yoyo: true,
+      repeat: 1,
+      onComplete: () => {
+        item.icon.setAlpha(1);
+        item.flashTween = null;
+      },
+    });
   }
 
   setPassiveCooldown({ owned, active, ratio }) {

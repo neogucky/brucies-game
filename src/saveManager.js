@@ -12,6 +12,7 @@ export const defaultSave = {
   },
   equipment: {
     shield: false,
+    shoes: false,
   },
   settings: {
     autoAim: false,

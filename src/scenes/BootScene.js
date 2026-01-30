@@ -50,6 +50,8 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("desert-quarry-bg", "assets/desert/desert_quarry.png");
     this.load.image("worldmap-bg", "assets/worldmap/desert_world.png");
     this.load.image("worldmap-oasis", "assets/worldmap/oasis.png");
+    this.load.image("worldmap-underground-level", "assets/worldmap/underground_level.png");
+    this.load.image("worldmap-underground-molelevel", "assets/worldmap/underground_molelevel.png");
     this.load.image("worldmap-quarry", "assets/worldmap/quarry.png");
     this.load.image("worldmap-quarry-tunnel", "assets/worldmap/quarry_tunnel.png");
     this.load.image("worldmap-underground-bg", "assets/worldmap/underground_world.png");
@@ -74,6 +76,7 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("item-shield", "assets/common/items/shield.png");
     this.load.image("item-honey", "assets/common/items/honey-juice.png");
     this.load.image("item-companion", "assets/common/items/companion.png");
+    this.load.image("item-winged-shoes", "assets/common/items/winged-shoes.png");
     this.load.image("ui-key", "assets/common/items/key.png");
     this.load.image("companion-running", "assets/common/characters/companien_running.png");
     this.load.image("companion-searching", "assets/common/characters/companion_searching.png");
