@@ -1,8 +1,11 @@
 import { saveProgress } from "../saveManager.js";
 import { playMusic } from "../soundManager.js";
 import TopHud from "../ui/topHud.js";
+import { applyItemModeSupport, GAME_MODES } from "../utils/itemRegistry.js";
 import CoordinateDebugger from "../utils/coordinateDebugger.js";
 import DialogManager from "../dialogManager.js";
+import InventoryOverlay from "../ui/InventoryOverlay.js";
+import { applyInventoryToSave, normalizeInventory } from "../utils/inventory.js";
 
 const NODES = [
   {
@@ -43,6 +46,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
     this.travelSpeed = 260;
     this.isMoving = false;
     this.isDialogOpen = false;
+    this.inventoryOpen = false;
   }
 
   init(data) {
@@ -50,6 +54,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
   }
 
   create() {
+    this.gameMode = GAME_MODES.ISOMETRIC;
     this.addBackground();
     this.ensureUnlocks();
     this.createNodes();
@@ -64,26 +69,45 @@ export default class UndergroundMapScene extends Phaser.Scene {
       this.registry.set("saveData", nextSave);
       saveProgress(nextSave);
     }
-    this.health = saveData.health ?? 5;
+    const normalized = normalizeInventory(saveData);
+    this.inventory = normalized.inventory;
+    this.equipped = normalized.equipped;
+    const normalizedSave = applyInventoryToSave(saveData, this.inventory, this.equipped);
+    this.registry.set("saveData", normalizedSave);
+    this.health = normalizedSave.health ?? 5;
     this.maxHealth = 5;
-    this.consumables = { ...(saveData.consumables || {}) };
+    this.consumables = { honey: this.inventory.consumables?.honey ?? 0 };
     this.hud = new TopHud(this, {
-      coins: saveData.coins ?? 0,
+      coins: normalizedSave.coins ?? 0,
       health: this.health,
       maxHealth: this.maxHealth,
       consumables: this.consumables,
-      passiveOwned: saveData.equipment?.shield ?? false,
-      passiveShoes: saveData.equipment?.shoes ?? false,
+      passiveOwned: this.equipped.passive === "shield",
+      passiveShoes: this.equipped.passive === "shoes",
+      activeEquipped: this.equipped.weapon === "sword",
+      passiveEquipped: this.equipped.passive,
+      consumableEquipped: this.equipped.consumable === "honey",
       activeDisabled: true,
       showCompanion: true,
       companionHealth: 1,
       companionRespawnRatio: 0,
-      keyCollected: Boolean(saveData.undergroundKeyCollected),
+      keyCollected: Boolean(normalizedSave.undergroundKeyCollected),
+    });
+    this.hud.setActiveEquipped(this.equipped.weapon === "sword");
+    this.hud.setPassiveEquipped(this.equipped.passive);
+    this.hud.setConsumableEquipped(this.equipped?.consumable === "honey");
+    applyItemModeSupport(this.hud, this.equipped, this.gameMode);
+    this.inventoryOverlay = new InventoryOverlay(this, {
+      onEquip: (slot, itemId) => this.handleInventoryEquip(slot, itemId),
+      onClose: () => this.closeInventory(),
     });
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys("W,A,S,D");
-    this.input.keyboard.on("keydown-ENTER", () => this.startCurrentLevel());
+    this.input.keyboard.on("keydown-ENTER", () => {
+      if (this.inventoryOpen || this.inventoryOverlay?.isOpen) return;
+      this.startCurrentLevel();
+    });
     this.input.keyboard.on("keydown-T", () => this.useConsumable());
     const returnToDesert = () => {
       if (this.currentNode?.id === "UnderShop") {
@@ -92,10 +116,29 @@ export default class UndergroundMapScene extends Phaser.Scene {
     };
     this.input.keyboard.on("keydown-UP", returnToDesert);
     this.input.keyboard.on("keydown-W", returnToDesert);
-    this.input.keyboard.on("keydown-ESC", () => this.scene.start("MainMenuScene"));
+    this.handleKeyDown = (event) => {
+      if (event.code === "Tab") {
+        event.preventDefault();
+        this.toggleInventory();
+        return;
+      }
+      if (event.code === "Escape") {
+        if (this.inventoryOpen) {
+          this.closeInventory();
+          return;
+        }
+        this.scene.start("MainMenuScene");
+      }
+    };
+    this.input.keyboard.on("keydown", this.handleKeyDown);
     this.coordDebugger = new CoordinateDebugger(this);
     this.input.keyboard.on("keydown-F", () => this.toggleFullscreen());
     this.dialog = new DialogManager(this);
+    this.events.once("shutdown", () => {
+      if (this.handleKeyDown) {
+        this.input.keyboard.off("keydown", this.handleKeyDown);
+      }
+    });
   }
 
   ensureUnlocks() {
@@ -224,6 +267,8 @@ export default class UndergroundMapScene extends Phaser.Scene {
     );
     this.companionMarker.setScale(0.46);
     this.companionMarker.setDepth(5);
+    const showCompanion = this.equipped?.companion !== null;
+    this.companionMarker.setVisible(showCompanion);
 
     if (this.entryFromDesert) {
       this.entryFromDesert = false;
@@ -244,12 +289,14 @@ export default class UndergroundMapScene extends Phaser.Scene {
           this.isMoving = false;
         },
       });
-      this.tweens.add({
-        targets: this.companionMarker,
-        x: shop.x - 18,
-        y: shop.y + 12,
-        duration: duration + 40,
-      });
+      if (this.companionMarker.visible) {
+        this.tweens.add({
+          targets: this.companionMarker,
+          x: shop.x - 18,
+          y: shop.y + 12,
+          duration: duration + 40,
+        });
+      }
     }
   }
 
@@ -357,16 +404,19 @@ export default class UndergroundMapScene extends Phaser.Scene {
         this.scene.start("DessertMapScene", { fromUnderground: true });
       },
     });
-    this.tweens.add({
-      targets: this.companionMarker,
-      x: this.currentNode.x - 18,
-      y: 52,
-      duration: duration + 40,
-    });
+    if (this.companionMarker?.visible) {
+      this.tweens.add({
+        targets: this.companionMarker,
+        x: this.currentNode.x - 18,
+        y: 52,
+        duration: duration + 40,
+      });
+    }
   }
 
   useConsumable() {
     if (!this.hud) return;
+    if (this.equipped?.consumable !== "honey") return;
     const result = this.hud.tryUseHoney({
       count: this.consumables?.honey ?? 0,
       health: this.health,
@@ -377,15 +427,74 @@ export default class UndergroundMapScene extends Phaser.Scene {
     if (!result.consumed) return;
     this.health = result.health;
     this.consumables.honey = result.count;
+    this.inventory.consumables.honey = result.count;
+    if (result.count <= 0) {
+      this.equipped.consumable = null;
+    }
+    this.hud.setConsumableEquipped(this.equipped?.consumable === "honey");
     const saveData = this.registry.get("saveData") || {};
-    const nextSave = {
-      ...saveData,
-      health: this.health,
-      consumables: {
-        ...saveData.consumables,
-        honey: this.consumables.honey,
+    const nextSave = applyInventoryToSave(
+      {
+        ...saveData,
+        health: this.health,
       },
-    };
+      this.inventory,
+      this.equipped
+    );
+    this.registry.set("saveData", nextSave);
+    saveProgress(nextSave);
+  }
+
+  toggleInventory() {
+    if (this.inventoryOpen) {
+      this.closeInventory();
+      return;
+    }
+    if (this.isMoving || this.isDialogOpen) return;
+    this.openInventory();
+  }
+
+  openInventory() {
+    if (!this.inventoryOverlay) return;
+    this.inventoryOpen = true;
+    this.inventoryOverlay.open(this.inventory, this.equipped);
+  }
+
+  closeInventory() {
+    if (!this.inventoryOpen) return;
+    this.inventoryOpen = false;
+    this.inventoryOverlay?.close();
+  }
+
+  handleInventoryEquip(slot, itemId) {
+    if (!this.equipped) return;
+    if (slot === "weapon") {
+      this.equipped.weapon = itemId;
+      this.hud.setActiveEquipped(itemId === "sword");
+    } else if (slot === "passive") {
+      this.equipped.passive = itemId;
+      this.hud.setPassiveOwned(itemId === "shield");
+      this.hud.setShoesOwned(itemId === "shoes");
+      this.hud.setPassiveEquipped(itemId);
+    } else if (slot === "consumable") {
+      this.equipped.consumable = itemId;
+      this.hud.setConsumableEquipped(itemId === "honey");
+    } else if (slot === "companion") {
+      this.equipped.companion = itemId;
+      if (this.companionMarker) {
+        const showCompanion = itemId !== null;
+        this.companionMarker.setVisible(showCompanion);
+        if (showCompanion) {
+          this.companionMarker.setPosition(
+            this.playerMarker.x - 18,
+            this.playerMarker.y + 12
+          );
+        }
+      }
+    }
+    applyItemModeSupport(this.hud, this.equipped, this.gameMode);
+    const saveData = this.registry.get("saveData") || {};
+    const nextSave = applyInventoryToSave(saveData, this.inventory, this.equipped);
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);
   }
@@ -404,7 +513,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
   }
 
   update() {
-    if (this.isMoving || this.isDialogOpen) return;
+    if (this.isMoving || this.isDialogOpen || this.inventoryOpen || this.inventoryOverlay?.isOpen) return;
     const left = this.cursors.left.isDown || this.wasd.A.isDown;
     const right = this.cursors.right.isDown || this.wasd.D.isDown;
     const up = this.cursors.up.isDown || this.wasd.W.isDown;
@@ -424,7 +533,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
     else if (up) this.tryMove({ x: 0, y: -1 });
     else if (down) this.tryMove({ x: 0, y: 1 });
 
-    if (this.companionMarker) {
+    if (this.companionMarker?.visible) {
       const side = this.companionMarker.x >= this.playerMarker.x ? 1 : -1;
       const targetX = this.playerMarker.x + side * 18;
       const targetY = this.playerMarker.y + 17;
@@ -463,7 +572,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
         this.isMoving = false;
       },
     });
-    if (this.companionMarker) {
+    if (this.companionMarker?.visible) {
       this.tweens.add({
         targets: this.companionMarker,
         x: nextNode.x - 18,

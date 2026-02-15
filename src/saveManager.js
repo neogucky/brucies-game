@@ -1,3 +1,5 @@
+import { normalizeInventory } from "./utils/inventory.js";
+
 const STORAGE_KEY = "brucies_game_save_v1";
 
 export const defaultSave = {
@@ -9,6 +11,18 @@ export const defaultSave = {
   coins: 0,
   consumables: {
     honey: 0,
+  },
+  inventory: {
+    weapons: { sword: true },
+    passives: {},
+    consumables: { honey: 0 },
+    companions: { default: true },
+  },
+  equipped: {
+    weapon: "sword",
+    passive: null,
+    consumable: null,
+    companion: "default",
   },
   equipment: {
     shield: false,
@@ -28,17 +42,21 @@ export const defaultSave = {
 export function loadSave() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) {
-    return { ...defaultSave };
+    const normalized = normalizeInventory(defaultSave);
+    return { ...defaultSave, inventory: normalized.inventory, equipped: normalized.equipped };
   }
 
   try {
     const data = JSON.parse(raw);
-    return {
+    const merged = {
       ...defaultSave,
       ...data,
     };
+    const normalized = normalizeInventory(merged);
+    return { ...merged, inventory: normalized.inventory, equipped: normalized.equipped };
   } catch (error) {
-    return { ...defaultSave };
+    const normalized = normalizeInventory(defaultSave);
+    return { ...defaultSave, inventory: normalized.inventory, equipped: normalized.equipped };
   }
 }
 

@@ -122,12 +122,18 @@ export default class DialogManager {
       this.renderOptions(page.options);
       const handleUp = () => this.moveOption(-1, page.options);
       const handleDown = () => this.moveOption(1, page.options);
+      const handleW = () => this.moveOption(-1, page.options);
+      const handleS = () => this.moveOption(1, page.options);
       const handleEnter = () => this.selectOption(page.options);
       this.scene.input.keyboard.on("keydown-UP", handleUp);
       this.scene.input.keyboard.on("keydown-DOWN", handleDown);
+      this.scene.input.keyboard.on("keydown-W", handleW);
+      this.scene.input.keyboard.on("keydown-S", handleS);
       this.scene.input.keyboard.on("keydown-ENTER", handleEnter);
       this.keyHandlers.push({ key: "UP", handler: handleUp });
       this.keyHandlers.push({ key: "DOWN", handler: handleDown });
+      this.keyHandlers.push({ key: "W", handler: handleW });
+      this.keyHandlers.push({ key: "S", handler: handleS });
       this.keyHandlers.push({ key: "ENTER", handler: handleEnter });
     } else {
       this.hint.setText("Leertaste zum Weiterblättern");

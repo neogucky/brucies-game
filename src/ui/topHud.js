@@ -4,6 +4,8 @@ export default class TopHud {
     this.options = options;
     this.items = {};
     this.hearts = [];
+    this.disabledSlots = { active: false, passive: false, consumable: false };
+    this.modeSupported = { active: true, passive: true, consumable: true };
     this.consumableCount = options.consumables?.honey ?? 0;
     this.stones = options.stones ?? 0;
     this.keyCollected = Boolean(options.keyCollected);
@@ -19,6 +21,9 @@ export default class TopHud {
     this.setPassiveOwned(Boolean(options.passiveOwned));
     this.setShoesOwned(this.shoesOwned);
     this.setShoesActive(false);
+    this.setActiveEquipped(options.activeEquipped ?? true);
+    this.setPassiveEquipped(options.passiveEquipped ?? null);
+    this.setConsumableEquipped(options.consumableEquipped ?? false);
     if (options.showCompanion) {
       this.setCompanionStatus({
         health: options.companionHealth ?? 1,
@@ -145,9 +150,10 @@ export default class TopHud {
         .text(x, y + 36, item.hint, {
           fontFamily: "Trebuchet MS, sans-serif",
           fontSize: "12px",
-          color: "#4b3824",
+          color: "#ffffff",
         })
         .setOrigin(0.5);
+      this.applyHintStyle(hint, true);
       const count = this.scene.add
         .text(x + 18, y - 18, "", {
           fontFamily: "Trebuchet MS, sans-serif",
@@ -199,6 +205,17 @@ export default class TopHud {
         .setVisible(false);
 
       this.items.companion = { frame, icon, heart, barBg, barFill, barWidth };
+    }
+  }
+
+  applyHintStyle(hint, active) {
+    if (!hint) return;
+    if (active) {
+      hint.setColor("#ffffff");
+      hint.setStroke("#000000", 3);
+    } else {
+      hint.setColor("#4a4a4a");
+      hint.setStroke("#8f8f8f", 3);
     }
   }
 
@@ -260,24 +277,103 @@ export default class TopHud {
 
   setConsumableCount(count) {
     this.consumableCount = count;
-    this.items.consumable.count.setText(count > 0 ? `x${count}` : "");
+    const showCount = this.consumableEquipped && count > 0;
+    this.items.consumable.count.setText(showCount ? `x${count}` : "");
     this.items.consumable.icon.setAlpha(count > 0 ? 1 : 0.25);
-    this.items.consumable.hint.setColor(count > 0 ? "#4b3824" : "#8b8373");
+    this.updateHintForKey("consumable");
+  }
+
+  setConsumableEquipped(equipped) {
+    this.consumableEquipped = Boolean(equipped);
+    const alpha = equipped ? 1 : 0.25;
+    this.items.consumable.icon.setAlpha(alpha);
+    this.items.consumable.icon.setVisible(equipped);
+    this.items.consumable.count.setColor(equipped ? "#ffffff" : "#8b8373");
+    this.setConsumableCount(this.consumableCount);
+  }
+
+  setActiveEquipped(equipped) {
+    this.activeEquipped = Boolean(equipped);
+    const item = this.items.active;
+    if (!item) return;
+    item.icon.setVisible(this.activeEquipped);
+    this.updateHintForKey("active");
+  }
+
+  setPassiveEquipped(equippedId) {
+    const item = this.items.passive;
+    if (!item) return;
+    this.passiveEquipped = equippedId || null;
+    const showIcon = Boolean(this.passiveEquipped);
+    item.icon.setVisible(showIcon);
+    item.bootsIcon?.setVisible(false);
+    this.updateHintForKey("passive");
+    if (!showIcon) {
+      return;
+    }
+    if (this.passiveEquipped === "shield") {
+      item.icon.setTexture("item-shield");
+      return;
+    }
+    if (this.passiveEquipped === "shoes") {
+      item.icon.setTexture(this.bootsTextureKey);
+    }
   }
 
   setItemDisabled(key, disabled) {
     const item = this.items[key];
     if (!item) return;
+    this.disabledSlots[key] = Boolean(disabled);
     item.overlay.setVisible(false);
     const alpha = disabled ? 0.25 : 1;
     item.icon.setAlpha(alpha);
-    item.hint.setColor(disabled ? "#8b8373" : "#4b3824");
+    this.updateHintForKey(key);
+  }
+
+  setItemModeSupported(key, supported) {
+    if (!this.modeSupported || !(key in this.modeSupported)) return;
+    this.modeSupported[key] = Boolean(supported);
+    this.updateHintForKey(key);
+  }
+
+  updateHintForKey(key) {
+    const item = this.items[key];
+    if (!item || !item.hint) return;
+    const supported = this.modeSupported?.[key] !== false;
+    if (key === "active") {
+      const active = this.activeEquipped && supported && !this.disabledSlots.active;
+      this.applyHintStyle(item.hint, active);
+      if (item.icon?.visible) item.icon.setAlpha(active ? 1 : 0.25);
+      return;
+    }
+    if (key === "passive") {
+      const active = Boolean(this.passiveEquipped) && supported;
+      this.applyHintStyle(item.hint, active);
+      if (item.icon?.visible) item.icon.setAlpha(active ? 1 : 0.25);
+      return;
+    }
+    if (key === "consumable") {
+      const active =
+        this.consumableEquipped && this.consumableCount > 0 && supported && !this.disabledSlots.consumable;
+      this.applyHintStyle(item.hint, active);
+      return;
+    }
   }
 
   setPassiveOwned(owned) {
     const item = this.items.passive;
     if (!item) return;
     this.passiveOwned = Boolean(owned);
+    if (!this.passiveEquipped) {
+      item.icon.setVisible(false);
+      item.bootsIcon?.setVisible(false);
+      return;
+    }
+    if (!this.passiveOwned && !this.shoesOwned && !this.passiveEquipped) {
+      item.icon.setVisible(false);
+      item.bootsIcon?.setVisible(false);
+      return;
+    }
     const alpha = owned ? 1 : 0.25;
     item.icon.setAlpha(alpha);
     if (owned) {
@@ -293,6 +389,16 @@ export default class TopHud {
     const item = this.items.passive;
     if (!item || !item.bootsIcon) return;
     this.shoesOwned = Boolean(owned);
+    if (!this.passiveEquipped) {
+      item.icon.setVisible(false);
+      item.bootsIcon.setVisible(false);
+      return;
+    }
+    if (!this.passiveOwned && !this.shoesOwned && !this.passiveEquipped) {
+      item.icon.setVisible(false);
+      item.bootsIcon.setVisible(false);
+      return;
+    }
     if (!this.passiveOwned && this.shoesOwned) {
       item.icon.setTexture(this.bootsTextureKey);
       item.icon.setAlpha(1);

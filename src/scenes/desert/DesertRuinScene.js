@@ -2,8 +2,11 @@ import { saveProgress } from "../../saveManager.js";
 import { playMusic } from "../../soundManager.js";
 import DialogManager from "../../dialogManager.js";
 import TopHud from "../../ui/topHud.js";
+import InventoryOverlay from "../../ui/InventoryOverlay.js";
 import CoordinateDebugger from "../../utils/coordinateDebugger.js";
 import ShieldManager from "../../utils/ShieldManager.js";
+import { applyInventoryToSave, normalizeInventory } from "../../utils/inventory.js";
+import { applyItemModeSupport, GAME_MODES } from "../../utils/itemRegistry.js";
 
 export default class DesertRuinScene extends Phaser.Scene {
   constructor() {
@@ -13,6 +16,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.isComplete = false;
     this.ruinRepaired = false;
     this.canPromptRuin = true;
+    this.inventoryOpen = false;
     this.maxHealth = 5;
     this.health = this.maxHealth;
     this.coinsCollected = 0;
@@ -49,6 +53,7 @@ export default class DesertRuinScene extends Phaser.Scene {
   }
 
   create() {
+    this.gameMode = GAME_MODES.ISOMETRIC;
     this.resetState();
     this.addBackground();
     this.createPlayer();
@@ -64,15 +69,28 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.dialog = new DialogManager(this);
     playMusic(this, "music-desert");
     this.showStartScreen();
+    this.inventoryOverlay = new InventoryOverlay(this, {
+      onEquip: (slot, itemId) => this.handleInventoryEquip(slot, itemId),
+      onClose: () => this.closeInventory(),
+    });
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys("W,A,S,D");
     this.input.keyboard.on("keydown-SPACE", () => this.swingSword());
     this.input.keyboard.on("keydown-T", () => this.useConsumable());
+    this.handleTabKey = (event) => {
+      if (event.code !== "Tab") return;
+      event.preventDefault();
+      this.toggleInventory();
+    };
+    this.input.keyboard.on("keydown", this.handleTabKey);
     this.input.keyboard.on("keydown-ESC", () => this.openExitPrompt());
     this.input.keyboard.on("keydown-F", () => this.toggleFullscreen());
     this.coordDebugger = new CoordinateDebugger(this);
     this.events.once("shutdown", () => {
+      if (this.handleTabKey) {
+        this.input.keyboard.off("keydown", this.handleTabKey);
+      }
       if (!this.skipShutdownSave) {
         this.saveInventory();
       }
@@ -82,6 +100,7 @@ export default class DesertRuinScene extends Phaser.Scene {
       });
       this.activeDigSounds?.clear();
       this.sound.stopByKey?.("sfx-monster-dig");
+      this.inventoryOverlay?.destroy();
     });
   }
 
@@ -131,6 +150,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.companionFruit = this.add.circle(this.companion.x + 8, this.companion.y - 8, 4, 0xc23a2c);
     this.companionFruit.setDepth(6);
     this.companionFruit.setVisible(false);
+    this.applyCompanionEnabled();
     this.facing = new Phaser.Math.Vector2(1, 0);
     this.shield.attach(this.player);
   }
@@ -142,17 +162,23 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.ruinRepaired = false;
     this.canPromptRuin = true;
     const saveData = this.registry.get("saveData") || {};
-    this.health = saveData.health ?? this.maxHealth;
-    this.coinsCollected = saveData.coins ?? 0;
+    const normalized = normalizeInventory(saveData);
+    this.inventory = normalized.inventory;
+    this.equipped = normalized.equipped;
+    const normalizedSave = applyInventoryToSave(saveData, this.inventory, this.equipped);
+    this.registry.set("saveData", normalizedSave);
+    this.health = normalizedSave.health ?? this.maxHealth;
+    this.coinsCollected = normalizedSave.coins ?? 0;
     this.autoAimEnabled = Boolean(saveData.settings?.autoAim);
     this.consumables = {
-      honey: saveData.consumables?.honey ?? 0,
+      honey: this.inventory.consumables?.honey ?? 0,
     };
     this.equipment = {
-      shield: saveData.equipment?.shield ?? false,
-      shoes: saveData.equipment?.shoes ?? false,
+      shield: this.equipped.passive === "shield",
+      shoes: this.equipped.passive === "shoes",
     };
     this.hasShoes = this.equipment.shoes;
+    this.companionEnabled = this.equipped.companion !== null;
     this.dashActive = false;
     this.dashDir = { x: 0, y: 0 };
     this.dashLastTap = { left: 0, right: 0, up: 0, down: 0 };
@@ -162,7 +188,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     if (!this.shield) {
       this.shield = new ShieldManager(this);
     }
-    this.shield.initFromSave(saveData);
+    this.shield.initFromSave(normalizedSave);
     this.levelCompleted = (saveData.completedLevels || []).includes("Wuestenruine");
     this.ruinStoredCoins = 0;
     this.ruinTransferAt = 0;
@@ -274,9 +300,11 @@ export default class DesertRuinScene extends Phaser.Scene {
       this.handlePlayerHit(player, monster);
     });
 
-    this.physics.add.overlap(this.companion, this.monsters, (companion, monster) => {
-      this.handleCompanionInteraction(companion, monster);
-    });
+    if (this.companionEnabled) {
+      this.physics.add.overlap(this.companion, this.monsters, (companion, monster) => {
+        this.handleCompanionInteraction(companion, monster);
+      });
+    }
   }
 
   createUI() {
@@ -287,12 +315,21 @@ export default class DesertRuinScene extends Phaser.Scene {
       consumables: this.consumables,
       passiveOwned: this.equipment.shield,
       passiveShoes: this.equipment.shoes,
+      activeEquipped: this.equipped.weapon === "sword",
+      passiveEquipped: this.equipped.passive,
+      consumableEquipped: this.equipped.consumable === "honey",
       activeDisabled: false,
       showCompanion: true,
       companionHealth: this.companionHealth,
       companionRespawnRatio: 0,
     });
     this.shield.setHud(this.hud);
+    this.hud.setActiveEquipped(this.equipped.weapon === "sword");
+    this.hud.setPassiveEquipped(this.equipped.passive);
+    this.hud.setConsumableEquipped(this.equipped?.consumable === "honey");
+    applyItemModeSupport(this.hud, this.equipped, this.gameMode);
+    this.hud.setItemDisabled("active", this.equipped?.weapon !== "sword");
+    this.hud.setConsumableEquipped(this.equipped?.consumable === "honey");
 
     this.add
       .text(14, 575, "Pfeiltasten zum bewegen, Früchte heilen, Schlag Truhen für Münzen", {
@@ -428,12 +465,19 @@ export default class DesertRuinScene extends Phaser.Scene {
   updateItemUI() {
     if (!this.hud) return;
     this.hud.setConsumableCount(this.consumables?.honey ?? 0);
+    this.hud.setConsumableEquipped(this.equipped?.consumable === "honey");
+    this.hud.setShoesOwned(this.equipment.shoes);
+    this.hud.setActiveEquipped(this.equipped?.weapon === "sword");
+    this.hud.setPassiveEquipped(this.equipped?.passive ?? null);
+    this.hud.setItemDisabled("active", this.equipped?.weapon !== "sword");
+    applyItemModeSupport(this.hud, this.equipped, this.gameMode);
     this.hud.setCompanionStatus({
       health: this.companionHealth,
       respawnRatio: this.companionRespawnAt
         ? 1 - Math.min(1, (this.companionRespawnAt - this.time.now) / this.helperHideDuration)
         : 0,
     });
+    this.hud.setPassiveOwned(this.equipment.shield);
     this.shield?.syncHud();
   }
 
@@ -654,25 +698,23 @@ export default class DesertRuinScene extends Phaser.Scene {
 
   saveInventory() {
     const saveData = this.registry.get("saveData") || {};
-    const nextSave = {
-      ...saveData,
-      health: this.health,
-      coins: this.coinsCollected,
-      consumables: {
-        ...saveData.consumables,
-        ...this.consumables,
+    this.inventory.consumables.honey = this.consumables?.honey ?? 0;
+    const nextSave = applyInventoryToSave(
+      {
+        ...saveData,
+        health: this.health,
+        coins: this.coinsCollected,
       },
-      equipment: {
-        ...saveData.equipment,
-        ...this.equipment,
-      },
-    };
+      this.inventory,
+      this.equipped
+    );
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);
   }
 
   useConsumable() {
     if (!this.hud) return;
+    if (this.equipped?.consumable !== "honey") return;
     const result = this.hud.tryUseHoney({
       count: this.consumables?.honey ?? 0,
       health: this.health,
@@ -685,7 +727,16 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.companionHealth = result.companionHealth;
     this.companionRespawnAt = result.companionRespawnAt;
     this.consumables.honey = result.count;
-    if (this.companionHealth > 0 && this.companionRespawnAt === 0 && !this.companion.visible) {
+    this.inventory.consumables.honey = result.count;
+    if (result.count <= 0) {
+      this.equipped.consumable = null;
+    }
+    if (
+      this.companionEnabled &&
+      this.companionHealth > 0 &&
+      this.companionRespawnAt === 0 &&
+      !this.companion.visible
+    ) {
       this.companion.clearTint();
       this.stopCompanionRetreatBlink();
       this.companion.setVisible(true);
@@ -696,6 +747,60 @@ export default class DesertRuinScene extends Phaser.Scene {
       this.setCompanionVisual("running");
     }
     this.updateHearts();
+    this.updateItemUI();
+    this.saveInventory();
+  }
+
+  toggleInventory() {
+    if (this.inventoryOpen) {
+      this.closeInventory();
+      return;
+    }
+    if (this.isGameOver || this.isPaused || this.isComplete) return;
+    this.openInventory();
+  }
+
+  openInventory() {
+    if (!this.inventoryOverlay) return;
+    this.inventoryOpen = true;
+    this.isPaused = true;
+    this.physics.world.pause();
+    this.time.paused = true;
+    this.inventoryOverlay.open(this.inventory, this.equipped);
+  }
+
+  closeInventory() {
+    if (!this.inventoryOpen) return;
+    this.inventoryOpen = false;
+    this.isPaused = false;
+    this.physics.world.resume();
+    this.time.paused = false;
+    this.inventoryOverlay?.close();
+  }
+
+  handleInventoryEquip(slot, itemId) {
+    if (!this.equipped) return;
+    if (slot === "weapon") {
+      this.equipped.weapon = itemId;
+      this.hud.setItemDisabled("active", this.equipped.weapon !== "sword");
+      this.hud.setActiveEquipped(this.equipped.weapon === "sword");
+    } else if (slot === "passive") {
+      this.equipped.passive = itemId;
+      this.equipment.shield = itemId === "shield";
+      this.equipment.shoes = itemId === "shoes";
+      this.hasShoes = this.equipment.shoes;
+      this.hud.setPassiveEquipped(itemId);
+      this.shield?.initFromSave(
+        applyInventoryToSave(this.registry.get("saveData") || {}, this.inventory, this.equipped)
+      );
+    } else if (slot === "consumable") {
+      this.equipped.consumable = itemId;
+    } else if (slot === "companion") {
+      this.equipped.companion = itemId;
+      this.companionEnabled = itemId !== null;
+      this.applyCompanionEnabled();
+    }
+    applyItemModeSupport(this.hud, this.equipped, this.gameMode);
     this.updateItemUI();
     this.saveInventory();
   }
@@ -868,6 +973,7 @@ export default class DesertRuinScene extends Phaser.Scene {
 
   swingSword() {
     if (this.isGameOver || this.isPaused) return;
+    if (this.equipped?.weapon !== "sword") return;
     const now = this.time.now;
     if (now - this.lastAttackAt < this.attackCooldown) return;
     this.lastAttackAt = now;
@@ -1245,6 +1351,7 @@ export default class DesertRuinScene extends Phaser.Scene {
   }
 
   updateCompanion() {
+    if (!this.companionEnabled) return;
     const state = this.companion.getData("state");
     if (state === "hidden") {
       if (this.companionFruit) {
@@ -1385,6 +1492,19 @@ export default class DesertRuinScene extends Phaser.Scene {
       this.followCompanion();
     }
     this.updateCompanionFruitPosition();
+  }
+
+  applyCompanionEnabled() {
+    if (!this.companion?.body) return;
+    const enabled = this.companionEnabled !== false;
+    this.companion.setVisible(enabled);
+    this.companion.body.setEnable(enabled);
+    if (!enabled) {
+      this.companion.setData("state", "hidden");
+      if (this.companionFruit) {
+        this.companionFruit.setVisible(false);
+      }
+    }
   }
 
   startCompanionFetch(fruit) {

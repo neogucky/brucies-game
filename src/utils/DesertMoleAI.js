@@ -9,62 +9,125 @@ export default class DesertMoleAI {
     this.attackTexture = options.attackTexture || "desert-mole-attacking";
     this.runTexture = options.runTexture || "desert-mole-running";
     this.speed = options.speed ?? 80;
+    this.fallSpeed = options.fallSpeed ?? 170;
     this.attackHoldMs = options.attackHoldMs ?? 180;
-    this.waitMs = options.waitMs ?? 2000;
-    this.direction = null;
-    this.directionUntil = 0;
-    this.lastDir = null;
-    this.nextActionAt = scene.time.now + this.waitMs;
-    this.attackUntil = 0;
+    this.pauseMs = options.pauseMs ?? 500;
+    this.lookIntervalMs = options.lookIntervalMs ?? 250;
     this.canSeePlayer = options.canSeePlayer || null;
     this.getPlayerPos = options.getPlayerPos || null;
     this.onAttack = options.onAttack || null;
     this.attackRange = options.attackRange ?? this.tileSize * 0.6;
     this.attackCooldownMs = options.attackCooldownMs ?? 800;
     this.lastAttackAt = 0;
-    this.digCheckAt = 0;
+    this.nextActionAt = scene.time.now;
+    this.action = null;
+    this.stepTarget = null;
+    this.mode = "idle";
+    this.pauseUntil = 0;
+    this.lookCount = 0;
+    this.nextLookAt = 0;
+    this.roamDir = Phaser.Math.RND.pick([-1, 1]);
+    this.attackPauseUntil = 0;
+    this.attackAnimUntil = 0;
+    this.wasFalling = false;
+    this.lastPos = new Phaser.Math.Vector2(mole.x, mole.y);
+    this.stuckSince = null;
+    this.status = "";
   }
 
   update(now, deltaMs) {
     if (!this.mole?.active) return;
-    if (this.attackUntil && now < this.attackUntil) {
+    this.updateAttackAnimation(now);
+
+    if (this.handleFalling(now, deltaMs)) {
+      this.logStatus();
+      return;
+    }
+
+    if (this.attackPauseUntil && now < this.attackPauseUntil) {
       this.mole.body?.setVelocity(0, 0);
+      this.logStatus();
       return;
     }
-    const seesPlayer = this.canSeePlayer?.();
-    if (seesPlayer) {
-      this.chasePlayer(now);
+
+    if (this.canSeePlayer?.()) {
+      this.handleChase(now);
+      this.checkStuck(now);
+      this.logStatus();
       return;
     }
-    if (now >= this.directionUntil) {
-      this.pickDirection(now);
+
+    if (this.mode === "pause") {
+      this.handlePause(now);
+      this.logStatus();
+      return;
     }
-    this.moveInDirection(now, deltaMs);
+
+    if (this.mode === "roam") {
+      this.handleRoam(now);
+      this.checkStuck(now);
+      this.logStatus();
+      return;
+    }
+
+    if (this.action) {
+      this.handleAction(now);
+      this.checkStuck(now);
+      this.logStatus();
+      return;
+    }
+
+    if (now < this.nextActionAt) {
+      this.mole.body?.setVelocity(0, 0);
+      this.logStatus();
+      return;
+    }
+
+    this.pickNextAction(now);
+    this.logStatus();
   }
 
-  pickDirection(now) {
-    const restricted = this.isRestrictedToHorizontal();
-    const actions = [
-      { dx: -1, dy: 0, duration: 1500 },
-      { dx: 1, dy: 0, duration: 1500 },
-      { dx: 0, dy: -1, duration: 1100 },
-      { dx: 0, dy: 1, duration: 1100 },
-    ];
-    let candidates = restricted ? actions.filter((action) => action.dy === 0) : actions;
-    if (this.lastDir) {
-      const opp = { dx: -this.lastDir.dx, dy: -this.lastDir.dy };
-      const filtered = candidates.filter((action) => action.dx !== opp.dx || action.dy !== opp.dy);
-      if (filtered.length) {
-        candidates = filtered;
-      }
+  handleFalling(now, deltaMs) {
+    if (this.mode === "dig" && this.action?.dy === 1) {
+      return false;
     }
-    const choice = Phaser.Utils.Array.GetRandom(candidates);
-    this.direction = { dx: choice.dx, dy: choice.dy };
-    this.directionUntil = now + choice.duration;
-    this.lastDir = { dx: choice.dx, dy: choice.dy };
+    const { col, row } = this.getTilePosition();
+    const below = this.blockMap?.get(`${col},${row + 1}`);
+    if (!below) {
+      this.mole.body?.setVelocity(0, 0);
+      this.mole.y += (this.fallSpeed * deltaMs) / 1000;
+      this.mode = "falling";
+      this.wasFalling = true;
+      this.action = null;
+      this.stepTarget = null;
+      return true;
+    }
+    this.mole.body?.setVelocity(0, 0);
+    if (this.wasFalling) {
+      this.wasFalling = false;
+      this.mode = "idle";
+      this.nextActionAt = now;
+      this.mole.y = (row + 1) * this.tileSize;
+    }
+    return false;
   }
 
-  chasePlayer(now) {
+  handlePause(now) {
+    this.mole.body?.setVelocity(0, 0);
+    if (now >= this.nextLookAt && this.lookCount < 2) {
+      this.mole.setFlipX(this.lookCount % 2 === 0);
+      this.lookCount += 1;
+      this.nextLookAt = now + this.lookIntervalMs;
+    }
+    if (now >= this.pauseUntil) {
+      this.mode = "idle";
+      this.action = null;
+      this.stepTarget = null;
+      this.nextActionAt = now;
+    }
+  }
+
+  handleChase(now) {
     if (!this.getPlayerPos) return;
     const player = this.getPlayerPos();
     const dx = player.x - this.mole.x;
@@ -73,59 +136,180 @@ export default class DesertMoleAI {
       this.tryAttack(now);
       return;
     }
-    const dirX = dx === 0 ? 0 : Math.sign(dx);
-    this.direction = { dx: dirX, dy: 0 };
-    this.moveInDirection(now, this.scene.game?.loop?.delta ?? 16);
+    const dir = dx === 0 ? 0 : Math.sign(dx);
+    if (dir === 0) {
+      this.mole.body?.setVelocity(0, 0);
+      return;
+    }
+    this.setRunTexture();
+    this.mole.setFlipX(dir < 0);
+    if (this.handleHorizontalObstacle(dir, false)) {
+      this.mole.body?.setVelocity(0, 0);
+      return;
+    }
+    this.mole.body?.setVelocity(dir * this.speed, 0);
   }
 
-  moveInDirection(now, deltaMs) {
-    if (!this.direction) {
-      this.mole.body?.setVelocity(0, 0);
+  pickNextAction(now) {
+    const { col, row } = this.getTilePosition();
+    const leftBlock = this.blockMap?.get(`${col - 1},${row}`);
+    const rightBlock = this.blockMap?.get(`${col + 1},${row}`);
+    const downBlock = this.blockMap?.get(`${col},${row + 1}`);
+
+    const leftEarth = this.isEarthBlock(leftBlock);
+    const rightEarth = this.isEarthBlock(rightBlock);
+    const downEarth = this.isEarthBlock(downBlock);
+
+    if (!leftEarth && !rightEarth && !downEarth) {
+      this.mode = "roam";
+      this.action = null;
+      this.stepTarget = null;
       return;
     }
-    const { dx, dy } = this.direction;
-    if (dx === 0 && dy === 0) {
-      this.mole.body?.setVelocity(0, 0);
+
+    const actions = [];
+    if (leftEarth) actions.push({ dx: -1, dy: 0, steps: Phaser.Math.Between(2, 6) });
+    if (rightEarth) actions.push({ dx: 1, dy: 0, steps: Phaser.Math.Between(2, 6) });
+    if (downEarth) actions.push({ dx: 0, dy: 1, steps: Phaser.Math.Between(1, 2) });
+
+    if (!actions.length) {
+      this.mode = "roam";
+      this.action = null;
+      this.stepTarget = null;
       return;
     }
-    if (this.shouldStopForBlock(dx, dy, now)) {
-      this.directionUntil = now;
-      this.mole.body?.setVelocity(0, 0);
+
+    const choice = Phaser.Utils.Array.GetRandom(actions);
+    this.action = { type: "dig", dx: choice.dx, dy: choice.dy, stepsRemaining: choice.steps };
+    this.mode = "dig";
+    this.stepTarget = null;
+    this.handleAction(now);
+  }
+
+  handleAction(now) {
+    if (!this.action || this.action.type !== "dig") return;
+    if (!this.stepTarget) {
+      const { col, row } = this.getTilePosition();
+      const nextCol = col + this.action.dx;
+      const nextRow = row + this.action.dy;
+      if (!this.isInBounds(nextCol, nextRow)) {
+        this.finishAction(now, true);
+        return;
+      }
+      const block = this.blockMap?.get(`${nextCol},${nextRow}`);
+      if (block) {
+        if (this.isEarthBlock(block)) {
+          const didDig = this.onDig?.(nextCol, nextRow);
+          if (didDig) this.playDigAnimation();
+          this.stepTarget = this.tileToTarget(nextCol, nextRow);
+        } else {
+          this.finishAction(now, true);
+          return;
+        }
+      } else {
+        this.stepTarget = this.tileToTarget(nextCol, nextRow);
+      }
+    }
+
+    this.moveToTarget(now);
+  }
+
+  moveToTarget(now) {
+    if (!this.stepTarget) return;
+    const { x, y } = this.stepTarget;
+    const dx = x - this.mole.x;
+    const dy = y - this.mole.y;
+    if (Math.abs(dx) <= 2 && Math.abs(dy) <= 2) {
+      this.mole.setPosition(x, y);
+      this.stepTarget = null;
+      this.action.stepsRemaining -= 1;
+      if (this.action.stepsRemaining <= 0) {
+        this.finishAction(now, false);
+      }
       return;
     }
-    if (this.mole.texture?.key !== this.runTexture) {
-      this.mole.setTexture(this.runTexture);
-    }
+    this.setRunTexture();
     if (dx !== 0) {
       this.mole.setFlipX(dx < 0);
     }
-    const vx = dx * this.speed;
-    const vy = dy * this.speed;
+    let vx = 0;
+    let vy = 0;
+    if (this.action?.dy === 0) {
+      this.mole.y = y;
+      if (Math.abs(dx) > 1) {
+        vx = Math.sign(dx) * this.speed;
+      }
+      this.mole.body?.setVelocity(vx, 0);
+      return;
+    }
+    if (this.action?.dx === 0) {
+      this.mole.x = x;
+      if (Math.abs(dy) > 1) {
+        vy = Math.sign(dy) * this.speed;
+      }
+      this.mole.body?.setVelocity(0, vy);
+      return;
+    }
+    if (Math.abs(dx) > 1 && Math.abs(dy) <= 1) {
+      vx = Math.sign(dx) * this.speed;
+    } else if (Math.abs(dy) > 1 && Math.abs(dx) <= 1) {
+      vy = Math.sign(dy) * this.speed;
+    } else if (Math.abs(dx) >= Math.abs(dy)) {
+      vx = Math.sign(dx) * this.speed;
+    } else {
+      vy = Math.sign(dy) * this.speed;
+    }
     this.mole.body?.setVelocity(vx, vy);
   }
 
-  shouldStopForBlock(dx, dy, now) {
-    const { col, row } = this.getTilePosition();
-    const nextCol = col + Math.sign(dx);
-    const nextRow = row + Math.sign(dy);
-    if (!this.isInBounds(nextCol, nextRow)) return true;
-    const block = this.blockMap.get(`${nextCol},${nextRow}`);
-    if (!block) return false;
-    const type = block.getData("type");
-    if (type === "earth") {
-      if (!this.hasSolidAhead(nextCol, nextRow, Math.sign(dx), Math.sign(dy))) {
-        return true;
-      }
-      if (now >= this.digCheckAt) {
-        const didDig = this.onDig?.(nextCol, nextRow);
-        if (didDig) {
-          this.playDigAttack();
-        }
-        this.digCheckAt = now + 200;
-      }
-      return false;
+  finishAction(now, goRoam) {
+    this.mole.body?.setVelocity(0, 0);
+    this.action = null;
+    this.stepTarget = null;
+    if (goRoam) {
+      this.mode = "roam";
+      return;
     }
-    return true;
+    this.mode = "pause";
+    this.pauseUntil = now + this.pauseMs;
+    this.lookCount = 0;
+    this.nextLookAt = now;
+  }
+
+  handleRoam(now) {
+    if (!this.roamDir) this.roamDir = Phaser.Math.RND.pick([-1, 1]);
+    if (this.stepTarget) {
+      this.moveToTarget(now);
+      return;
+    }
+    this.setRunTexture();
+    this.mole.setFlipX(this.roamDir < 0);
+
+    const blocked = this.handleHorizontalObstacle(this.roamDir, true);
+    if (blocked === "turn") {
+      this.roamDir *= -1;
+      return;
+    }
+    if (blocked === "dig") {
+      return;
+    }
+    this.mole.body?.setVelocity(this.roamDir * this.speed, 0);
+  }
+
+  handleHorizontalObstacle(dir, allowDig) {
+    const { col, row } = this.getTilePosition();
+    const nextCol = col + dir;
+    if (!this.isInBounds(nextCol, row)) return "turn";
+    const block = this.blockMap?.get(`${nextCol},${row}`);
+    if (!block) return null;
+    if (this.isEarthBlock(block)) {
+      if (!allowDig) return "turn";
+      const didDig = this.onDig?.(nextCol, row);
+      if (didDig) this.playDigAnimation();
+      this.stepTarget = this.tileToTarget(nextCol, row);
+      return "dig";
+    }
+    return "turn";
   }
 
   tryAttack(now) {
@@ -134,40 +318,51 @@ export default class DesertMoleAI {
       return;
     }
     this.lastAttackAt = now;
-    this.playDigAttack();
+    this.playAttackAnimation();
     this.onAttack?.();
+    this.attackPauseUntil = now + this.attackHoldMs;
   }
 
-  playDigAttack() {
+  playAttackAnimation() {
     this.mole.setTexture(this.attackTexture);
-    this.attackUntil = this.scene.time.now + this.attackHoldMs;
+    this.attackAnimUntil = this.scene.time.now + this.attackHoldMs;
     if (this.digSoundKey) {
       this.scene.sound?.play?.(this.digSoundKey);
     }
-    this.scene.time.delayedCall(this.attackHoldMs, () => {
+  }
+
+  playDigAnimation() {
+    this.mole.setTexture(this.attackTexture);
+    this.attackAnimUntil = this.scene.time.now + this.attackHoldMs;
+    if (this.digSoundKey) {
+      this.scene.sound?.play?.(this.digSoundKey);
+    }
+  }
+
+  updateAttackAnimation(now) {
+    if (this.attackAnimUntil && now >= this.attackAnimUntil) {
+      this.attackAnimUntil = 0;
       if (this.mole?.active) {
         this.mole.setTexture(this.runTexture);
       }
-      this.attackUntil = 0;
-    });
+    }
   }
 
-  hasSolidAhead(col, row, dx, dy) {
-    const nextCol = col + dx;
-    const nextRow = row + dy;
-    const next = this.blockMap.get(`${nextCol},${nextRow}`);
-    if (!next) return false;
-    const type = next.getData("type");
-    return type === "earth" || type === "stone" || type === "black";
+  setRunTexture() {
+    if (this.mole.texture?.key !== this.runTexture) {
+      this.mole.setTexture(this.runTexture);
+    }
   }
 
-  isRestrictedToHorizontal() {
-    const { col, row } = this.getTilePosition();
-    const above = this.blockMap.get(`${col},${row - 1}`);
-    const below = this.blockMap.get(`${col},${row + 1}`);
-    if (above) return false;
-    const belowType = below?.getData("type");
-    return belowType === "stone" || belowType === "black";
+  tileToTarget(col, row) {
+    return {
+      x: (col + 0.5) * this.tileSize,
+      y: (row + 1) * this.tileSize,
+    };
+  }
+
+  isEarthBlock(block) {
+    return block?.getData("type") === "earth";
   }
 
   isInBounds(col, row) {
@@ -178,5 +373,39 @@ export default class DesertMoleAI {
     const col = Math.floor(this.mole.x / this.tileSize);
     const row = Math.floor((this.mole.y - 1) / this.tileSize);
     return { col, row };
+  }
+
+  checkStuck(now) {
+    const velocity = this.mole.body?.velocity;
+    const moving = velocity && (Math.abs(velocity.x) > 1 || Math.abs(velocity.y) > 1);
+    const dist = Phaser.Math.Distance.Between(this.mole.x, this.mole.y, this.lastPos.x, this.lastPos.y);
+    if (moving && dist < 0.5) {
+      if (!this.stuckSince) {
+        this.stuckSince = now;
+      } else if (now - this.stuckSince > 500) {
+        this.action = null;
+        this.stepTarget = null;
+        this.mode = "idle";
+        this.roamDir *= -1;
+        this.stuckSince = null;
+      }
+    } else {
+      this.stuckSince = null;
+    }
+    this.lastPos.set(this.mole.x, this.mole.y);
+  }
+
+  logStatus() {
+    const action = this.action
+      ? `${this.action.type}:${this.action.dx},${this.action.dy}:${this.action.stepsRemaining}`
+      : "none";
+    const target = this.stepTarget
+      ? `${Math.round(this.stepTarget.x)},${Math.round(this.stepTarget.y)}`
+      : "none";
+    const next = `[Mole] mode=${this.mode} action=${action} target=${target}`;
+    if (next !== this.status) {
+      this.status = next;
+      console.log(next);
+    }
   }
 }

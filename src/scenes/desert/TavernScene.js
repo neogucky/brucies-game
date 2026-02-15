@@ -3,6 +3,8 @@ import { playMusic } from "../../soundManager.js";
 import DialogManager from "../../dialogManager.js";
 import TopHud from "../../ui/topHud.js";
 import CoordinateDebugger from "../../utils/coordinateDebugger.js";
+import { applyInventoryToSave, normalizeInventory } from "../../utils/inventory.js";
+import { applyItemModeSupport, GAME_MODES } from "../../utils/itemRegistry.js";
 
 export default class TavernScene extends Phaser.Scene {
   constructor() {
@@ -14,6 +16,7 @@ export default class TavernScene extends Phaser.Scene {
   }
 
   create() {
+    this.gameMode = GAME_MODES.ISOMETRIC;
     this.isLoading = true;
     const saveData = this.getSaveData();
     this.isUnderground = this.fromUnderground || saveData.currentLevel === "UnderShop";
@@ -38,11 +41,17 @@ export default class TavernScene extends Phaser.Scene {
   }
 
   addUI() {
-    this.coins = this.getSaveData().coins ?? 0;
-    this.honeyCount = this.getSaveData().consumables?.honey ?? 0;
-    this.hasShield = this.getSaveData().equipment?.shield ?? false;
-    this.hasShoes = this.getSaveData().equipment?.shoes ?? false;
-    this.health = this.getSaveData().health ?? 5;
+    const saveData = this.getSaveData();
+    const normalized = normalizeInventory(saveData);
+    this.inventory = normalized.inventory;
+    this.equipped = normalized.equipped;
+    const normalizedSave = applyInventoryToSave(saveData, this.inventory, this.equipped);
+    this.registry.set("saveData", normalizedSave);
+    this.coins = normalizedSave.coins ?? 0;
+    this.honeyCount = this.inventory.consumables?.honey ?? 0;
+    this.hasShield = Boolean(this.inventory.passives?.shield);
+    this.hasShoes = Boolean(this.inventory.passives?.shoes);
+    this.health = normalizedSave.health ?? 5;
     this.maxHealth = 5;
     
     this.hud = new TopHud(this, {
@@ -50,13 +59,20 @@ export default class TavernScene extends Phaser.Scene {
       health: this.health,
       maxHealth: this.maxHealth,
       consumables: { honey: this.honeyCount },
-      passiveOwned: this.hasShield,
-      passiveShoes: this.hasShoes,
+      passiveOwned: this.equipped.passive === "shield",
+      passiveShoes: this.equipped.passive === "shoes",
+      activeEquipped: this.equipped.weapon === "sword",
+      passiveEquipped: this.equipped.passive,
+      consumableEquipped: this.equipped.consumable === "honey",
       activeDisabled: true,
       showCompanion: true,
       companionHealth: 1,
       companionRespawnRatio: 0,
     });
+    this.hud.setActiveEquipped(this.equipped.weapon === "sword");
+    this.hud.setPassiveEquipped(this.equipped.passive);
+    this.hud.setConsumableEquipped(this.equipped?.consumable === "honey");
+    applyItemModeSupport(this.hud, this.equipped, this.gameMode);
 
     const hintText = "Esc = Zurück zur Karte";
     this.add
@@ -129,9 +145,15 @@ export default class TavernScene extends Phaser.Scene {
     }
     this.coins -= price;
     this.honeyCount += 1;
+    this.inventory.consumables.honey = this.honeyCount;
+    if (!this.equipped.consumable) {
+      this.equipped.consumable = "honey";
+    }
     if (this.hud) {
       this.hud.setCoins(this.coins);
       this.hud.setConsumableCount(this.honeyCount);
+      this.hud.setConsumableEquipped(this.equipped.consumable === "honey");
+      applyItemModeSupport(this.hud, this.equipped, this.gameMode);
     }
     this.saveInventory();
     this.showPurchaseDialog();
@@ -147,9 +169,16 @@ export default class TavernScene extends Phaser.Scene {
     }
     this.coins -= price;
     this.hasShield = true;
+    this.inventory.passives.shield = true;
+    if (!this.equipped.passive) {
+      this.equipped.passive = "shield";
+    }
     if (this.hud) {
       this.hud.setCoins(this.coins);
-      this.hud.setPassiveOwned(true);
+      this.hud.setPassiveOwned(this.equipped.passive === "shield");
+      this.hud.setShoesOwned(this.equipped.passive === "shoes");
+      this.hud.setPassiveEquipped(this.equipped.passive);
+      applyItemModeSupport(this.hud, this.equipped, this.gameMode);
     }
     this.saveInventory();
     this.showShieldPurchaseDialog();
@@ -165,9 +194,16 @@ export default class TavernScene extends Phaser.Scene {
     }
     this.coins -= price;
     this.hasShoes = true;
+    this.inventory.passives.shoes = true;
+    if (!this.equipped.passive) {
+      this.equipped.passive = "shoes";
+    }
     if (this.hud) {
       this.hud.setCoins(this.coins);
-      this.hud.setShoesOwned(true);
+      this.hud.setPassiveOwned(this.equipped.passive === "shield");
+      this.hud.setShoesOwned(this.equipped.passive === "shoes");
+      this.hud.setPassiveEquipped(this.equipped.passive);
+      applyItemModeSupport(this.hud, this.equipped, this.gameMode);
     }
     this.saveInventory();
     this.showShoesPurchaseDialog();
@@ -179,13 +215,17 @@ export default class TavernScene extends Phaser.Scene {
 
   buildShopDialog() {
     const options = [
-      { label: "Honigsaft (10)", action: () => this.buyHoney() },
+      { label: "Honigsaft (10)", action: () => this.buyHoney(), keepOpen: true },
     ];
     if (!this.hasShield) {
-      options.push({ label: "Schild (100)", action: () => this.buyShield() });
+      options.push({ label: "Schild (100)", action: () => this.buyShield(), keepOpen: true });
     }
     if (this.isUnderground && !this.hasShoes) {
-      options.push({ label: "Geflügelte Schuhe (300)", action: () => this.buyShoes() });
+      options.push({
+        label: "Geflügelte Schuhe (300)",
+        action: () => this.buyShoes(),
+        keepOpen: true,
+      });
     }
     return [
       { text: "Willkommen in meiner Taverne, Sir Ritter!" },
@@ -198,13 +238,17 @@ export default class TavernScene extends Phaser.Scene {
 
   showPurchaseDialog() {
     const options = [
-      { label: "Honigsaft (10)", action: () => this.buyHoney() },
+      { label: "Honigsaft (10)", action: () => this.buyHoney(), keepOpen: true },
     ];
     if (!this.hasShield) {
-      options.push({ label: "Schild (100)", action: () => this.buyShield() });
+      options.push({ label: "Schild (100)", action: () => this.buyShield(), keepOpen: true });
     }
     if (this.isUnderground && !this.hasShoes) {
-      options.push({ label: "Geflügelte Schuhe (300)", action: () => this.buyShoes() });
+      options.push({
+        label: "Geflügelte Schuhe (300)",
+        action: () => this.buyShoes(),
+        keepOpen: true,
+      });
     }
     this.dialog.show(
       [
@@ -221,13 +265,17 @@ export default class TavernScene extends Phaser.Scene {
 
   showShieldPurchaseDialog() {
     const options = [
-      { label: "Honigsaft (10)", action: () => this.buyHoney() },
+      { label: "Honigsaft (10)", action: () => this.buyHoney(), keepOpen: true },
     ];
     if (!this.hasShield) {
-      options.push({ label: "Schild (100)", action: () => this.buyShield() });
+      options.push({ label: "Schild (100)", action: () => this.buyShield(), keepOpen: true });
     }
     if (this.isUnderground && !this.hasShoes) {
-      options.push({ label: "Geflügelte Schuhe (300)", action: () => this.buyShoes() });
+      options.push({
+        label: "Geflügelte Schuhe (300)",
+        action: () => this.buyShoes(),
+        keepOpen: true,
+      });
     }
     this.dialog.show(
       [
@@ -244,13 +292,17 @@ export default class TavernScene extends Phaser.Scene {
 
   showNotEnoughCoinsDialog() {
     const options = [
-      { label: "Honigsaft (10)", action: () => this.buyHoney() },
+      { label: "Honigsaft (10)", action: () => this.buyHoney(), keepOpen: true },
     ];
     if (!this.hasShield) {
-      options.push({ label: "Schild (100)", action: () => this.buyShield() });
+      options.push({ label: "Schild (100)", action: () => this.buyShield(), keepOpen: true });
     }
     if (this.isUnderground && !this.hasShoes) {
-      options.push({ label: "Geflügelte Schuhe (300)", action: () => this.buyShoes() });
+      options.push({
+        label: "Geflügelte Schuhe (300)",
+        action: () => this.buyShoes(),
+        keepOpen: true,
+      });
     }
     this.dialog.show(
       [
@@ -271,33 +323,33 @@ export default class TavernScene extends Phaser.Scene {
 
   saveInventory() {
     const saveData = this.getSaveData();
-    const nextSave = {
-      ...saveData,
-      coins: this.coins,
-      health: this.health,
-      consumables: {
-        ...saveData.consumables,
-        honey: this.honeyCount,
+    this.inventory.consumables.honey = this.honeyCount;
+    const nextSave = applyInventoryToSave(
+      {
+        ...saveData,
+        coins: this.coins,
+        health: this.health,
       },
-      equipment: {
-        ...saveData.equipment,
-        shield: this.hasShield,
-        shoes: this.hasShoes,
-      },
-    };
+      this.inventory,
+      this.equipped
+    );
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);
   }
 
   showShoesPurchaseDialog() {
     const options = [
-      { label: "Honigsaft (10)", action: () => this.buyHoney() },
+      { label: "Honigsaft (10)", action: () => this.buyHoney(), keepOpen: true },
     ];
     if (!this.hasShield) {
-      options.push({ label: "Schild (100)", action: () => this.buyShield() });
+      options.push({ label: "Schild (100)", action: () => this.buyShield(), keepOpen: true });
     }
     if (this.isUnderground && !this.hasShoes) {
-      options.push({ label: "Geflügelte Schuhe (300)", action: () => this.buyShoes() });
+      options.push({
+        label: "Geflügelte Schuhe (300)",
+        action: () => this.buyShoes(),
+        keepOpen: true,
+      });
     }
     this.dialog.show(
       [

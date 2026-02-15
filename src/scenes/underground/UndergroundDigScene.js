@@ -1,8 +1,11 @@
 import { saveProgress } from "../../saveManager.js";
 import { playMusic } from "../../soundManager.js";
 import TopHud from "../../ui/topHud.js";
+import InventoryOverlay from "../../ui/InventoryOverlay.js";
 import CoordinateDebugger from "../../utils/coordinateDebugger.js";
 import DesertMoleAI from "../../utils/DesertMoleAI.js";
+import { applyInventoryToSave, normalizeInventory } from "../../utils/inventory.js";
+import { applyItemModeSupport, GAME_MODES } from "../../utils/itemRegistry.js";
 
 export default class UndergroundDigScene extends Phaser.Scene {
   constructor() {
@@ -112,6 +115,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
   }
 
   create() {
+    this.gameMode = GAME_MODES.JUMP;
     this.resetSceneState();
     this.loadLevelMap();
     this.addBackground();
@@ -122,6 +126,10 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.createAudio();
     playMusic(this, "music-world");
     this.ensureSaveState();
+    this.inventoryOverlay = new InventoryOverlay(this, {
+      onEquip: (slot, itemId) => this.handleInventoryEquip(slot, itemId),
+      onClose: () => this.closeInventory(),
+    });
     this.events.once("shutdown", this.handleShutdown, this);
     this.events.once("destroy", this.handleShutdown, this);
 
@@ -132,6 +140,12 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.input.keyboard.on("keydown-FOUR", () => this.toggleHitboxEditor());
     this.input.keyboard.on("keydown-ESC", () => this.openExitPrompt());
     this.input.keyboard.on("keydown-T", () => this.useConsumable());
+    this.handleTabKey = (event) => {
+      if (event.code !== "Tab") return;
+      event.preventDefault();
+      this.toggleInventory();
+    };
+    this.input.keyboard.on("keydown", this.handleTabKey);
     this.input.keyboard.on("keydown-F", () => this.toggleFullscreen());
     this.input.mouse.disableContextMenu();
     this.input.on("pointerdown", this.handlePointerDown, this);
@@ -143,6 +157,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.isEditorMode = false;
     this.isHitboxEditMode = false;
     this.isSwinging = false;
+    this.inventoryOpen = false;
     this.keyCollected = false;
     this.levelCompleted = false;
     this.facingX = 1;
@@ -226,6 +241,9 @@ export default class UndergroundDigScene extends Phaser.Scene {
 
   handleShutdown() {
     this.isPaused = true;
+    if (this.handleTabKey) {
+      this.input.keyboard.off("keydown", this.handleTabKey);
+    }
     if (this.sfx?.levitating?.isPlaying) {
       this.sfx.levitating.stop();
     }
@@ -250,6 +268,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     if (this.physics?.world) {
       this.physics.world.pause();
     }
+    this.inventoryOverlay?.destroy();
   }
 
   ensureSaveState() {
@@ -473,6 +492,16 @@ export default class UndergroundDigScene extends Phaser.Scene {
     if (!this.molesGroup) {
       this.molesGroup = this.physics.add.group();
       this.physics.add.collider(this.molesGroup, this.blocks);
+      this.physics.add.overlap(
+        this.player,
+        this.molesGroup,
+        (_, mole) => {
+          if (!mole?.active || !mole.getData("moleActive")) return;
+          this.applyMoleAttack(mole);
+        },
+        null,
+        this
+      );
     }
   }
 
@@ -831,6 +860,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     mole.setData("row", row);
     mole.setData("hp", 3);
     mole.setData("maxHp", 3);
+    mole.setData("moleActive", false);
     if (mole.body) {
       mole.body.setCollideWorldBounds(true);
       mole.body.setAllowGravity(false);
@@ -1573,6 +1603,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
 
   digBlock() {
     if (this.isPaused || this.isEditorMode) return;
+    if (this.equipped?.weapon !== "sword") return;
     this.startSwing();
     const hitBounds = this.swordHitbox.getBounds();
     if (this.molesGroup?.getChildren) {
@@ -1684,6 +1715,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
 
   performDownStrike() {
     if (this.isPaused || this.isEditorMode) return;
+    if (this.equipped?.weapon !== "sword") return;
     this.startSwing();
     this.digBlockBelow();
   }
@@ -1787,36 +1819,45 @@ export default class UndergroundDigScene extends Phaser.Scene {
 
   saveInventory() {
     const saveData = this.registry.get("saveData") || {};
-    const nextSave = {
-      ...saveData,
-      health: this.health,
-      coins: this.coinsCollected,
-      consumables: {
-        ...saveData.consumables,
-        ...this.consumables,
+    if (this.inventory?.consumables) {
+      this.inventory.consumables.honey = this.consumables?.honey ?? 0;
+    }
+    const nextSave = applyInventoryToSave(
+      {
+        ...saveData,
+        health: this.health,
+        coins: this.coinsCollected,
       },
-      equipment: {
-        ...saveData.equipment,
-      },
-    };
+      this.inventory,
+      this.equipped
+    );
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);
   }
 
   createUI() {
     const saveData = this.registry.get("saveData") || {};
-    this.health = saveData.health ?? this.maxHealth;
-    this.coinsCollected = saveData.coins ?? 0;
-    this.consumables = { ...(saveData.consumables || {}) };
-    this.keyCollected = Boolean(saveData.undergroundKeyCollected || this.keyCollected);
-    this.hasShoes = Boolean(saveData.equipment?.shoes);
+    const normalized = normalizeInventory(saveData);
+    this.inventory = normalized.inventory;
+    this.equipped = normalized.equipped;
+    const normalizedSave = applyInventoryToSave(saveData, this.inventory, this.equipped);
+    this.registry.set("saveData", normalizedSave);
+    this.health = normalizedSave.health ?? this.maxHealth;
+    this.coinsCollected = normalizedSave.coins ?? 0;
+    this.consumables = { honey: this.inventory.consumables?.honey ?? 0 };
+    this.keyCollected = Boolean(normalizedSave.undergroundKeyCollected || this.keyCollected);
+    this.hasShoes = this.equipped.passive === "shoes";
+    this.companionEnabled = this.equipped.companion !== null;
     this.hud = new TopHud(this, {
       coins: this.coinsCollected,
       health: this.health,
       maxHealth: this.maxHealth,
       consumables: this.consumables,
-      passiveOwned: saveData.equipment?.shield ?? false,
-      passiveShoes: saveData.equipment?.shoes ?? false,
+      passiveOwned: this.equipped.passive === "shield",
+      passiveShoes: this.equipped.passive === "shoes",
+      activeEquipped: this.equipped.weapon === "sword",
+      passiveEquipped: this.equipped.passive,
+      consumableEquipped: this.equipped.consumable === "honey",
       activeDisabled: false,
       showCompanion: true,
       companionHealth: 1,
@@ -1824,6 +1865,12 @@ export default class UndergroundDigScene extends Phaser.Scene {
       keyCollected: this.keyCollected,
     });
     this.hud.setDepth(200);
+    this.hud.setActiveEquipped(this.equipped.weapon === "sword");
+    this.hud.setPassiveEquipped(this.equipped.passive);
+    this.hud.setConsumableEquipped(this.equipped?.consumable === "honey");
+    applyItemModeSupport(this.hud, this.equipped, this.gameMode);
+    this.hud.setItemDisabled("active", this.equipped?.weapon !== "sword");
+    this.applyCompanionEnabled();
 
     this.hintText = this.add
       .text(14, 585, "Pfeile/A/D = Bewegen, W/Oben = Springen, Leertaste = Graben, Esc = Menu", {
@@ -1989,6 +2036,28 @@ export default class UndergroundDigScene extends Phaser.Scene {
     const delta = this.game?.loop?.delta ?? 16;
     this.molesGroup.getChildren().forEach((mole) => {
       if (!mole.active) return;
+      if (!mole.getData("moleActive")) {
+        mole.body?.setVelocity(0, 0);
+        const view = this.cameras.main?.worldView;
+        const inView =
+          view &&
+          mole.x >= view.x &&
+          mole.x <= view.x + view.width &&
+          mole.y >= view.y &&
+          mole.y <= view.y + view.height;
+        if (this.moleCanSeePlayer(mole) || inView) {
+          mole.setData("moleActive", true);
+          this.tweens.add({
+            targets: mole,
+            x: mole.x + 3,
+            duration: 60,
+            yoyo: true,
+            repeat: 3,
+          });
+        }
+        this.updateMoleBarPosition(mole);
+        return;
+      }
       const ai = this.moleAIs.get(mole);
       if (!ai) return;
       ai.update(now, delta);
@@ -2149,6 +2218,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
   }
 
   updateCompanion() {
+    if (!this.companionEnabled) return;
     if (!this.companion?.body || !this.tileSize) return;
     const targetTile = this.getCompanionTargetTile();
     if (!targetTile) return;
@@ -2172,6 +2242,16 @@ export default class UndergroundDigScene extends Phaser.Scene {
       return;
     }
     this.updateCompanionHop(targetPos);
+  }
+
+  applyCompanionEnabled() {
+    if (!this.companion?.body) return;
+    const enabled = this.companionEnabled !== false;
+    this.companion.setVisible(enabled);
+    this.companion.body.setEnable(enabled);
+    if (!enabled && this.sfx?.levitating?.isPlaying) {
+      this.sfx.levitating.stop();
+    }
   }
 
   startCompanionClimb() {
@@ -2484,6 +2564,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
 
   useConsumable() {
     if (!this.hud) return;
+    if (this.equipped?.consumable !== "honey") return;
     const result = this.hud.tryUseHoney({
       count: this.consumables?.honey ?? 0,
       health: this.health,
@@ -2494,17 +2575,65 @@ export default class UndergroundDigScene extends Phaser.Scene {
     if (!result.consumed) return;
     this.health = result.health;
     this.consumables.honey = result.count;
-    const saveData = this.registry.get("saveData") || {};
-    const nextSave = {
-      ...saveData,
-      health: this.health,
-      consumables: {
-        ...saveData.consumables,
-        honey: this.consumables.honey,
-      },
-    };
-    this.registry.set("saveData", nextSave);
-    saveProgress(nextSave);
+    if (this.inventory?.consumables) {
+      this.inventory.consumables.honey = result.count;
+    }
+    if (result.count <= 0) {
+      this.equipped.consumable = null;
+    }
+    this.hud.setConsumableEquipped(this.equipped?.consumable === "honey");
+    this.saveInventory();
+  }
+
+  toggleInventory() {
+    if (this.inventoryOpen) {
+      this.closeInventory();
+      return;
+    }
+    if (this.isPaused || this.isEditorMode || this.isHitboxEditMode) return;
+    this.openInventory();
+  }
+
+  openInventory() {
+    if (!this.inventoryOverlay) return;
+    this.inventoryOpen = true;
+    this.isPaused = true;
+    this.physics.world.pause();
+    this.time.paused = true;
+    this.inventoryOverlay.open(this.inventory, this.equipped);
+  }
+
+  closeInventory() {
+    if (!this.inventoryOpen) return;
+    this.inventoryOpen = false;
+    this.isPaused = false;
+    this.physics.world.resume();
+    this.time.paused = false;
+    this.inventoryOverlay?.close();
+  }
+
+  handleInventoryEquip(slot, itemId) {
+    if (!this.equipped) return;
+    if (slot === "weapon") {
+      this.equipped.weapon = itemId;
+      this.hud.setItemDisabled("active", this.equipped.weapon !== "sword");
+      this.hud.setActiveEquipped(this.equipped.weapon === "sword");
+    } else if (slot === "passive") {
+      this.equipped.passive = itemId;
+      this.hasShoes = itemId === "shoes";
+      this.hud.setPassiveOwned(itemId === "shield");
+      this.hud.setShoesOwned(itemId === "shoes");
+      this.hud.setPassiveEquipped(itemId);
+    } else if (slot === "consumable") {
+      this.equipped.consumable = itemId;
+      this.hud.setConsumableEquipped(itemId === "honey");
+    } else if (slot === "companion") {
+      this.equipped.companion = itemId;
+      this.companionEnabled = itemId !== null;
+      this.applyCompanionEnabled();
+    }
+    applyItemModeSupport(this.hud, this.equipped, this.gameMode);
+    this.saveInventory();
   }
 
   toggleFullscreen() {
