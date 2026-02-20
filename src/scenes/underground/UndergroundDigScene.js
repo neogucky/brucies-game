@@ -1,5 +1,5 @@
 import { saveProgress } from "../../saveManager.js";
-import { playMusic } from "../../soundManager.js";
+import { bumpMusicRate, playMusic } from "../../soundManager.js";
 import TopHud from "../../ui/topHud.js";
 import InventoryOverlay from "../../ui/InventoryOverlay.js";
 import CoordinateDebugger from "../../utils/coordinateDebugger.js";
@@ -67,6 +67,14 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.keyCollected = false;
     this.levelCompleted = false;
     this.isGameOver = false;
+    this.isKeyPathLevel = false;
+    this.keyPathLastStoneCol = null;
+    this.keyPathArenaWallCol = null;
+    this.keyPathArenaTriggered = false;
+    this.keyPathArenaFallEvent = null;
+    this.keyPathViewportLocked = false;
+    this.keyPathViewportLockX = 0;
+    this.dangerText = null;
     this.chests = null;
     this.coinsPerChest = 500;
     this.companion = null;
@@ -132,7 +140,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.createCompanion();
     this.createUI();
     this.createAudio();
-    playMusic(this, "music-world");
+    playMusic(this, "music-underground", { rate: 1 });
     this.ensureSaveState();
     this.inventoryOverlay = new InventoryOverlay(this, {
       onEquip: (slot, itemId) => this.handleInventoryEquip(slot, itemId),
@@ -169,6 +177,20 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.keyCollected = false;
     this.levelCompleted = false;
     this.isGameOver = false;
+    this.isKeyPathLevel = false;
+    this.keyPathLastStoneCol = null;
+    this.keyPathArenaWallCol = null;
+    this.keyPathArenaTriggered = false;
+    if (this.keyPathArenaFallEvent) {
+      this.keyPathArenaFallEvent.remove(false);
+      this.keyPathArenaFallEvent = null;
+    }
+    this.keyPathViewportLocked = false;
+    this.keyPathViewportLockX = 0;
+    if (this.dangerText) {
+      this.dangerText.destroy();
+      this.dangerText = null;
+    }
     this.companionHealth = 1;
     this.companionRespawnAt = 0;
     if (this.companionRespawnTimer) {
@@ -256,6 +278,14 @@ export default class UndergroundDigScene extends Phaser.Scene {
 
   handleShutdown() {
     this.isPaused = true;
+    if (this.keyPathArenaFallEvent) {
+      this.keyPathArenaFallEvent.remove(false);
+      this.keyPathArenaFallEvent = null;
+    }
+    if (this.dangerText) {
+      this.dangerText.destroy();
+      this.dangerText = null;
+    }
     if (this.companionRespawnTimer) {
       this.companionRespawnTimer.remove(false);
       this.companionRespawnTimer = null;
@@ -462,6 +492,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
         this.placeBlock(block.col, block.row, block.type);
       });
     }
+    this.configureKeyPathArenaTrigger();
 
     this.applyBoundaryBlocks();
     this.disableGate = Boolean(this.levelMap?.disableGate);
@@ -2124,6 +2155,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
       monsterInjured: this.sound.add("sfx-monster-injured"),
       monsterDeath: this.sound.add("sfx-monster-death"),
       companionFear: this.sound.add("sfx-companion-fear"),
+      explosion: this.sound.add("sfx-explosion"),
     };
   }
 
@@ -2223,6 +2255,117 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.shield?.update();
     this.checkKeyPickup();
     this.checkGateUnlock();
+    this.checkKeyPathArenaTrigger();
+  }
+
+  configureKeyPathArenaTrigger() {
+    this.isKeyPathLevel = this.levelId === "Schluesselweg";
+    this.keyPathLastStoneCol = null;
+    this.keyPathArenaWallCol = null;
+    this.keyPathArenaTriggered = false;
+    this.keyPathViewportLocked = false;
+    this.keyPathViewportLockX = 0;
+    if (this.keyPathArenaFallEvent) {
+      this.keyPathArenaFallEvent.remove(false);
+      this.keyPathArenaFallEvent = null;
+    }
+    if (!this.isKeyPathLevel || !Array.isArray(this.levelMap?.blocks)) return;
+    const stoneCols = this.levelMap.blocks
+      .filter((entry) => entry?.type === "stone" && Number.isFinite(entry.col))
+      .map((entry) => entry.col);
+    if (!stoneCols.length) return;
+    const lastStoneCol = Math.max(...stoneCols);
+    this.keyPathLastStoneCol = lastStoneCol;
+    this.keyPathArenaWallCol = Phaser.Math.Clamp(lastStoneCol - 6, 1, (this.gridCols ?? 1) - 2);
+  }
+
+  checkKeyPathArenaTrigger() {
+    if (!this.isKeyPathLevel || this.keyPathArenaTriggered || !this.player || !this.tileSize) return;
+    if (!Number.isFinite(this.keyPathLastStoneCol) || !Number.isFinite(this.keyPathArenaWallCol)) return;
+    const playerCol = Math.floor(this.player.x / this.tileSize);
+    if (playerCol <= this.keyPathLastStoneCol) return;
+    this.triggerKeyPathArenaWall();
+  }
+
+  triggerKeyPathArenaWall() {
+    if (this.keyPathArenaTriggered) return;
+    this.keyPathArenaTriggered = true;
+    bumpMusicRate(1.5);
+    this.showDanger(2800, true);
+    const wallCol = this.keyPathArenaWallCol;
+    if (!Number.isFinite(wallCol)) return;
+    const topRow = 1;
+    const bottomRow = Math.max(topRow, (this.gridRows ?? 1) - 2);
+    let row = topRow;
+    this.keyPathArenaFallEvent = this.time.addEvent({
+      delay: 100,
+      loop: true,
+      callback: () => {
+        if (row > bottomRow) {
+          if (this.keyPathArenaFallEvent) {
+            this.keyPathArenaFallEvent.remove(false);
+            this.keyPathArenaFallEvent = null;
+          }
+          this.lockKeyPathViewportToEnd();
+          return;
+        }
+        this.placeBlock(wallCol, row, "black", true);
+        if (this.sfx?.explosion) {
+          this.sfx.explosion.play();
+        }
+        row += 1;
+      },
+    });
+  }
+
+  showDanger(duration, wobble) {
+    if (this.dangerText) {
+      this.dangerText.destroy();
+      this.dangerText = null;
+    }
+    const text = this.add
+      .text(480, 300, "Gefahr", {
+        fontFamily: "Georgia, serif",
+        fontSize: "48px",
+        color: "#d12b2b",
+      })
+      .setOrigin(0.5)
+      .setDepth(260)
+      .setScrollFactor(0);
+    this.dangerText = text;
+    text.setScale(0.8);
+    text.setAlpha(0.9);
+    this.tweens.add({
+      targets: text,
+      scale: 1.6,
+      alpha: 0,
+      duration,
+      ease: "Sine.easeOut",
+      onComplete: () => {
+        if (text.active) text.destroy();
+        if (this.dangerText === text) this.dangerText = null;
+      },
+    });
+    if (wobble) {
+      this.tweens.add({
+        targets: text,
+        angle: 6,
+        duration: 80,
+        yoyo: true,
+        repeat: Math.floor(duration / 160),
+      });
+    }
+  }
+
+  lockKeyPathViewportToEnd() {
+    if (!this.isKeyPathLevel) return;
+    const camera = this.cameras.main;
+    if (!camera) return;
+    this.keyPathViewportLocked = true;
+    this.scrollXEnabled = false;
+    this.keyPathViewportLockX = Math.max(0, this.worldWidth - camera.width);
+    camera.setBounds(this.keyPathViewportLockX, 0, camera.width, this.worldHeight);
+    camera.setScroll(this.keyPathViewportLockX, 0);
   }
 
   updateMoles() {
@@ -2387,6 +2530,13 @@ export default class UndergroundDigScene extends Phaser.Scene {
   }
 
   updateCameraScroll() {
+    if (this.keyPathViewportLocked) {
+      const camera = this.cameras.main;
+      if (camera) {
+        camera.scrollX = this.keyPathViewportLockX;
+      }
+      return;
+    }
     if (!this.scrollXEnabled) return;
     const camera = this.cameras.main;
     if (!camera) return;

@@ -4,6 +4,10 @@ let currentRate = 1;
 
 export function playMusic(scene, key, options = {}) {
   if (currentKey === key && currentMusic && currentMusic.isPlaying) {
+    if (Number.isFinite(options.rate) && options.rate !== currentRate) {
+      currentRate = options.rate;
+      currentMusic.setRate(currentRate);
+    }
     return;
   }
   if (currentMusic) {
