@@ -28,6 +28,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.coinsGroup = null;
     this.heartsGroup = null;
     this.molesGroup = null;
+    this.stoneMonstersGroup = null;
     this.moleStates = new Map();
     this.moleStepDelay = 180;
     this.moleAIs = new Map();
@@ -74,6 +75,8 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.keyPathArenaFallEvent = null;
     this.keyPathViewportLocked = false;
     this.keyPathViewportLockX = 0;
+    this.keyPathMiniBoss = null;
+    this._shutdownHandled = false;
     this.dangerText = null;
     this.chests = null;
     this.coinsPerChest = 500;
@@ -107,6 +110,10 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.heartsGroup = null;
     this.destroyGroup(this.molesGroup);
     this.molesGroup = null;
+    this.stopStoneMonsterRollingSounds();
+    this.destroyGroup(this.stoneMonstersGroup);
+    this.stoneMonstersGroup = null;
+    this.keyPathMiniBoss = null;
     if (this.moleAIs) {
       this.moleAIs.clear();
     }
@@ -169,6 +176,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
   }
 
   resetSceneState() {
+    this._shutdownHandled = false;
     this.isPaused = false;
     this.isEditorMode = false;
     this.isHitboxEditMode = false;
@@ -223,6 +231,10 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.heartsGroup = null;
     this.destroyGroup(this.molesGroup);
     this.molesGroup = null;
+    this.stopStoneMonsterRollingSounds();
+    this.destroyGroup(this.stoneMonstersGroup);
+    this.stoneMonstersGroup = null;
+    this.keyPathMiniBoss = null;
     if (this.moleAIs) {
       this.moleAIs.clear();
     }
@@ -243,6 +255,10 @@ export default class UndergroundDigScene extends Phaser.Scene {
       this.companionShield.destroy();
       this.companionShield = null;
     }
+    if (this.shield) {
+      this.shield.destroy();
+      this.shield = null;
+    }
     if (this.playerBlockCollider) {
       this.physics?.world?.removeCollider(this.playerBlockCollider);
       this.playerBlockCollider = null;
@@ -261,12 +277,16 @@ export default class UndergroundDigScene extends Phaser.Scene {
 
   destroyGroup(group) {
     if (!group) return;
-    if (group.destroy) {
-      group.destroy(true);
-      return;
-    }
-    if (group.clear) {
-      group.clear(true, true);
+    try {
+      if (group.destroy) {
+        group.destroy(true);
+        return;
+      }
+      if (group.clear) {
+        group.clear(true, true);
+      }
+    } catch (error) {
+      // Group may already be partially destroyed during scene restart/shutdown.
     }
   }
 
@@ -277,6 +297,8 @@ export default class UndergroundDigScene extends Phaser.Scene {
   }
 
   handleShutdown() {
+    if (this._shutdownHandled) return;
+    this._shutdownHandled = true;
     this.isPaused = true;
     if (this.keyPathArenaFallEvent) {
       this.keyPathArenaFallEvent.remove(false);
@@ -304,6 +326,14 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.heartsGroup = null;
     this.destroyGroup(this.molesGroup);
     this.molesGroup = null;
+    this.stopStoneMonsterRollingSounds();
+    this.destroyGroup(this.stoneMonstersGroup);
+    this.stoneMonstersGroup = null;
+    this.keyPathMiniBoss = null;
+    if (this.shield) {
+      this.shield.destroy();
+      this.shield = null;
+    }
     this.destroyGroup(this.blocks);
     this.blocks = null;
     if (this.playerBlockCollider) {
@@ -528,6 +558,9 @@ export default class UndergroundDigScene extends Phaser.Scene {
     if (Array.isArray(this.levelMap?.moles)) {
       this.placeMapMoles(this.levelMap.moles);
     }
+    if (Array.isArray(this.levelMap?.stoneMonsters)) {
+      this.placeMapStoneMonsters(this.levelMap.stoneMonsters);
+    }
   }
 
   createItemGroups() {
@@ -542,6 +575,9 @@ export default class UndergroundDigScene extends Phaser.Scene {
     if (!this.molesGroup) {
       this.molesGroup = this.physics.add.group();
       this.physics.add.collider(this.molesGroup, this.blocks);
+    }
+    if (!this.stoneMonstersGroup) {
+      this.stoneMonstersGroup = this.add.group();
     }
   }
 
@@ -955,6 +991,49 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.moleAIs.set(mole, ai);
   }
 
+  placeMapStoneMonsters(list) {
+    if (!this.stoneMonstersGroup) return;
+    list.forEach((entry) => {
+      const col = entry?.col;
+      const row = entry?.row;
+      if (!Number.isFinite(col) || !Number.isFinite(row)) return;
+      this.placeStoneMonsterAt(col, row);
+    });
+  }
+
+  placeStoneMonsterAt(col, row, options = {}) {
+    if (!this.stoneMonstersGroup) return;
+    if (this.hasItemAt(this.stoneMonstersGroup, col, row)) return;
+    const spawnCol = Phaser.Math.Clamp(col, 1, (this.gridCols ?? 1) - 2);
+    const spawnRow = Phaser.Math.Clamp(row, 1, (this.gridRows ?? 1) - 2);
+    const isBoss = Boolean(options?.isBoss);
+    const scale = isBoss ? 1.16 : 0.58;
+    const maxHp = isBoss ? 20 : 5;
+    const monster = this.add.image(
+      (spawnCol + 0.5) * this.tileSize,
+      (spawnRow + 0.5) * this.tileSize,
+      "underground-stonemonster-standing"
+    );
+    monster.setOrigin(0.5);
+    monster.setScale(scale);
+    monster.setDepth(3);
+    monster.setData("col", spawnCol);
+    monster.setData("row", spawnRow);
+    monster.setData("isStoneBoss", isBoss);
+    monster.setData("stoneState", "perched");
+    monster.setData("bossPhase", isBoss ? "idle" : null);
+    monster.setData("stateUntil", 0);
+    monster.setData("rollDir", 1);
+    monster.setData("rollStartX", monster.x);
+    monster.setData("hp", maxHp);
+    monster.setData("maxHp", maxHp);
+    monster.setData("rollingSound", null);
+    this.stoneMonstersGroup.add(monster);
+    if (isBoss) {
+      this.keyPathMiniBoss = monster;
+    }
+  }
+
   placeGate() {
     const gateData = this.levelMap?.gate;
     let gateCol = this.startCol ?? 0;
@@ -1321,6 +1400,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     const hearts = this.collectGroupItems(this.heartsGroup);
     const chests = this.collectGroupItems(this.chests);
     const moles = this.collectGroupItems(this.molesGroup);
+    const stoneMonsters = this.collectGroupItems(this.stoneMonstersGroup);
     const payload = {
       tileSize: this.tileSize,
       cols: this.gridCols,
@@ -1337,6 +1417,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
       chests,
       hearts,
       moles,
+      stoneMonsters,
     };
     console.log("UndergroundDigMap:", JSON.stringify(payload));
   }
@@ -1410,6 +1491,10 @@ export default class UndergroundDigScene extends Phaser.Scene {
       this.placeMoleAt(col, row);
       return;
     }
+    if (this.editorPlacement === "stoneMonster") {
+      this.placeStoneMonsterAt(col, row);
+      return;
+    }
   }
 
   openEditorMenu(pointer) {
@@ -1425,6 +1510,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
       { label: "Key", value: "key" },
       { label: "Heart", value: "heart" },
       { label: "Desert Mole", value: "mole" },
+      { label: "Stone Monster", value: "stoneMonster" },
     ];
     this.destroyEditorMenu();
     const padding = 6;
@@ -1492,6 +1578,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
       });
       return;
     }
+    if (removeFromGroup(this.stoneMonstersGroup)) return;
     if (this.keyItem) {
       const keyPos = this.getKeyGridPos();
       if (keyPos && keyPos.col === col && keyPos.row === row) {
@@ -1827,6 +1914,23 @@ export default class UndergroundDigScene extends Phaser.Scene {
         return;
       }
     }
+    if (this.stoneMonstersGroup?.getChildren) {
+      const monsters = this.stoneMonstersGroup.getChildren();
+      for (let i = 0; i < monsters.length; i += 1) {
+        const monster = monsters[i];
+        if (!monster.active) continue;
+        if (
+          !Phaser.Geom.Intersects.RectangleToRectangle(
+            hitBounds,
+            this.getStoneMonsterHitbox(monster)
+          )
+        ) {
+          continue;
+        }
+        this.damageStoneMonster(monster, 1);
+        return;
+      }
+    }
     if (this.chests?.children?.size) {
       const chestCandidates = this.chests.getChildren();
       for (let i = 0; i < chestCandidates.length; i += 1) {
@@ -2156,6 +2260,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
       monsterDeath: this.sound.add("sfx-monster-death"),
       companionFear: this.sound.add("sfx-companion-fear"),
       explosion: this.sound.add("sfx-explosion"),
+      stoneHit: this.sound.add("sfx-stone-hit"),
     };
   }
 
@@ -2250,6 +2355,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.checkDashMoleHit();
     this.updateCameraScroll();
     this.updateMoles();
+    this.updateStoneMonsters();
     this.updateCompanion();
     this.updateCompanionUI();
     this.shield?.update();
@@ -2265,6 +2371,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.keyPathArenaTriggered = false;
     this.keyPathViewportLocked = false;
     this.keyPathViewportLockX = 0;
+    this.keyPathMiniBoss = null;
     if (this.keyPathArenaFallEvent) {
       this.keyPathArenaFallEvent.remove(false);
       this.keyPathArenaFallEvent = null;
@@ -2277,6 +2384,11 @@ export default class UndergroundDigScene extends Phaser.Scene {
     const lastStoneCol = Math.max(...stoneCols);
     this.keyPathLastStoneCol = lastStoneCol;
     this.keyPathArenaWallCol = Phaser.Math.Clamp(lastStoneCol - 6, 1, (this.gridCols ?? 1) - 2);
+    if (!this.stoneMonstersGroup) {
+      this.stoneMonstersGroup = this.add.group();
+    }
+    const bossCol = Phaser.Math.Clamp((this.gridCols ?? 2) - 4, 1, (this.gridCols ?? 1) - 2);
+    this.placeStoneMonsterAt(bossCol, 2, { isBoss: true });
   }
 
   checkKeyPathArenaTrigger() {
@@ -2292,6 +2404,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.keyPathArenaTriggered = true;
     bumpMusicRate(1.5);
     this.showDanger(2800, true);
+    this.startKeyPathMiniBoss();
     const wallCol = this.keyPathArenaWallCol;
     if (!Number.isFinite(wallCol)) return;
     const topRow = 1;
@@ -2306,6 +2419,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
             this.keyPathArenaFallEvent.remove(false);
             this.keyPathArenaFallEvent = null;
           }
+          this.removeMonstersLeftOfArenaWall();
           this.lockKeyPathViewportToEnd();
           return;
         }
@@ -2316,6 +2430,43 @@ export default class UndergroundDigScene extends Phaser.Scene {
         row += 1;
       },
     });
+  }
+
+  removeMonstersLeftOfArenaWall() {
+    if (!Number.isFinite(this.keyPathArenaWallCol) || !this.tileSize) return;
+    const wallX = (this.keyPathArenaWallCol + 0.5) * this.tileSize;
+    if (this.molesGroup?.getChildren) {
+      const moles = [...this.molesGroup.getChildren()];
+      moles.forEach((mole) => {
+        if (!mole?.active) return;
+        if (mole.x < wallX) {
+          this.destroyMole(mole);
+        }
+      });
+    }
+    if (this.stoneMonstersGroup?.getChildren) {
+      const stoneMonsters = [...this.stoneMonstersGroup.getChildren()];
+      stoneMonsters.forEach((monster) => {
+        if (!monster?.active) return;
+        if (monster.x < wallX) {
+          this.setStoneMonsterRollingSound(monster, false);
+          if (this.keyPathMiniBoss === monster) {
+            this.keyPathMiniBoss = null;
+          }
+          monster.destroy();
+        }
+      });
+    }
+  }
+
+  startKeyPathMiniBoss() {
+    const boss = this.keyPathMiniBoss;
+    if (!boss?.active) return;
+    boss.setData("bossPhase", "leftSweep");
+    boss.setData("stoneState", "rolling");
+    boss.setData("rollDir", -1);
+    boss.setData("rollStartX", boss.x);
+    boss.setTexture("underground-stonemonster-rolledup");
   }
 
   showDanger(duration, wobble) {
@@ -2401,6 +2552,364 @@ export default class UndergroundDigScene extends Phaser.Scene {
       ai.update(now, delta);
       this.updateMoleBarPosition(mole);
     });
+  }
+
+  updateStoneMonsters() {
+    if (!this.stoneMonstersGroup?.getChildren) return;
+    const now = this.time.now;
+    const deltaSec = Math.min(0.05, (this.game?.loop?.delta ?? 16) / 1000);
+    this.stoneMonstersGroup.getChildren().forEach((monster) => {
+      if (!monster?.active) return;
+      const state = monster.getData("stoneState") || "perched";
+      const isBoss = Boolean(monster.getData("isStoneBoss"));
+      if (state === "perched") {
+        this.setStoneMonsterRollingSound(monster, false);
+        if (isBoss && monster.getData("bossPhase") === "idle") {
+          return;
+        }
+        if (this.isPlayerUnderStoneMonster(monster)) {
+          this.startStoneMonsterDrop(monster);
+        }
+        return;
+      }
+      if (state === "wobble") {
+        this.setStoneMonsterRollingSound(monster, false);
+        return;
+      }
+      if (state === "dropping") {
+        this.setStoneMonsterRollingSound(monster, true);
+        this.updateStoneMonsterDrop(monster, deltaSec);
+        return;
+      }
+      if (state === "stunned") {
+        this.setStoneMonsterRollingSound(monster, false);
+        if (now >= (monster.getData("stateUntil") || 0)) {
+          this.resumeStoneMonsterRoll(monster);
+        }
+        return;
+      }
+      if (state === "rolling") {
+        this.setStoneMonsterRollingSound(monster, true);
+        this.updateStoneMonsterRoll(monster, deltaSec);
+      }
+    });
+  }
+
+  isPlayerUnderStoneMonster(monster) {
+    if (!monster?.active || !this.player?.active || !this.tileSize) return false;
+    const horizontalGap = Math.abs(this.player.x - monster.x);
+    if (horizontalGap > this.tileSize * 0.55) return false;
+    return this.player.y > monster.y + this.tileSize * 0.4;
+  }
+
+  startStoneMonsterDrop(monster) {
+    if (!monster?.active) return;
+    if ((monster.getData("stoneState") || "perched") !== "perched") return;
+    monster.setData("stoneState", "wobble");
+    monster.setTexture("underground-stonemonster-standing");
+    const baseX = monster.x;
+    this.tweens.add({
+      targets: monster,
+      x: baseX + 4,
+      duration: 45,
+      yoyo: true,
+      repeat: 5,
+      onComplete: () => {
+        if (!monster.active) return;
+        monster.x = baseX;
+        this.beginStoneMonsterDrop(monster);
+      },
+    });
+  }
+
+  beginStoneMonsterDrop(monster) {
+    if (!monster?.active) return;
+    monster.setData("stoneState", "dropping");
+    monster.setTexture("underground-stonemonster-rolledup");
+    monster.setData("fallHitDone", false);
+    const bounds = this.getStoneMonsterHitbox(monster);
+    const lastRow = Math.floor((bounds.bottom - 1) / this.tileSize);
+    monster.setData("dropLastRow", lastRow);
+  }
+
+  getStoneMonsterHitbox(monster) {
+    const isBoss = Boolean(monster?.getData?.("isStoneBoss"));
+    const width = this.tileSize * (isBoss ? 1.7 : 0.85);
+    const height = this.tileSize * (isBoss ? 2 : 1);
+    return new Phaser.Geom.Rectangle(
+      monster.x - width * 0.5,
+      monster.y - height * 0.5,
+      width,
+      height
+    );
+  }
+
+  setStoneMonsterRollingSound(monster, moving) {
+    if (!monster?.active || !this.sound) return;
+    let rollingSound = monster.getData("rollingSound");
+    if (!moving) {
+      if (rollingSound) {
+        if (rollingSound.isPlaying) {
+          rollingSound.stop();
+        }
+        rollingSound.destroy();
+        monster.setData("rollingSound", null);
+      }
+      return;
+    }
+    if (!rollingSound) {
+      rollingSound = this.sound.add("sfx-stone-rolling", { loop: true, volume: 0.45 });
+      monster.setData("rollingSound", rollingSound);
+    }
+    if (!rollingSound.isPlaying) {
+      rollingSound.play();
+    }
+  }
+
+  stopStoneMonsterRollingSounds() {
+    const group = this.stoneMonstersGroup;
+    const entries = group?.children?.entries;
+    if (!Array.isArray(entries)) return;
+    entries.forEach((monster) => {
+      this.setStoneMonsterRollingSound(monster, false);
+    });
+  }
+
+  updateStoneMonsterDrop(monster, deltaSec) {
+    if (!monster?.active || !this.tileSize) return;
+    const dropSpeed = 520;
+    const centerCol = Phaser.Math.Clamp(
+      Math.floor(monster.x / this.tileSize),
+      0,
+      (this.gridCols ?? 1) - 1
+    );
+    const prevRow =
+      monster.getData("dropLastRow") ??
+      Math.floor((this.getStoneMonsterHitbox(monster).bottom - 1) / this.tileSize);
+    monster.y += dropSpeed * deltaSec;
+    const bounds = this.getStoneMonsterHitbox(monster);
+    const playerRect = this.player?.body
+      ? new Phaser.Geom.Rectangle(
+          this.player.body.x,
+          this.player.body.y,
+          this.player.body.width,
+          this.player.body.height
+        )
+      : null;
+    if (
+      playerRect &&
+      !monster.getData("fallHitDone") &&
+      Phaser.Geom.Intersects.RectangleToRectangle(bounds, playerRect)
+    ) {
+      monster.setData("fallHitDone", true);
+      this.applyStoneMonsterPlayerHit(monster, 4, false);
+    }
+    const rowEnd = Phaser.Math.Clamp(
+      Math.floor((bounds.bottom - 1) / this.tileSize),
+      0,
+      (this.gridRows ?? 1) - 1
+    );
+    for (let row = prevRow + 1; row <= rowEnd; row += 1) {
+      const block = this.blockMap.get(`${centerCol},${row}`);
+      if (!block?.active) continue;
+      const type = block.getData("type");
+      if (type === "black") {
+        const hitboxHalfHeight = this.getStoneMonsterHitbox(monster).height * 0.5;
+        const extraLift = monster.getData("isStoneBoss") ? 10 : 0;
+        monster.y = row * this.tileSize - hitboxHalfHeight - extraLift;
+        this.stunStoneMonster(monster, true);
+        return;
+      }
+      if (type === "earth" || type === "stone") {
+        this.blocks.remove(block, true, true);
+        this.blockMap.delete(`${centerCol},${row}`);
+      }
+    }
+    monster.setData("dropLastRow", rowEnd);
+  }
+
+  updateStoneMonsterRoll(monster, deltaSec) {
+    if (!monster?.active || !this.tileSize) return;
+    const isBoss = Boolean(monster.getData("isStoneBoss"));
+    const bossPhase = monster.getData("bossPhase");
+    const rollSpeed = 230;
+    const dir = monster.getData("rollDir") || 1;
+    monster.x += dir * rollSpeed * deltaSec;
+    const playerRect = this.player?.body
+      ? new Phaser.Geom.Rectangle(
+          this.player.body.x,
+          this.player.body.y,
+          this.player.body.width,
+          this.player.body.height
+        )
+      : null;
+    const bounds = this.getStoneMonsterHitbox(monster);
+    if (
+      isBoss &&
+      bossPhase === "huntDrop" &&
+      this.player &&
+      this.player.x >= bounds.x &&
+      this.player.x <= bounds.right &&
+      this.player.y > monster.y
+    ) {
+      this.beginStoneMonsterDrop(monster);
+      monster.setData("bossPhase", "drop");
+      return;
+    }
+    const rollStartX = monster.getData("rollStartX") ?? monster.x;
+    if (!isBoss && Math.abs(monster.x - rollStartX) >= this.tileSize * 5) {
+      const playerAhead = this.player
+        ? (dir > 0 ? this.player.x >= monster.x : this.player.x <= monster.x)
+        : false;
+      if (!playerAhead) {
+        this.stunStoneMonster(monster, false, false);
+        return;
+      }
+      // Player is still ahead in roll direction: continue rolling with a new segment window.
+      monster.setData("rollStartX", monster.x);
+    }
+    if (playerRect && Phaser.Geom.Intersects.RectangleToRectangle(bounds, playerRect)) {
+      this.applyStoneMonsterPlayerHit(monster);
+      return;
+    }
+    const leadCol =
+      dir > 0
+        ? Math.floor(bounds.right / this.tileSize)
+        : Math.floor((bounds.x - 1) / this.tileSize);
+    if (leadCol < 0 || leadCol >= (this.gridCols ?? 1)) {
+      monster.setData("pendingRollDir", -dir);
+      this.stunStoneMonster(monster, false);
+      return;
+    }
+    const rowStart = Phaser.Math.Clamp(Math.floor(bounds.y / this.tileSize), 0, (this.gridRows ?? 1) - 1);
+    const rowEnd = Phaser.Math.Clamp(
+      Math.floor((bounds.bottom - 1) / this.tileSize),
+      0,
+      (this.gridRows ?? 1) - 1
+    );
+    for (let row = rowStart; row <= rowEnd; row += 1) {
+      const block = this.blockMap.get(`${leadCol},${row}`);
+      if (!block?.active) continue;
+      const type = block.getData("type");
+      if (type === "black") {
+        if (isBoss) {
+          this.shakeCameraBurst();
+          if (bossPhase === "leftSweep") {
+            monster.setData("pendingBossPhase", "rightSweep");
+            monster.setData("pendingRollDir", 1);
+          } else if (bossPhase === "rightSweep") {
+            monster.setData("pendingBossPhase", "huntDrop");
+            monster.setData("pendingRollDir", -1);
+          } else if (bossPhase === "huntDrop") {
+            monster.setData("pendingRollDir", -dir);
+          } else {
+            monster.setData("pendingRollDir", -dir);
+          }
+        }
+        if (!isBoss) {
+          monster.setData("pendingRollDir", -dir);
+        }
+        this.stunStoneMonster(monster, false, false);
+        return;
+      }
+      if (type === "earth") {
+        this.blocks.remove(block, true, true);
+        this.blockMap.delete(`${leadCol},${row}`);
+      }
+    }
+  }
+
+  resumeStoneMonsterRoll(monster) {
+    if (!monster?.active) return;
+    const isBoss = Boolean(monster.getData("isStoneBoss"));
+    if (isBoss && monster.getData("bossPhase") === "drop") {
+      monster.setData("bossPhase", "huntDrop");
+    }
+    const pendingBossPhase = monster.getData("pendingBossPhase");
+    if (pendingBossPhase) {
+      monster.setData("bossPhase", pendingBossPhase);
+      monster.setData("pendingBossPhase", null);
+    }
+    const pendingRollDir = monster.getData("pendingRollDir");
+    const dir = Number.isFinite(pendingRollDir)
+      ? pendingRollDir
+      : this.player && this.player.x < monster.x
+        ? -1
+        : 1;
+    monster.setTexture("underground-stonemonster-rolledup");
+    monster.setData("rollDir", dir);
+    monster.setData("rollStartX", monster.x);
+    monster.setData("pendingRollDir", null);
+    monster.setData("stoneState", "rolling");
+  }
+
+  playStoneMonsterHitSound() {
+    if (this.sfx?.stoneHit) {
+      this.sfx.stoneHit.play();
+    }
+  }
+
+  stunStoneMonster(monster, shake = false, playHitSound = true) {
+    if (!monster?.active) return;
+    this.setStoneMonsterRollingSound(monster, false);
+    if (playHitSound) {
+      this.playStoneMonsterHitSound();
+    }
+    if (shake) {
+      this.shakeCameraBurst();
+    }
+    monster.setTexture("underground-stonemonster-stunned");
+    monster.setData("stoneState", "stunned");
+    monster.setData("stateUntil", this.time.now + 1000);
+    monster.setData("dropLastRow", null);
+    monster.setData("fallHitDone", false);
+  }
+
+  applyStoneMonsterPlayerHit(monster, damage = 2, shouldStun = true) {
+    if (!monster?.active || !this.player?.active || this.isGameOver) return;
+    this.playStoneMonsterHitSound();
+    this.health = Math.max(0, this.health - damage);
+    if (this.hud) {
+      this.hud.setHealth(this.health, this.maxHealth);
+    }
+    this.saveInventory();
+    if (shouldStun) {
+      this.stunStoneMonster(monster, false, false);
+    }
+    if (this.health <= 0) {
+      this.triggerGameOver();
+    }
+  }
+
+  damageStoneMonster(monster, amount) {
+    if (!monster?.active) return;
+    const currentHp = monster.getData("hp") ?? 0;
+    const nextHp = Math.max(0, currentHp - amount);
+    monster.setData("hp", nextHp);
+    if (nextHp <= 0) {
+      this.setStoneMonsterRollingSound(monster, false);
+      if (this.keyPathMiniBoss === monster) {
+        this.keyPathMiniBoss = null;
+      }
+      monster.destroy();
+      if (this.sfx?.monsterDeath) {
+        this.sfx.monsterDeath.play();
+      }
+      return;
+    }
+    if (this.sfx?.monsterInjured) {
+      this.sfx.monsterInjured.play();
+    }
+  }
+
+  shakeCamera() {
+    if (!this.cameras?.main) return;
+    this.cameras.main.shake(200, 0.008);
+  }
+
+  shakeCameraBurst() {
+    this.shakeCamera();
+    this.time.delayedCall(140, () => this.shakeCamera());
   }
 
   updateDashState(now) {
@@ -2517,6 +3026,25 @@ export default class UndergroundDigScene extends Phaser.Scene {
       this.tryDashBreakBlock();
       this.applyDashBounce();
       return;
+    }
+    if (this.stoneMonstersGroup?.getChildren) {
+      const monsters = this.stoneMonstersGroup.getChildren();
+      for (let i = 0; i < monsters.length; i += 1) {
+        const monster = monsters[i];
+        if (!monster.active) continue;
+        if (
+          !Phaser.Geom.Intersects.RectangleToRectangle(
+            hitBounds,
+            this.getStoneMonsterHitbox(monster)
+          )
+        ) {
+          continue;
+        }
+        this.damageStoneMonster(monster, 2);
+        this.tryDashBreakBlock();
+        this.applyDashBounce();
+        return;
+      }
     }
   }
 

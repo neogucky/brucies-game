@@ -25,7 +25,15 @@ export default class ShieldManager {
 
   attach(player) {
     this.player = player;
-    if (!this.bubble) {
+    const bubbleInvalid =
+      !this.bubble ||
+      !this.bubble.scene ||
+      !this.bubble.active ||
+      !this.bubble.geom;
+    if (bubbleInvalid) {
+      if (this.bubble?.destroy) {
+        this.bubble.destroy();
+      }
       this.bubble = this.scene.add.circle(player.x, player.y, this.standingRadius, 0x8fd3ff, 0.35);
       this.bubble.setDepth(4);
     }
@@ -73,7 +81,16 @@ export default class ShieldManager {
   }
 
   updateBubbleTransform() {
-    if (!this.bubble || !this.player) return;
+    if (!this.player) return;
+    const bubbleInvalid =
+      !this.bubble ||
+      !this.bubble.scene ||
+      !this.bubble.active ||
+      !this.bubble.geom;
+    if (bubbleInvalid) {
+      this.attach(this.player);
+      return;
+    }
     const ducking = Boolean(this.isDucking?.());
     const radius = ducking ? this.duckRadius : this.standingRadius;
     const offsetY = ducking ? this.duckOffsetY : this.standingOffsetY;
