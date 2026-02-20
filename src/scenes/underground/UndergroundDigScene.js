@@ -4,6 +4,7 @@ import TopHud from "../../ui/topHud.js";
 import InventoryOverlay from "../../ui/InventoryOverlay.js";
 import CoordinateDebugger from "../../utils/coordinateDebugger.js";
 import DesertMoleAI from "../../utils/DesertMoleAI.js";
+import ShieldManager from "../../utils/ShieldManager.js";
 import { applyInventoryToSave, normalizeInventory } from "../../utils/inventory.js";
 import { applyItemModeSupport, GAME_MODES } from "../../utils/itemRegistry.js";
 
@@ -65,9 +66,16 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.levelMap = null;
     this.keyCollected = false;
     this.levelCompleted = false;
+    this.isGameOver = false;
     this.chests = null;
     this.coinsPerChest = 500;
     this.companion = null;
+    this.shield = null;
+    this.helperHideDuration = 10000;
+    this.helperInvulnDuration = 1000;
+    this.companionHealth = 1;
+    this.companionRespawnAt = 0;
+    this.companionRespawnTimer = null;
     this.companionMode = "hop";
     this.companionLastHop = 0;
     this.companionLastProgressAt = 0;
@@ -160,6 +168,13 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.inventoryOpen = false;
     this.keyCollected = false;
     this.levelCompleted = false;
+    this.isGameOver = false;
+    this.companionHealth = 1;
+    this.companionRespawnAt = 0;
+    if (this.companionRespawnTimer) {
+      this.companionRespawnTimer.remove(false);
+      this.companionRespawnTimer = null;
+    }
     this.facingX = 1;
     this.startCol = null;
     this.startRow = null;
@@ -241,6 +256,10 @@ export default class UndergroundDigScene extends Phaser.Scene {
 
   handleShutdown() {
     this.isPaused = true;
+    if (this.companionRespawnTimer) {
+      this.companionRespawnTimer.remove(false);
+      this.companionRespawnTimer = null;
+    }
     if (this.handleTabKey) {
       this.input.keyboard.off("keydown", this.handleTabKey);
     }
@@ -492,16 +511,6 @@ export default class UndergroundDigScene extends Phaser.Scene {
     if (!this.molesGroup) {
       this.molesGroup = this.physics.add.group();
       this.physics.add.collider(this.molesGroup, this.blocks);
-      this.physics.add.overlap(
-        this.player,
-        this.molesGroup,
-        (_, mole) => {
-          if (!mole?.active || !mole.getData("moleActive")) return;
-          this.applyMoleAttack(mole);
-        },
-        null,
-        this
-      );
     }
   }
 
@@ -529,6 +538,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
       this.companion.body.reset(this.companion.x, this.companion.y);
     }
     this.companion.body.setVelocity(0, 0);
+    this.companion.setData("invulnerableUntil", 0);
     if (this.companionDebugGraphics) {
       this.companionDebugGraphics.destroy();
       this.companionDebugGraphics = null;
@@ -545,6 +555,16 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.companionLastDistance = null;
     this.companionFarSince = 0;
     this.companionFlyBase = null;
+    if (!this.shield) {
+      this.shield = new ShieldManager(this, {
+        standingRadius: 37,
+        duckRadius: 24,
+        standingOffsetY: -38,
+        duckOffsetY: -19,
+        isDucking: () => this.isDucking,
+      });
+    }
+    this.shield.attach(this.player);
   }
 
   toggleHitboxEditor() {
@@ -785,6 +805,21 @@ export default class UndergroundDigScene extends Phaser.Scene {
     heart.setData("row", row);
   }
 
+  spawnHeartPickupAt(col, row) {
+    if (!this.heartsGroup) return;
+    if (this.hasItemAt(this.heartsGroup, col, row)) return;
+    const heart = this.heartsGroup.create(
+      (col + 0.5) * this.tileSize,
+      row * this.tileSize + 2,
+      "ui-heart"
+    );
+    heart.setOrigin(0.5, 1);
+    heart.setScale(0.45);
+    heart.setDepth(2);
+    heart.setData("col", col);
+    heart.setData("row", row);
+  }
+
   placeMapChests(list) {
     this.placeMapChestsWithMode(list, true);
   }
@@ -872,10 +907,19 @@ export default class UndergroundDigScene extends Phaser.Scene {
       onDig: (digCol, digRow) => this.removeEarthAt(digCol, digRow),
       digSoundKey: "sfx-monster-dig",
       attackTexture: "desert-mole-attacking",
+      chargeTexture: "desert-mole-charging",
       runTexture: "desert-mole-running",
+      mirrorX: true,
+      chaseSpeedMultiplier: 1.2,
+      chaseStopDistance: 20,
+      attackRange: 45,
+      chargeMs: 200,
+      attackCooldownMs: 800,
       canSeePlayer: () => this.moleCanSeePlayer(mole),
       getPlayerPos: () => ({ x: this.player.x, y: this.player.y }),
       onAttack: () => this.applyMoleAttack(mole),
+      onCharge: () => this.sfx?.charging?.play(),
+      onStrike: () => this.sfx?.monsterAttack?.play(),
     });
     this.moleAIs.set(mole, ai);
   }
@@ -1482,20 +1526,38 @@ export default class UndergroundDigScene extends Phaser.Scene {
     if (!block || block.getData("type") !== "coin") return false;
     const hitsLeft = Math.max(1, block.getData("coinHits") ?? 3) - 1;
     block.setData("coinHits", hitsLeft);
-    this.addCoins(10);
-    if (this.sfx?.coin) {
-      this.sfx.coin.play();
+    const rewardX = block.x + this.tileSize / 2;
+    const rewardY = block.y;
+    if (hitsLeft > 0) {
+      this.addCoins(10);
+      if (this.sfx?.coin) {
+        this.sfx.coin.play();
+      }
+      const coinFx = this.add.image(rewardX, rewardY, "ui-coin");
+      coinFx.setScale(0.42);
+      coinFx.setDepth(5);
+      this.tweens.add({
+        targets: coinFx,
+        y: coinFx.y - 16,
+        alpha: 0,
+        duration: 200,
+        onComplete: () => coinFx.destroy(),
+      });
+    } else {
+      const heartFx = this.add.image(rewardX, rewardY, "ui-heart");
+      heartFx.setScale(0.48);
+      heartFx.setDepth(5);
+      this.tweens.add({
+        targets: heartFx,
+        y: heartFx.y - 22,
+        alpha: 0,
+        duration: 260,
+        onComplete: () => {
+          heartFx.destroy();
+          this.spawnHeartPickupAt(block.getData("col"), block.getData("row"));
+        },
+      });
     }
-    const coinFx = this.add.image(block.x + this.tileSize / 2, block.y, "ui-coin");
-    coinFx.setScale(0.42);
-    coinFx.setDepth(5);
-    this.tweens.add({
-      targets: coinFx,
-      y: coinFx.y - 16,
-      alpha: 0,
-      duration: 200,
-      onComplete: () => coinFx.destroy(),
-    });
     if (hitsLeft <= 0) {
       block.setData("type", "stone");
       block.setTexture("underground-coin-used");
@@ -1552,21 +1614,49 @@ export default class UndergroundDigScene extends Phaser.Scene {
     mole.setData("hp", nextHp);
     this.updateMoleBar(mole);
     if (nextHp <= 0) {
+      if (this.sfx?.monsterDeath) {
+        this.sfx.monsterDeath.play();
+      }
       this.destroyMole(mole);
+      return;
+    }
+    if (this.sfx?.monsterInjured) {
+      this.sfx.monsterInjured.play();
     }
   }
 
   moleCanSeePlayer(mole) {
     if (!mole?.active || !this.player) return false;
-    const moleRow = Math.floor((mole.y - 1) / this.tileSize);
-    const playerRow = Math.floor((this.player.y - 1) / this.tileSize);
-    if (moleRow !== playerRow) return false;
-    const moleCol = Math.floor(mole.x / this.tileSize);
-    const playerCol = Math.floor(this.player.x / this.tileSize);
-    const start = Math.min(moleCol, playerCol) + 1;
-    const end = Math.max(moleCol, playerCol) - 1;
-    for (let col = start; col <= end; col += 1) {
-      if (this.blockMap.has(`${col},${moleRow}`)) {
+    const dx = this.player.x - mole.x;
+    const dy = this.player.y - mole.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance > this.tileSize * 10) return false;
+    if (dy < -this.tileSize * 2) return false;
+    const facingDir = mole.getData("facingDir") || 1;
+    if (Math.abs(dx) > 2 && Math.sign(dx) !== facingDir) return false;
+    const startY = mole.y - this.tileSize * 0.5;
+    const endY = this.player.y - this.tileSize * 0.5;
+    return this.hasLineOfSight(mole.x, startY, this.player.x, endY);
+  }
+
+  hasLineOfSight(fromX, fromY, toX, toY) {
+    const distance = Phaser.Math.Distance.Between(fromX, fromY, toX, toY);
+    if (distance <= 1) return true;
+    const steps = Math.max(2, Math.ceil(distance / (this.tileSize * 0.35)));
+    const startCol = Math.floor(fromX / this.tileSize);
+    const startRow = Math.floor(fromY / this.tileSize);
+    const endCol = Math.floor(toX / this.tileSize);
+    const endRow = Math.floor(toY / this.tileSize);
+    for (let i = 1; i < steps; i += 1) {
+      const t = i / steps;
+      const x = Phaser.Math.Linear(fromX, toX, t);
+      const y = Phaser.Math.Linear(fromY, toY, t);
+      const col = Math.floor(x / this.tileSize);
+      const row = Math.floor(y / this.tileSize);
+      if ((col === startCol && row === startRow) || (col === endCol && row === endRow)) {
+        continue;
+      }
+      if (this.blockMap.has(`${col},${row}`)) {
         return false;
       }
     }
@@ -1574,16 +1664,106 @@ export default class UndergroundDigScene extends Phaser.Scene {
   }
 
   applyMoleAttack(mole) {
+    if (!mole?.active || !this.player?.active) return;
     const now = this.time.now;
     const nextAttackAt = mole.getData("nextAttackAt") || 0;
     if (now < nextAttackAt) return;
+    const target = this.getMoleAttackTarget(mole, 45);
+    if (!target) return;
     mole.setData("nextAttackAt", now + 800);
-    if (this.health <= 0) return;
+    if (target === "companion") {
+      this.damageCompanion();
+      return;
+    }
+    if (this.shield?.tryBlockHit()) {
+      return;
+    }
+    if (this.health <= 0 || this.isGameOver) return;
     this.health = Math.max(0, this.health - 1);
     if (this.hud) {
       this.hud.setHealth(this.health, this.maxHealth);
     }
     this.saveInventory();
+    if (this.health <= 0) {
+      this.triggerGameOver();
+    }
+  }
+
+  getMoleAttackTarget(mole, rangePx) {
+    const playerDistance = Phaser.Math.Distance.Between(mole.x, mole.y, this.player.x, this.player.y);
+    const inPlayerRange = playerDistance <= rangePx;
+    const companionAvailable =
+      this.companionEnabled &&
+      this.companionHealth > 0 &&
+      this.companionRespawnAt === 0 &&
+      this.companion?.visible &&
+      this.companion?.body?.enable;
+    const companionDistance = companionAvailable
+      ? Phaser.Math.Distance.Between(mole.x, mole.y, this.companion.x, this.companion.y)
+      : Infinity;
+    const inCompanionRange = companionDistance <= rangePx;
+    if (!inPlayerRange && !inCompanionRange) return null;
+    if (inCompanionRange && companionDistance <= playerDistance) return "companion";
+    return "player";
+  }
+
+  damageCompanion() {
+    if (!this.companionEnabled || !this.companion?.visible || !this.companion?.body?.enable) return;
+    if (this.companionHealth <= 0 || this.companionRespawnAt > 0) return;
+    const now = this.time.now;
+    if (now < (this.companion.getData("invulnerableUntil") || 0)) return;
+    this.companionHealth = Math.max(0, this.companionHealth - 1);
+    this.companion.setData("invulnerableUntil", now + this.helperInvulnDuration);
+    this.updateCompanionUI();
+    if (this.companionHealth <= 0) {
+      if (this.sfx?.companionFear) {
+        this.sfx.companionFear.play();
+      }
+      this.hideCompanionTemporarily();
+    }
+  }
+
+  hideCompanionTemporarily() {
+    if (!this.companion?.body) return;
+    if (this.sfx?.levitating?.isPlaying) {
+      this.sfx.levitating.stop();
+    }
+    this.companionMode = "hop";
+    this.companionFlyBase = null;
+    this.companion.setVisible(false);
+    this.companion.body.setEnable(false);
+    this.companionRespawnAt = this.time.now + this.helperHideDuration;
+    this.updateCompanionUI();
+    if (this.companionRespawnTimer) {
+      this.companionRespawnTimer.remove(false);
+      this.companionRespawnTimer = null;
+    }
+    this.companionRespawnTimer = this.time.delayedCall(this.helperHideDuration, () => {
+      this.companionRespawnTimer = null;
+      if (this.isGameOver || !this.companion?.body) return;
+      if (!this.companionEnabled) {
+        this.companionHealth = 1;
+        this.companionRespawnAt = 0;
+        this.updateCompanionUI();
+        return;
+      }
+      const targetTile = this.getCompanionTargetTile() || {
+        col: Math.floor(this.player.x / this.tileSize),
+        row: Math.floor((this.player.y - 1) / this.tileSize),
+      };
+      this.companionHealth = 1;
+      this.companionRespawnAt = 0;
+      this.companion.setVisible(true);
+      this.companion.body.setEnable(true);
+      this.companion.setPosition(
+        (targetTile.col + 0.5) * this.tileSize,
+        (targetTile.row + 1) * this.tileSize
+      );
+      this.companion.body.reset(this.companion.x, this.companion.y);
+      this.companion.setData("invulnerableUntil", this.time.now + this.helperInvulnDuration);
+      this.updateCompanionShield(false);
+      this.updateCompanionUI();
+    });
   }
 
   placeKeyAt(col, row) {
@@ -1848,6 +2028,11 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.keyCollected = Boolean(normalizedSave.undergroundKeyCollected || this.keyCollected);
     this.hasShoes = this.equipped.passive === "shoes";
     this.companionEnabled = this.equipped.companion !== null;
+    if (!this.shield) {
+      this.shield = new ShieldManager(this);
+    }
+    this.shield.setHud(null);
+    this.shield.initFromSave(normalizedSave);
     this.hud = new TopHud(this, {
       coins: this.coinsCollected,
       health: this.health,
@@ -1860,17 +2045,19 @@ export default class UndergroundDigScene extends Phaser.Scene {
       consumableEquipped: this.equipped.consumable === "honey",
       activeDisabled: false,
       showCompanion: true,
-      companionHealth: 1,
+      companionHealth: this.companionHealth,
       companionRespawnRatio: 0,
       keyCollected: this.keyCollected,
     });
     this.hud.setDepth(200);
+    this.shield.setHud(this.hud);
     this.hud.setActiveEquipped(this.equipped.weapon === "sword");
     this.hud.setPassiveEquipped(this.equipped.passive);
     this.hud.setConsumableEquipped(this.equipped?.consumable === "honey");
     applyItemModeSupport(this.hud, this.equipped, this.gameMode);
     this.hud.setItemDisabled("active", this.equipped?.weapon !== "sword");
     this.applyCompanionEnabled();
+    this.updateCompanionUI();
 
     this.hintText = this.add
       .text(14, 585, "Pfeile/A/D = Bewegen, W/Oben = Springen, Leertaste = Graben, Esc = Menu", {
@@ -1931,6 +2118,12 @@ export default class UndergroundDigScene extends Phaser.Scene {
       chestHit: this.sound.add("sfx-chest-hit"),
       coin: this.sound.add("sfx-coin"),
       keyOpen: this.sound.add("sfx-key-open"),
+      gameOver: this.sound.add("sfx-gameover"),
+      monsterAttack: this.sound.add("sfx-monster-attack"),
+      charging: this.sound.add("sfx-charging"),
+      monsterInjured: this.sound.add("sfx-monster-injured"),
+      monsterDeath: this.sound.add("sfx-monster-death"),
+      companionFear: this.sound.add("sfx-companion-fear"),
     };
   }
 
@@ -2026,6 +2219,8 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.updateCameraScroll();
     this.updateMoles();
     this.updateCompanion();
+    this.updateCompanionUI();
+    this.shield?.update();
     this.checkKeyPickup();
     this.checkGateUnlock();
   }
@@ -2219,6 +2414,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
 
   updateCompanion() {
     if (!this.companionEnabled) return;
+    if (this.companionHealth <= 0 || this.companionRespawnAt > 0) return;
     if (!this.companion?.body || !this.tileSize) return;
     const targetTile = this.getCompanionTargetTile();
     if (!targetTile) return;
@@ -2246,12 +2442,26 @@ export default class UndergroundDigScene extends Phaser.Scene {
 
   applyCompanionEnabled() {
     if (!this.companion?.body) return;
-    const enabled = this.companionEnabled !== false;
+    const enabled =
+      this.companionEnabled !== false &&
+      this.companionHealth > 0 &&
+      this.companionRespawnAt === 0;
     this.companion.setVisible(enabled);
     this.companion.body.setEnable(enabled);
     if (!enabled && this.sfx?.levitating?.isPlaying) {
       this.sfx.levitating.stop();
     }
+  }
+
+  updateCompanionUI() {
+    if (!this.hud) return;
+    const respawnRatio = this.companionRespawnAt
+      ? 1 - Math.min(1, (this.companionRespawnAt - this.time.now) / this.helperHideDuration)
+      : 0;
+    this.hud.setCompanionStatus({
+      health: this.companionHealth,
+      respawnRatio,
+    });
   }
 
   startCompanionClimb() {
@@ -2511,6 +2721,40 @@ export default class UndergroundDigScene extends Phaser.Scene {
     });
   }
 
+  triggerGameOver() {
+    if (this.isGameOver) return;
+    this.isGameOver = true;
+    this.isPaused = true;
+    this.player.body.setVelocity(0, 0);
+    if (this.companion?.body) {
+      this.companion.body.setVelocity(0, 0);
+    }
+    this.time.paused = true;
+    this.physics.world.pause();
+    this.promptBox.setVisible(true);
+    this.promptText.setText("Du bist gestorben!");
+    this.promptHint.setText("Enter fuer Neustart\nEsc zur Karte");
+    if (this.sfx?.gameOver) {
+      this.sfx.gameOver.play();
+    }
+
+    this.input.keyboard.once("keydown-ENTER", () => {
+      const saveData = this.registry.get("saveData") || {};
+      const nextSave = {
+        ...saveData,
+        health: this.maxHealth,
+      };
+      this.registry.set("saveData", nextSave);
+      saveProgress(nextSave);
+      this.time.paused = false;
+      this.scene.restart();
+    });
+    this.input.keyboard.once("keydown-ESC", () => {
+      this.time.paused = false;
+      this.scene.start("UndergroundMapScene");
+    });
+  }
+
   canStandUp() {
     if (!this.tileSize || !this.blockMap || !this.player?.body) return true;
     const standRect = this.getStandHitboxRect();
@@ -2569,11 +2813,13 @@ export default class UndergroundDigScene extends Phaser.Scene {
       count: this.consumables?.honey ?? 0,
       health: this.health,
       maxHealth: this.maxHealth,
-      companionHealth: 1,
-      companionRespawnAt: 0,
+      companionHealth: this.companionHealth,
+      companionRespawnAt: this.companionRespawnAt,
     });
     if (!result.consumed) return;
     this.health = result.health;
+    this.companionHealth = result.companionHealth;
+    this.companionRespawnAt = result.companionRespawnAt;
     this.consumables.honey = result.count;
     if (this.inventory?.consumables) {
       this.inventory.consumables.honey = result.count;
@@ -2582,6 +2828,32 @@ export default class UndergroundDigScene extends Phaser.Scene {
       this.equipped.consumable = null;
     }
     this.hud.setConsumableEquipped(this.equipped?.consumable === "honey");
+    if (
+      this.companionEnabled &&
+      this.companionHealth > 0 &&
+      this.companionRespawnAt === 0 &&
+      this.companion &&
+      !this.companion.visible
+    ) {
+      if (this.companionRespawnTimer) {
+        this.companionRespawnTimer.remove(false);
+        this.companionRespawnTimer = null;
+      }
+      const targetTile = this.getCompanionTargetTile() || {
+        col: Math.floor(this.player.x / this.tileSize),
+        row: Math.floor((this.player.y - 1) / this.tileSize),
+      };
+      this.companion.setVisible(true);
+      this.companion.body.setEnable(true);
+      this.companion.setPosition(
+        (targetTile.col + 0.5) * this.tileSize,
+        (targetTile.row + 1) * this.tileSize
+      );
+      this.companion.body.reset(this.companion.x, this.companion.y);
+      this.companion.setData("invulnerableUntil", this.time.now + this.helperInvulnDuration);
+    }
+    this.applyCompanionEnabled();
+    this.updateCompanionUI();
     this.saveInventory();
   }
 
@@ -2624,6 +2896,9 @@ export default class UndergroundDigScene extends Phaser.Scene {
       this.hud.setPassiveOwned(itemId === "shield");
       this.hud.setShoesOwned(itemId === "shoes");
       this.hud.setPassiveEquipped(itemId);
+      this.shield?.initFromSave(
+        applyInventoryToSave(this.registry.get("saveData") || {}, this.inventory, this.equipped)
+      );
     } else if (slot === "consumable") {
       this.equipped.consumable = itemId;
       this.hud.setConsumableEquipped(itemId === "honey");
@@ -2631,6 +2906,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
       this.equipped.companion = itemId;
       this.companionEnabled = itemId !== null;
       this.applyCompanionEnabled();
+      this.updateCompanionUI();
     }
     applyItemModeSupport(this.hud, this.equipped, this.gameMode);
     this.saveInventory();

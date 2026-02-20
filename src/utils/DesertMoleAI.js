@@ -7,9 +7,13 @@ export default class DesertMoleAI {
     this.onDig = options.onDig;
     this.digSoundKey = options.digSoundKey || null;
     this.attackTexture = options.attackTexture || "desert-mole-attacking";
+    this.chargeTexture = options.chargeTexture || this.attackTexture;
     this.runTexture = options.runTexture || "desert-mole-running";
+    this.mirrorX = options.mirrorX ?? false;
     this.speed = options.speed ?? 80;
+    this.chaseSpeedMultiplier = options.chaseSpeedMultiplier ?? 1;
     this.fallSpeed = options.fallSpeed ?? 170;
+    this.chargeMs = options.chargeMs ?? 0;
     this.attackHoldMs = options.attackHoldMs ?? 180;
     this.pauseMs = options.pauseMs ?? 500;
     this.lookIntervalMs = options.lookIntervalMs ?? 250;
@@ -17,7 +21,10 @@ export default class DesertMoleAI {
     this.getPlayerPos = options.getPlayerPos || null;
     this.onAttack = options.onAttack || null;
     this.attackRange = options.attackRange ?? this.tileSize * 0.6;
+    this.chaseStopDistance = options.chaseStopDistance ?? this.attackRange;
     this.attackCooldownMs = options.attackCooldownMs ?? 800;
+    this.onCharge = options.onCharge || null;
+    this.onStrike = options.onStrike || null;
     this.lastAttackAt = 0;
     this.nextActionAt = scene.time.now;
     this.action = null;
@@ -29,6 +36,8 @@ export default class DesertMoleAI {
     this.roamDir = Phaser.Math.RND.pick([-1, 1]);
     this.attackPauseUntil = 0;
     this.attackAnimUntil = 0;
+    this.chargeUntil = 0;
+    this.pendingAttack = false;
     this.wasFalling = false;
     this.lastPos = new Phaser.Math.Vector2(mole.x, mole.y);
     this.stuckSince = null;
@@ -38,6 +47,7 @@ export default class DesertMoleAI {
   update(now, deltaMs) {
     if (!this.mole?.active) return;
     this.updateAttackAnimation(now);
+    this.updateCharge(now);
 
     if (this.handleFalling(now, deltaMs)) {
       this.logStatus();
@@ -45,6 +55,12 @@ export default class DesertMoleAI {
     }
 
     if (this.attackPauseUntil && now < this.attackPauseUntil) {
+      this.mole.body?.setVelocity(0, 0);
+      this.logStatus();
+      return;
+    }
+
+    if (this.pendingAttack) {
       this.mole.body?.setVelocity(0, 0);
       this.logStatus();
       return;
@@ -115,7 +131,7 @@ export default class DesertMoleAI {
   handlePause(now) {
     this.mole.body?.setVelocity(0, 0);
     if (now >= this.nextLookAt && this.lookCount < 2) {
-      this.mole.setFlipX(this.lookCount % 2 === 0);
+      this.setFacingLeft(this.lookCount % 2 === 0);
       this.lookCount += 1;
       this.nextLookAt = now + this.lookIntervalMs;
     }
@@ -132,8 +148,13 @@ export default class DesertMoleAI {
     const player = this.getPlayerPos();
     const dx = player.x - this.mole.x;
     const dy = player.y - this.mole.y;
-    if (Math.abs(dy) < this.tileSize * 0.4 && Math.abs(dx) <= this.attackRange) {
+    const distance = Math.hypot(dx, dy);
+    if (distance <= this.attackRange) {
       this.tryAttack(now);
+      return;
+    }
+    if (distance <= this.chaseStopDistance) {
+      this.mole.body?.setVelocity(0, 0);
       return;
     }
     const dir = dx === 0 ? 0 : Math.sign(dx);
@@ -142,12 +163,12 @@ export default class DesertMoleAI {
       return;
     }
     this.setRunTexture();
-    this.mole.setFlipX(dir < 0);
+    this.setFacingLeft(dir < 0);
     if (this.handleHorizontalObstacle(dir, false)) {
       this.mole.body?.setVelocity(0, 0);
       return;
     }
-    this.mole.body?.setVelocity(dir * this.speed, 0);
+    this.mole.body?.setVelocity(dir * this.speed * this.chaseSpeedMultiplier, 0);
   }
 
   pickNextAction(now) {
@@ -230,7 +251,7 @@ export default class DesertMoleAI {
     }
     this.setRunTexture();
     if (dx !== 0) {
-      this.mole.setFlipX(dx < 0);
+      this.setFacingLeft(dx < 0);
     }
     let vx = 0;
     let vy = 0;
@@ -283,7 +304,7 @@ export default class DesertMoleAI {
       return;
     }
     this.setRunTexture();
-    this.mole.setFlipX(this.roamDir < 0);
+    this.setFacingLeft(this.roamDir < 0);
 
     const blocked = this.handleHorizontalObstacle(this.roamDir, true);
     if (blocked === "turn") {
@@ -318,17 +339,32 @@ export default class DesertMoleAI {
       return;
     }
     this.lastAttackAt = now;
+    this.mole.body?.setVelocity(0, 0);
+    if (this.chargeMs > 0) {
+      this.pendingAttack = true;
+      this.chargeUntil = now + this.chargeMs;
+      this.playChargeAnimation();
+      this.onCharge?.();
+      return;
+    }
+    this.executeAttack(now);
+  }
+
+  executeAttack(now) {
     this.playAttackAnimation();
     this.onAttack?.();
+    this.onStrike?.();
     this.attackPauseUntil = now + this.attackHoldMs;
+  }
+
+  playChargeAnimation() {
+    this.mole.setTexture(this.chargeTexture);
+    this.attackAnimUntil = this.chargeUntil;
   }
 
   playAttackAnimation() {
     this.mole.setTexture(this.attackTexture);
     this.attackAnimUntil = this.scene.time.now + this.attackHoldMs;
-    if (this.digSoundKey) {
-      this.scene.sound?.play?.(this.digSoundKey);
-    }
   }
 
   playDigAnimation() {
@@ -348,10 +384,24 @@ export default class DesertMoleAI {
     }
   }
 
+  updateCharge(now) {
+    if (!this.pendingAttack) return;
+    if (now < this.chargeUntil) return;
+    this.pendingAttack = false;
+    this.chargeUntil = 0;
+    this.executeAttack(now);
+  }
+
   setRunTexture() {
     if (this.mole.texture?.key !== this.runTexture) {
       this.mole.setTexture(this.runTexture);
     }
+  }
+
+  setFacingLeft(isLeft) {
+    const flipX = this.mirrorX ? !isLeft : isLeft;
+    this.mole.setFlipX(flipX);
+    this.mole.setData("facingDir", isLeft ? -1 : 1);
   }
 
   tileToTarget(col, row) {

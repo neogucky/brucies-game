@@ -2,6 +2,11 @@ export default class ShieldManager {
   constructor(scene, options = {}) {
     this.scene = scene;
     this.cooldownMs = options.cooldownMs ?? 20000;
+    this.standingRadius = options.standingRadius ?? 37;
+    this.duckRadius = options.duckRadius ?? this.standingRadius;
+    this.standingOffsetY = options.standingOffsetY ?? 0;
+    this.duckOffsetY = options.duckOffsetY ?? this.standingOffsetY;
+    this.isDucking = options.isDucking || (() => false);
     this.owned = false;
     this.active = false;
     this.cooldownUntil = 0;
@@ -21,9 +26,10 @@ export default class ShieldManager {
   attach(player) {
     this.player = player;
     if (!this.bubble) {
-      this.bubble = this.scene.add.circle(player.x, player.y, 37, 0x8fd3ff, 0.35);
+      this.bubble = this.scene.add.circle(player.x, player.y, this.standingRadius, 0x8fd3ff, 0.35);
       this.bubble.setDepth(4);
     }
+    this.updateBubbleTransform();
     this.bubble.setVisible(this.active);
   }
 
@@ -63,10 +69,19 @@ export default class ShieldManager {
       }
       this.syncHud();
     }
-    if (this.bubble) {
-      this.bubble.setPosition(this.player.x, this.player.y);
-      this.bubble.setVisible(this.active);
+    this.updateBubbleTransform();
+  }
+
+  updateBubbleTransform() {
+    if (!this.bubble || !this.player) return;
+    const ducking = Boolean(this.isDucking?.());
+    const radius = ducking ? this.duckRadius : this.standingRadius;
+    const offsetY = ducking ? this.duckOffsetY : this.standingOffsetY;
+    if (typeof this.bubble.setRadius === "function") {
+      this.bubble.setRadius(radius);
     }
+    this.bubble.setPosition(this.player.x, this.player.y + offsetY);
+    this.bubble.setVisible(this.active);
   }
 
   syncHud() {
