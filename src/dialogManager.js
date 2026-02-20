@@ -14,6 +14,7 @@ export default class DialogManager {
     this.index = 0;
     this.onClose = options.onClose || null;
     this.portraitKey = options.portraitKey || null;
+    this.portraitZoom = Number.isFinite(options.portraitZoom) ? options.portraitZoom : 1;
     this.optionsIndex = 0;
     if (!this.container || !this.container.scene || this.container.destroyed) {
       this.container = null;
@@ -148,7 +149,7 @@ export default class DialogManager {
     const source = this.portraitImage.texture.getSourceImage();
     if (!source?.width || !source?.height) return;
     const target = 120;
-    const scale = Math.min(target / source.width, target / source.height);
+    const scale = Math.min(target / source.width, target / source.height) * this.portraitZoom;
     this.portraitImage.setScale(scale);
   }
 

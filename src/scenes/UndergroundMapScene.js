@@ -365,7 +365,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);
     if (this.currentNode.id === "UnderShop") {
-      this.scene.start("TavernScene", { from: "underground" });
+      this.scene.start("UndergroundShopScene");
     } else if (this.currentNode.id === "UnderDig") {
       this.scene.start("UndergroundDigScene", {
         mapKey: "underground-dig-map",

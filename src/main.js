@@ -8,6 +8,7 @@ import DessertMapScene from "./scenes/DessertMapScene.js";
 import UndergroundMapScene from "./scenes/UndergroundMapScene.js";
 import TavernScene from "./scenes/desert/TavernScene.js";
 import UndergroundDigScene from "./scenes/underground/UndergroundDigScene.js";
+import UndergroundShopScene from "./scenes/underground/UndergroundShopScene.js";
 
 const config = {
   type: Phaser.WEBGL,
@@ -46,6 +47,7 @@ const config = {
     DesertTunnelScene,
     UndergroundDigScene,
     TavernScene,
+    UndergroundShopScene,
   ],
 };
 
