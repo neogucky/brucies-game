@@ -158,6 +158,7 @@ export default class ShopSceneBase extends Phaser.Scene {
   }
 
   canShowItem(item) {
+    if (item.id === "bow") return !this.inventory.passives?.bow;
     if (item.id === "powerHammer") return !this.inventory.weapons?.powerHammer;
     if (item.id === "shield") return !this.hasShield;
     if (item.id === "shoes") return !this.hasShoes;
@@ -172,7 +173,10 @@ export default class ShopSceneBase extends Phaser.Scene {
       return;
     }
     this.coins -= item.price;
-    if (item.id === "powerHammer") {
+    if (item.id === "bow") {
+      this.inventory.passives.bow = true;
+      if (!this.equipped.passive) this.equipped.passive = "bow";
+    } else if (item.id === "powerHammer") {
       this.inventory.weapons.powerHammer = true;
     } else if (item.id === "honey") {
       this.honeyCount += 1;
@@ -195,17 +199,18 @@ export default class ShopSceneBase extends Phaser.Scene {
     }
     this.updateHudAfterPurchase();
     this.saveInventory();
-    this.dialog.show(this.buildDialog(item.successText), "bottom", {
+    this.showPurchaseMessage(item.successText);
+  }
+
+  showPurchaseMessage(text) {
+    this.dialog.show(this.buildDialog(text), "bottom", {
       portraitKey: "tavern-barkeeper",
       portraitZoom: 1.3,
     });
   }
 
   showNotEnoughCoinsDialog() {
-    this.dialog.show(this.buildDialog("Du hast leider nicht genügend Münzen."), "bottom", {
-      portraitKey: "tavern-barkeeper",
-      portraitZoom: 1.3,
-    });
+    this.showPurchaseMessage("Du hast leider nicht genügend Münzen.");
   }
 
   updateHudAfterPurchase() {

@@ -1006,43 +1006,45 @@ test('boss armor blocks damage while rolling, dropping, waiting, or outside the 
   assert.equal(monster.getData('hp'), config.maxHp);
 });
 
-test('boss permits two hits per impact and repeated attacks cannot extend its stun', () => {
-  const { scene, monster } = withBoss();
+for (const level of ['Schluesselweg', 'Kristalltiefen']) {
+test(level + ': boss permits two hits per impact and repeated attacks cannot extend its stun', () => {
+  const { scene, monster, config } = withBoss(level);
   scene.stunStoneMonster(monster);
   const until = monster.getData('stateUntil');
   for (let i = 0; i < 8; i += 1) {
     scene.time.now = i * 100;
-    scene.damageStoneMonster(monster, 2);
+    scene.damageStoneMonster(monster, 1);
     scene.stunStoneMonster(monster);
   }
-  assert.equal(monster.getData('hp'), 16);
+  assert.equal(monster.getData('hp'), config.maxHp - 2);
   assert.equal(monster.getData('stateUntil'), until);
   assert.equal(monster.getData('bossHitsLeft'), 0);
   scene.time.now = until; scene.updateStoneMonsters();
   assert.equal(monster.getData('stoneState'), 'rolling');
 });
+}
 
 test('helper gets one separate boss hit without consuming either player opening', () => {
-  const { scene, monster } = withBoss();
+  const { scene, monster, config } = withBoss();
   scene.stunStoneMonster(monster);
   scene.damageStoneMonster(monster, 1, 'companion');
   scene.damageStoneMonster(monster, 1, 'companion');
-  assert.equal(monster.getData('hp'), 19);
+  assert.equal(monster.getData('hp'), config.maxHp - 1);
   assert.equal(monster.getData('bossHitsLeft'), 2);
-  scene.damageStoneMonster(monster, 2); scene.damageStoneMonster(monster, 2);
-  assert.equal(monster.getData('hp'), 15);
+  scene.damageStoneMonster(monster, 1); scene.damageStoneMonster(monster, 1);
+  assert.equal(monster.getData('hp'), config.maxHp - 3);
   assert.equal(monster.getData('bossHitsLeft'), 0);
 });
 
 test('phase boundaries prevent burst kills, restore the upper tier, and give a safe return telegraph', () => {
-  const { scene, monster } = withBoss();
+  const { scene, monster, config } = withBoss();
   const restored = [];
   scene.bossUpperTiles = [{ col: 20, row: 3, type: 'earth' }];
   scene.placeBlock = (...args) => restored.push(args);
   scene.stunStoneMonster(monster);
   scene.damageStoneMonster(monster, 999);
   assert.equal(monster.active, true);
-  assert.equal(monster.getData('hp'), 14);
+  assert.equal(monster.getData('hp'), context.getBossStageFloor(config.maxHp, 1));
   assert.equal(monster.getData('bossStage'), 2);
   assert.equal(monster.getData('stoneState'), 'returning');
   assert.equal(scene.tweens.pending.y, 100);
@@ -1087,6 +1089,38 @@ test('boss becomes faster in each phase and the super boss is stronger', () => {
   assert.ok(superBoss.config.rollSpeed > normal.config.rollSpeed);
 });
 
+test('first guardian stays vulnerable long enough for a late reaction even in phase three', () => {
+  const { scene, monster } = withBoss();
+  monster.setData('bossStage', 3);
+  scene.stunStoneMonster(monster);
+  const until = monster.getData('bossVulnerableUntil');
+  assert.equal(until, 1600);
+  scene.time.now = 1500;
+  assert.equal(scene.damageStoneMonster(monster, 1), true);
+  assert.equal(monster.getData('bossVulnerableUntil'), until);
+  scene.time.now = until;
+  assert.equal(scene.damageStoneMonster(monster, 1), false);
+});
+
+test('first guardian can be beaten with six normal hammer hits while retaining all three phases', () => {
+  const { scene, monster, getSaved } = withBoss();
+  for (let stage = 1; stage <= 3; stage++) {
+    monster.setData('stoneState', 'rolling');
+    scene.stunStoneMonster(monster);
+    assert.equal(scene.damageStoneMonster(monster, context.getWeaponDamage('powerHammer', true)), true);
+    assert.equal(scene.damageStoneMonster(monster, context.getWeaponDamage('powerHammer', true)), true);
+    assert.equal(monster.getData('hp'), 12 - stage * 4);
+    if (stage < 3) {
+      assert.equal(monster.getData('stoneState'), 'returning');
+      assert.equal(monster.getData('bossStage'), stage + 1);
+      scene.tweens.pending.onComplete();
+      scene.time.now = monster.getData('bossReadyUntil');
+    }
+  }
+  assert.equal(scene.levelCompleted, true);
+  assert.equal(getSaved().unlockedLevels.includes('Kristalltiefen'), true);
+});
+
 for (const level of ['Schluesselweg', 'Kristalltiefen']) {
   test(level + ': victory requires three phases and immediately saves completion, reward, and unlock', () => {
     const { scene, monster, config, getSaved } = withBoss(level);
@@ -1107,7 +1141,13 @@ for (const level of ['Schluesselweg', 'Kristalltiefen']) {
     assert.equal(getSaved().coins, 30 + config.reward);
     assert.equal(getSaved().inventory.consumables.honey, 2);
     if (config.unlock) assert.equal(getSaved().unlockedLevels.includes(config.unlock), true);
-    assert.equal(getSaved().currentLevel, config.unlock || level);
+    assert.equal(getSaved().currentLevel, config.unlockWorld ? level : config.unlock || level);
+    assert.equal(getSaved().mapState.undergroundNode, config.unlockWorld ? level : config.unlock || level);
+    if (config.unlockWorld) {
+      assert.equal(getSaved().unlockedWorlds.includes('jungle'), true);
+      assert.equal(getSaved().unlockedLevels.includes('UrwaldShop'), true);
+      assert.equal(getSaved().currentWorld, 'underground');
+    }
     assert.equal(context.victory.name, config.name);
     scene.winBossLevel(config);
     assert.equal(getSaved().coins, 30 + config.reward);

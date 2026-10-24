@@ -1,5 +1,5 @@
 import { applyWeaponAppearance } from "../utils/weapons.js";
-import { saveProgress } from "../saveManager.js";
+import { saveProgress, normalizeWorldProgress } from "../saveManager.js";
 import { playMusic } from "../soundManager.js";
 import TopHud from "../ui/topHud.js";
 import { applyItemModeSupport, GAME_MODES } from "../utils/itemRegistry.js";
@@ -59,6 +59,8 @@ export default class UndergroundMapScene extends Phaser.Scene {
 
   init(data) {
     this.entryFromDesert = Boolean(data?.fromDesert);
+    this.entryFromJungle = Boolean(data?.fromJungle);
+    if (data) { delete data.fromDesert; delete data.fromJungle; }
   }
 
   create() {
@@ -74,12 +76,9 @@ export default class UndergroundMapScene extends Phaser.Scene {
     this.createUI();
     playMusic(this, "music-world");
 
-    const saveData = this.registry.get("saveData") || {};
-    if (!NODES.find((node) => node.id === saveData.currentLevel)) {
-      const nextSave = { ...saveData, currentLevel: "UnderShop" };
-      this.registry.set("saveData", nextSave);
-      saveProgress(nextSave);
-    }
+    const saveData = { ...this.registry.get("saveData"), currentWorld: "underground", currentLevel: this.currentNode.id };
+    this.registry.set("saveData", saveData);
+    saveProgress(saveData);
     const normalized = normalizeInventory(saveData);
     this.inventory = normalized.inventory;
     this.equipped = normalized.equipped;
@@ -154,17 +153,13 @@ export default class UndergroundMapScene extends Phaser.Scene {
   }
 
   ensureUnlocks() {
-    const saveData = this.registry.get("saveData") || {};
+    const saveData = normalizeWorldProgress(this.registry.get("saveData") || {});
     const unlocked = new Set(saveData.unlockedLevels || []);
-    unlocked.add("UnderShop");
-    unlocked.add("UnderDig");
-    unlocked.add("Schluesseltor");
+    unlocked.add("UnderShop"); unlocked.add("UnderDig"); unlocked.add("Schluesseltor");
     if (saveData.completedLevels?.includes("Schluesselweg")) unlocked.add("Kristalltiefen");
-    if (unlocked.size !== (saveData.unlockedLevels || []).length) {
-      const nextSave = { ...saveData, unlockedLevels: Array.from(unlocked) };
-      this.registry.set("saveData", nextSave);
-      saveProgress(nextSave);
-    }
+    const worlds = new Set(saveData.unlockedWorlds); worlds.add("underground");
+    const nextSave = { ...saveData, unlockedLevels: [...unlocked], unlockedWorlds: [...worlds] };
+    this.registry.set("saveData", nextSave); saveProgress(nextSave);
   }
 
   addBackground() {
@@ -269,6 +264,25 @@ export default class UndergroundMapScene extends Phaser.Scene {
     });
   }
 
+  travelToJungle() {
+    if (this.currentNode?.id !== "Kristalltiefen" || this.isMoving || this.inventoryOpen || this.isDialogOpen) return;
+    const save = normalizeWorldProgress(this.registry.get("saveData") || {});
+    if (!save.unlockedWorlds.includes("jungle")) {
+      this.lockText.setText("Besiege zuerst den Obsidian-Titan in den Kristalltiefen.");
+      this.time.delayedCall(1800, () => this.lockText.setText(""));
+      return;
+    }
+    this.isMoving = true;
+    const nextSave = { ...save, currentWorld: "jungle", currentLevel: "UrwaldShop",
+      mapState: { ...save.mapState, undergroundNode: "Kristalltiefen", jungleNode: "UrwaldShop" } };
+    this.registry.set("saveData", nextSave); saveProgress(nextSave);
+    const node = this.currentNode, duration = Math.max(220, (950 - node.x) / this.travelSpeed * 1000);
+    this.tweens.add({ targets: this.playerMarker, x: 950, y: node.y + 6, duration,
+      onComplete: () => this.scene.start("JungleMapScene", { fromUnderworld: true }) });
+    if (this.companionMarker?.visible) this.tweens.add({ targets: this.companionMarker,
+      x: 932, y: node.y + 12, duration });
+  }
+
   createPlayerMarker() {
     const saveData = this.registry.get("saveData") || {};
     const currentId =
@@ -291,15 +305,16 @@ export default class UndergroundMapScene extends Phaser.Scene {
     const showCompanion = this.equipped?.companion !== null;
     this.companionMarker.setVisible(showCompanion);
 
-    if (this.entryFromDesert) {
-      this.entryFromDesert = false;
-      const shop = NODES.find((node) => node.id === "UnderShop");
+    if (this.entryFromDesert || this.entryFromJungle) {
+      const fromJungle = this.entryFromJungle;
+      this.entryFromDesert = false; this.entryFromJungle = false;
+      const shop = NODES.find((node) => node.id === (fromJungle ? "Kristalltiefen" : "UnderShop"));
       if (!shop) return;
       this.currentNode = shop;
-      const edgeY = 40;
-      const duration = this.getTravelDuration(edgeY, shop.y + 6);
-      this.playerMarker.setPosition(shop.x, edgeY);
-      this.companionMarker.setPosition(shop.x - 18, edgeY + 12);
+      const edgeX = fromJungle ? 950 : shop.x, edgeY = fromJungle ? shop.y + 6 : 40;
+      const duration = Math.max(220, Math.hypot(shop.x - edgeX, shop.y + 6 - edgeY) / this.travelSpeed * 1000);
+      this.playerMarker.setPosition(edgeX, edgeY);
+      this.companionMarker.setPosition(edgeX - 18, edgeY + 12);
       this.isMoving = true;
       this.tweens.add({
         targets: this.playerMarker,
@@ -339,6 +354,18 @@ export default class UndergroundMapScene extends Phaser.Scene {
       })
       .setOrigin(1, 1)
       .setStroke("#3b2a17", 2);
+    const jungleOpen = this.registry.get("saveData")?.unlockedWorlds?.includes("jungle");
+    if (jungleOpen) {
+      const path = this.add.graphics().setDepth(-1);
+      path.lineStyle(4, 0x9a7c56, 1); path.lineBetween(690, 468, 960, 468);
+      this.add.text(850, 430, "Urwaldwelt →", { fontFamily: "Trebuchet MS, sans-serif",
+        fontSize: "20px", color: "#dbf5ae", stroke: "#173d29", strokeThickness: 4 })
+        .setOrigin(.5).setDepth(6).setInteractive({ useHandCursor: true })
+        .on("pointerdown", () => {
+          if (this.currentNode?.id === "Kristalltiefen") this.travelToJungle();
+          else this.lockText.setText("Der Weg in die Urwaldwelt beginnt bei Kristalltiefen.");
+        });
+    }
     this.lockText = this.add
       .text(480, 520, "", {
         fontFamily: "Trebuchet MS, sans-serif",
@@ -414,7 +441,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
     const desertNode = saveData.mapState?.desertNode ?? "Fremdweg";
     const nextSave = {
       ...saveData,
-      currentLevel: desertNode,
+      currentWorld: "desert", currentLevel: desertNode,
       mapState: {
         ...saveData.mapState,
         undergroundNode: this.currentNode?.id ?? saveData.mapState?.undergroundNode,
@@ -548,6 +575,9 @@ export default class UndergroundMapScene extends Phaser.Scene {
     const up = this.cursors.up.isDown || this.wasd.W.isDown;
     const down = this.cursors.down.isDown || this.wasd.S.isDown;
 
+    if (right && this.currentNode?.id === "Kristalltiefen") {
+      this.travelToJungle(); return;
+    }
     if (up && this.currentNode?.id === "UnderShop") {
       this.returnToDesert();
       return;

@@ -23,6 +23,9 @@ function loadScene(name, file = 'scenes/desert/' + name + '.js') {
     vm.runInContext(code, context);
   };
   load('utils/inventory.js'); load('utils/ShieldManager.js', 'ShieldManager');
+  const saveCode = fs.readFileSync(path.join(__dirname, '../src/saveManager.js'), 'utf8')
+    .replace(/^import .*;\n/gm, '').replace(/export /g, '');
+  context.normalizeWorldProgress = vm.runInNewContext(saveCode + '\nnormalizeWorldProgress;');
   load(file, name);
   const scene = new context[name]();
   const actor = (data = {}) => ({

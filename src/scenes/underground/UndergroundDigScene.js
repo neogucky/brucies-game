@@ -2695,9 +2695,12 @@ export default class UndergroundDigScene extends Phaser.Scene {
     const unlocked = new Set(save.unlockedLevels || []);
     completed.add(this.levelId);
     if (config.unlock) unlocked.add(config.unlock);
-    const nextNode = config.unlock || this.levelId;
+    const worlds = new Set(["desert", "underground", ...(save.unlockedWorlds || [])]);
+    if (config.unlockWorld) { worlds.add(config.unlockWorld); unlocked.add("UrwaldShop"); }
+    const nextNode = config.unlockWorld ? this.levelId : config.unlock || this.levelId;
     const nextSave = applyInventoryToSave({
-      ...save, completedLevels: Array.from(completed), unlockedLevels: Array.from(unlocked),
+      ...save, currentWorld: "underground", unlockedWorlds: Array.from(worlds),
+      completedLevels: Array.from(completed), unlockedLevels: Array.from(unlocked),
       coins: this.coinsCollected, health: this.health, currentLevel: nextNode,
       mapState: { ...save.mapState, undergroundNode: nextNode },
     }, this.inventory, this.equipped);
@@ -2705,7 +2708,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     saveProgress(nextSave);
     this.sfx?.success?.play();
     this.victoryScreen = showUndergroundVictory(this, {
-      name: config.name, reward: config.reward, unlocked: config.unlock,
+      name: config.name, reward: config.reward, unlocked: config.unlock, unlockedWorld: config.unlockWorld,
       onContinue: () => {
         this.time.paused = false;
         this.scene.start("UndergroundMapScene");
@@ -2985,6 +2988,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
   startStoneMonsterDrop(monster) {
     if (!monster?.active) return;
     if ((monster.getData("stoneState") || "perched") !== "perched") return;
+    this.sfx?.charging?.play();
     monster.setData("stoneState", "wobble");
     monster.setTexture("underground-stonemonster-standing");
     const baseX = monster.x;

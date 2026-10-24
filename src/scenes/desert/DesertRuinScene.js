@@ -931,6 +931,7 @@ export default class DesertRuinScene extends Phaser.Scene {
 
     monster.setData("nextAttackAt", now + this.monsterAttackCooldown);
     this.setMonsterAttack(monster, target);
+    this.sfx?.monsterAttack?.play();
     if (Phaser.Math.FloatBetween(0, 1) > this.monsterHitChance) {
       if (this.sfx) {
         this.sfx.monsterMiss.play();
@@ -943,9 +944,6 @@ export default class DesertRuinScene extends Phaser.Scene {
       this.flashEntity(this.player, 0xa33b2b);
     } else if (target === this.companion) {
       this.damageCompanion();
-    }
-    if (this.sfx) {
-      this.sfx.monsterAttack.play();
     }
   }
 

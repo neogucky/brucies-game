@@ -1,4 +1,4 @@
-import { clearSave, defaultSave, saveProgress } from "../saveManager.js";
+import { clearSave, defaultSave, saveProgress, normalizeWorldProgress } from "../saveManager.js";
 import { playMusic } from "../soundManager.js";
 
 export default class MainMenuScene extends Phaser.Scene {
@@ -139,7 +139,8 @@ export default class MainMenuScene extends Phaser.Scene {
   }
 
   loadGame() {
-    const saveData = this.registry.get("saveData");
+    const rawSave = this.registry.get("saveData");
+    const saveData = rawSave ? normalizeWorldProgress(rawSave) : null;
     if (saveData) {
       const nextSave = {
         ...saveData,
@@ -148,13 +149,11 @@ export default class MainMenuScene extends Phaser.Scene {
       this.registry.set("saveData", nextSave);
       saveProgress(nextSave);
     }
-    if (
-      saveData?.currentLevel === "UnderShop" ||
-      saveData?.currentLevel === "UnderDig" ||
-      saveData?.currentLevel === "Schluesseltor" ||
-      saveData?.currentLevel === "Schluesselweg" ||
-      saveData?.currentLevel === "Kristalltiefen"
-    ) {
+    if (saveData?.currentWorld === "jungle") {
+      this.scene.start("JungleMapScene");
+      return;
+    }
+    if (saveData?.currentWorld === "underground") {
       this.scene.start("UndergroundMapScene");
       return;
     }

@@ -35,3 +35,21 @@ test('loading a living save keeps its remaining hearts and inventory', () => {
   assert.equal(save.health, 2);
   assert.equal(save.inventory.consumables.honey, 3);
 });
+
+test('loading a legacy Urwald-as-level save migrates the world without losing the player inventory', () => {
+  const data = { currentLevel: 'Urwald', coins: 468, health: 3, unlockedLevels: ['UnderShop', 'Urwald'],
+    mapState: { undergroundNode: 'Urwald', jungleNode: 'Lianenpfad' },
+    inventory: { passives: { bow: true }, consumables: { honey: 43 } }, equipped: { passive: 'bow' } };
+  const save = savedGame(data).loadSave();
+  assert.equal(save.currentWorld, 'jungle'); assert.equal(save.currentLevel, 'Lianenpfad');
+  assert.equal(save.unlockedWorlds.includes('jungle'), true); assert.equal(save.unlockedLevels.includes('Urwald'), false);
+  assert.equal(save.unlockedLevels.includes('Lianenpfad'), true);
+  assert.equal(save.mapState.undergroundNode, 'Kristalltiefen'); assert.equal(save.mapState.jungleNode, 'Lianenpfad');
+  assert.equal(save.coins, 468); assert.equal(save.health, 3); assert.equal(save.inventory.consumables.honey, 43);
+  assert.equal(save.equipped.passive, 'bow');
+});
+
+test('loading a jungle level save with stale world metadata uses the playable level as its world', () => {
+  const save = savedGame({ currentWorld: 'underground', currentLevel: 'Urwaldkronen' }).loadSave();
+  assert.equal(save.currentWorld, 'jungle'); assert.equal(save.mapState.jungleNode, 'Urwaldkronen');
+});

@@ -50,6 +50,7 @@ export default class DessertMapScene extends Phaser.Scene {
 
   init(data) {
     this.entryFromUnderground = Boolean(data?.fromUnderground);
+    if (data) delete data.fromUnderground;
   }
 
   create() {
@@ -63,7 +64,8 @@ export default class DessertMapScene extends Phaser.Scene {
     this.createPlayerMarker();
     this.createUI();
     playMusic(this, "music-world");
-    const saveData = this.registry.get("saveData") || {};
+    const saveData = { ...this.registry.get("saveData"), currentWorld: "desert", currentLevel: this.currentNode.id };
+    this.registry.set("saveData", saveData); saveProgress(saveData);
     const normalized = normalizeInventory(saveData);
     this.inventory = normalized.inventory;
     this.equipped = normalized.equipped;
@@ -380,7 +382,7 @@ export default class DessertMapScene extends Phaser.Scene {
       }
       const nextSave = {
         ...saveData,
-        currentLevel: "UnderShop",
+        currentWorld: "underground", currentLevel: "UnderShop",
         mapState: {
           ...saveData.mapState,
           desertNode: this.currentNode.id,

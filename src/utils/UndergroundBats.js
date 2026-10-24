@@ -138,14 +138,11 @@ export default class UndergroundBats {
         bat.setData("nextDropAt", now + bat.getData("dropMs"));
       }
     }
-    const body = scene.player?.body;
-    if (body && intersects(this.getBounds(bat), boundsAt(body.x + body.width / 2, body.y + body.height / 2, body.width, body.height))) {
-      scene.applyFlyingEnemyHit(BAT_STATS.contactDamage);
-    }
   }
 
   startCharge(bat) {
     bat.setData("chargeUntil", this.scene.time.now + BAT_STATS.chargeMs);
+    this.scene.sfx?.charging?.play();
     bat.anims.stop();
     bat.setTexture("cave-bat-drop");
     const preview = this.scene.add.image(bat.x, bat.y + 22, "poison-berry")
@@ -160,6 +157,7 @@ export default class UndergroundBats {
   }
 
   dropBerry(bat) {
+    this.scene.sfx?.monsterAttack?.play();
     const berry = this.scene.add.image(bat.x, bat.y + 25, "poison-berry")
       .setDisplaySize(18, 20).setDepth(5);
     berry.setData("velocityY", 65);

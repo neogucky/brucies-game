@@ -1198,6 +1198,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
       const invulnerableUntil = this.companion.getData("invulnerableUntil") || 0;
       if (this.time.now < invulnerableUntil) return;
     }
+    if (monster.getData("type") !== "boss") this.sfx?.monsterAttack?.play();
     if (options.allowMiss !== true && Phaser.Math.FloatBetween(0, 1) > this.monsterHitChance) {
       if (this.sfx) {
         this.sfx.monsterMiss.play();
@@ -1210,9 +1211,6 @@ export default class DesertEndlessScene extends Phaser.Scene {
       this.flashEntity(this.player, 0xa33b2b);
     } else if (target === this.companion) {
       this.damageCompanion();
-    }
-    if (this.sfx && monster.getData("type") !== "boss") {
-      this.sfx.monsterAttack.play();
     }
   }
 

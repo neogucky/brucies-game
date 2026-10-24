@@ -10,6 +10,9 @@ vm.runInContext(fs.readFileSync(path.join(__dirname, '../src/utils/UndergroundBa
   .replace('export default class UndergroundBats', 'globalThis.UndergroundBats = class UndergroundBats')
   .replace(/export /g, ''), context);
 
+vm.runInContext(fs.readFileSync(path.join(__dirname, '../src/utils/EnemyContacts.js'), 'utf8')
+  .replace('export default class EnemyContacts', 'globalThis.EnemyContacts = class EnemyContacts').replace(/export /g, ''), context);
+
 function actor(x, y, texture) {
   const data = {};
   return {
@@ -109,6 +112,9 @@ test('contact while jumping into a bat requests exactly one heart of damage', ()
   scene.player.x = bat.x;
   Object.assign(scene.player.body, { x: bat.x - 15, y: bat.y - 10, height: 30, bottom: bat.y + 20 });
   system.updateBat(bat, 0);
+  scene.batSystem = system;
+  scene.player.body.position = scene.player.body; scene.player.body.velocity = { x: 0, y: -100 };
+  new context.EnemyContacts(scene).update();
   assert.deepEqual(damage, [1]);
 });
 
@@ -210,4 +216,13 @@ test('closing the boss arena removes bats and berries behind its wall', () => {
   assert.equal(bat.active, false);
   assert.equal(berry.active, false);
   assert.equal(preview.active, false);
+});
+
+test('bats make warning and attack sounds before a berry can hit anything', () => {
+  const { scene, system, bat, damage } = setup(), sounds = [];
+  scene.sfx = { charging: { play: () => sounds.push('charge') }, monsterAttack: { play: () => sounds.push('attack') } };
+  system.startCharge(bat);
+  assert.deepEqual(sounds, ['charge']); assert.deepEqual(damage, []);
+  system.dropBerry(bat);
+  assert.deepEqual(sounds, ['charge', 'attack']); assert.deepEqual(damage, []);
 });

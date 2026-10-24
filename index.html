@@ -2,13 +2,35 @@
 <html lang="de">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Ritter & Begleiter - Brucies Game</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <div id="game"></div>
+    <main id="play-shell">
+      <div id="game"></div>
+      <nav id="game-controls" aria-label="Spielsteuerung"></nav>
+      <p class="controls-hint">Bewegen: Pfeile / WASD · Angriff: Leertaste · Bestätigen: E · Zurück: Q · Inventar: I</p>
+    </main>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+    <!-- Version shared progression modules together so existing browser caches cannot mix save formats. -->
+    <script type="importmap">
+      {
+        "imports": {
+          "./src/scenes/jungle/JungleScene.js": "./src/scenes/jungle/JungleScene.js?v=king-coconuts-1",
+          "./src/utils/jungleRules.js": "./src/utils/jungleRules.js?v=king-coconuts-1",
+          "./src/saveManager.js": "./src/saveManager.js?v=worlds-2",
+          "./src/utils/undergroundBoss.js": "./src/utils/undergroundBoss.js?v=worlds-2",
+          "./src/scenes/BootScene.js": "./src/scenes/BootScene.js?v=worlds-2",
+          "./src/scenes/MainMenuScene.js": "./src/scenes/MainMenuScene.js?v=worlds-2",
+          "./src/scenes/DessertMapScene.js": "./src/scenes/DessertMapScene.js?v=worlds-2",
+          "./src/scenes/UndergroundMapScene.js": "./src/scenes/UndergroundMapScene.js?v=worlds-2",
+          "./src/scenes/jungle/JungleMapScene.js": "./src/scenes/jungle/JungleMapScene.js?v=worlds-2",
+          "./src/scenes/underground/UndergroundDigScene.js": "./src/scenes/underground/UndergroundDigScene.js?v=worlds-2",
+          "./src/ui/UndergroundVictoryScreen.js": "./src/ui/UndergroundVictoryScreen.js?v=worlds-2"
+        }
+      }
+    </script>
     <script type="module" src="src/main.js"></script>
   </body>
 </html>

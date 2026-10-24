@@ -308,11 +308,16 @@ export default class TopHud {
     const item = this.items.passive;
     if (!item) return;
     this.passiveEquipped = equippedId || null;
+    item.hint.setText(this.passiveEquipped === "bow" ? "Shift" : "Passiv");
     const showIcon = Boolean(this.passiveEquipped);
     item.icon.setVisible(showIcon);
     item.bootsIcon?.setVisible(false);
     this.updateHintForKey("passive");
     if (!showIcon) {
+      return;
+    }
+    if (this.passiveEquipped === "bow") {
+      item.icon.setTexture("item-bow");
       return;
     }
     if (this.passiveEquipped === "shield") {
@@ -368,6 +373,11 @@ export default class TopHud {
     const item = this.items.passive;
     if (!item) return;
     this.passiveOwned = Boolean(owned);
+    if (this.passiveEquipped === "bow") {
+      item.icon.setTexture("item-bow").setAlpha(1);
+      this.updateHintForKey("passive");
+      return;
+    }
     if (!this.passiveEquipped) {
       item.icon.setVisible(false);
       item.bootsIcon?.setVisible(false);
@@ -393,6 +403,11 @@ export default class TopHud {
     const item = this.items.passive;
     if (!item || !item.bootsIcon) return;
     this.shoesOwned = Boolean(owned);
+    if (this.passiveEquipped === "bow") {
+      item.icon.setTexture("item-bow").setAlpha(1);
+      item.bootsIcon.setVisible(false);
+      return;
+    }
     if (!this.passiveEquipped) {
       item.icon.setVisible(false);
       item.bootsIcon.setVisible(false);

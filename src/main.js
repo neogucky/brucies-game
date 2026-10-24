@@ -9,6 +9,10 @@ import UndergroundMapScene from "./scenes/UndergroundMapScene.js";
 import TavernScene from "./scenes/desert/TavernScene.js";
 import UndergroundDigScene from "./scenes/underground/UndergroundDigScene.js";
 import UndergroundShopScene from "./scenes/underground/UndergroundShopScene.js";
+import JungleMapScene from "./scenes/jungle/JungleMapScene.js";
+import JungleScene from "./scenes/jungle/JungleScene.js";
+import JungleShopScene from "./scenes/jungle/JungleShopScene.js";
+import { installGameSystems } from "./utils/gameSystems.js";
 
 const config = {
   type: Phaser.WEBGL,
@@ -26,7 +30,7 @@ const config = {
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
-    fullscreenTarget: document.getElementById("game"),
+    fullscreenTarget: document.getElementById("play-shell"),
   },
   backgroundColor: "#1f1a12",
   physics: {
@@ -48,7 +52,11 @@ const config = {
     UndergroundDigScene,
     TavernScene,
     UndergroundShopScene,
+    JungleMapScene,
+    JungleScene,
+    JungleShopScene,
   ],
 };
 
-new Phaser.Game(config);
+const game = new Phaser.Game(config);
+installGameSystems(game);

@@ -7,6 +7,13 @@ export default class BootScene extends Phaser.Scene {
   }
 
   preload() {
+    this.load.image("worldmap-jungle-bg", "assets/jungle/jungle-worldmap.png");
+    this.load.image("jungle-background", "assets/jungle/jungle-background.png");
+    this.load.image("jungle-tree", "assets/jungle/jungle-tree.png");
+    this.load.image("jungle-monkeys", "assets/jungle/jungle-monkeys.png");
+    this.load.image("jungle-coconuts", "assets/jungle/jungle-coconuts.png");
+    this.load.image("jungle-shop", "assets/jungle/jungle-shop-familiar.png");
+    this.load.image("jungle-bow-atlas", "assets/jungle/jungle-bow-atlas.png");
     this.createLoadingUI();
     this.load.once("filecomplete-image-menu-bg", () => {
       if (this.menuBg) return;
@@ -147,6 +154,7 @@ export default class BootScene extends Phaser.Scene {
   create() {
     this.createHammerTextures();
     this.createBatTextures();
+    this.createJungleTextures();
     const saveData = loadSave();
     const unlockAll = new URLSearchParams(window.location.search).get("unlockAll") === "1";
     if (unlockAll) {
@@ -154,10 +162,13 @@ export default class BootScene extends Phaser.Scene {
         ...(saveData.unlockedLevels || []),
         "Wuestenruine", "Taverne", "DesertEndless", "Fremdweg",
         "UnderShop", "UnderDig", "Schluesseltor", "Schluesselweg", "Kristalltiefen",
+        "UrwaldShop", "Urwaldkronen", "Lianenpfad",
       ]));
+      saveData.unlockedWorlds = ["desert", "underground", "jungle"];
+      saveData.currentWorld = new URLSearchParams(window.location.search).get("world") === "jungle" ? "jungle" : "underground";
       saveData.undergroundKeyCollected = true;
       saveData.health = 5;
-      saveData.currentLevel = "Schluesselweg";
+      saveData.currentLevel = saveData.currentWorld === "jungle" ? saveData.mapState?.jungleNode || "UrwaldShop" : "Schluesselweg";
       saveData.mapState = { ...saveData.mapState, undergroundNode: "Schluesselweg" };
       saveProgress(saveData);
     }
@@ -177,7 +188,44 @@ export default class BootScene extends Phaser.Scene {
       this.registry.set("saveData", nextSave);
       saveProgress(nextSave);
     });
-    this.scene.start(unlockAll ? "UndergroundMapScene" : "MainMenuScene");
+    const junglePreview = unlockAll && new URLSearchParams(window.location.search).get("world") === "jungle";
+    this.scene.start(junglePreview ? "JungleMapScene" : unlockAll ? "UndergroundMapScene" : "MainMenuScene");
+  }
+
+  createJungleTextures() {
+    const crop = (sourceKey, key, x, y, width, height, grounded = false, outWidth = 150, outHeight = 150) => {
+      if (this.textures.exists(key)) return;
+      const source = this.textures.get(sourceKey).getSourceImage();
+      const cutout = document.createElement("canvas"); cutout.width = width; cutout.height = height;
+      const ctx = cutout.getContext("2d"); ctx.drawImage(source, x, y, width, height, 0, 0, width, height);
+      const pixels = ctx.getImageData(0, 0, width, height).data;
+      let left = width, top = height, right = 0, bottom = 0;
+      for (let cy = 0; cy < height; cy++) for (let cx = 0; cx < width; cx++) {
+        if (pixels[(cy * width + cx) * 4 + 3] < 20) continue;
+        left = Math.min(left, cx); right = Math.max(right, cx);
+        top = Math.min(top, cy); bottom = Math.max(bottom, cy);
+      }
+      if (right < left || bottom < top) return;
+      const w = right - left + 1, h = bottom - top + 1, scale = Math.min((outWidth - 10) / w, (outHeight - 6) / h);
+      const texture = this.textures.createCanvas(key, outWidth, outHeight);
+      texture.getContext().drawImage(cutout, left, top, w, h,
+        (outWidth - w * scale) / 2, grounded ? outHeight - 3 - h * scale : (outHeight - h * scale) / 2, w * scale, h * scale);
+      texture.refresh();
+    };
+    crop("jungle-monkeys", "monkey-brown", 0, 0, 500, 450, true);
+    crop("jungle-monkeys", "monkey-red", 500, 0, 510, 450, true);
+    crop("jungle-monkeys", "monkey-blue", 1010, 0, 526, 450, true);
+    crop("jungle-monkeys", "monkey-climbing", 0, 460, 475, 550, true);
+    crop("jungle-monkeys", "monkey-throwing", 475, 455, 450, 560, true);
+    crop("jungle-monkeys", "monkey-king", 925, 445, 611, 575, true);
+    crop("jungle-coconuts", "coconut-brown", 0, 0, 768, 540);
+    crop("jungle-coconuts", "coconut-red", 768, 0, 768, 560);
+    crop("jungle-coconuts", "coconut-blue", 0, 540, 690, 484);
+    crop("jungle-coconuts", "coconut-puddle", 690, 650, 846, 374);
+    const bowAtlas = this.textures.get("jungle-bow-atlas").getSourceImage();
+    const half = Math.floor(bowAtlas.width / 2);
+    crop("jungle-bow-atlas", "item-bow", 0, 0, half, bowAtlas.height);
+    crop("jungle-bow-atlas", "bow-arrow", half, 0, bowAtlas.width - half, bowAtlas.height, false, 96, 24);
   }
 
   createBatTextures() {

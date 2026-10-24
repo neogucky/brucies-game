@@ -1,4 +1,4 @@
-export default function showUndergroundVictory(scene, { name, reward, unlocked, onContinue }) {
+export default function showUndergroundVictory(scene, { name, reward, unlocked, unlockedWorld, onContinue }) {
   const screen = scene.add.container(0, 0).setDepth(400);
   const shade = scene.add.rectangle(480, 300, 960, 600, 0x10141d, 0.91);
   const panel = scene.add.rectangle(480, 300, 710, 470, 0x272b36, 0.98)
@@ -16,7 +16,9 @@ export default function showUndergroundVictory(scene, { name, reward, unlocked, 
   const gold = scene.add.text(450, 397, "+" + reward + " Gold", {
     fontFamily: "Trebuchet MS, sans-serif", fontSize: "25px", color: "#ffe29a",
   }).setOrigin(0, 0.5);
-  const message = scene.add.text(480, 443, unlocked
+  const message = scene.add.text(480, 443, unlockedWorld === "jungle"
+    ? "Neue Welt freigeschaltet: Urwaldwelt\nAuf der Unterweltkarte bei Kristalltiefen nach rechts gehen."
+    : unlocked
     ? "Neu freigeschaltet: Kristalltiefen · Schatzsuche & Superboss"
     : "Du hast die Kristalltiefen und ihren Superboss bezwungen!", {
     fontFamily: "Trebuchet MS, sans-serif", fontSize: "18px", color: "#bce0ef",

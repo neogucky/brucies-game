@@ -60,7 +60,7 @@ export default class InventoryOverlay {
       this.container.destroy(true);
     }
     const width = 720;
-    const height = 360;
+    const height = 440;
     const centerX = 480;
     const centerY = 300;
     this.container = this.scene.add.container(0, 0);
@@ -74,9 +74,9 @@ export default class InventoryOverlay {
     const colGap = 10;
     const startX = centerX - (colWidth * this.columns.length + colGap * (this.columns.length - 1)) / 2;
     const headerY = centerY - height / 2 + 18;
-    const startY = headerY + 28;
-    const slotSize = 64;
-    const slotGap = 16;
+    const startY = headerY + 50;
+    const slotSize = 72;
+    const slotGap = 28;
 
     this.columns.forEach((column, colIndex) => {
       const colX = startX + colIndex * (colWidth + colGap);
@@ -94,6 +94,12 @@ export default class InventoryOverlay {
         const y = startY + rowIndex * (slotSize + slotGap);
         const frame = this.scene.add.rectangle(x, y, slotSize, slotSize, 0xf2e3c5, 0.9);
         frame.setStrokeStyle(2, 0xdbc1a0);
+        frame.setInteractive({ useHandCursor: true,
+          hitArea: new Phaser.Geom.Rectangle(-6, -6, slotSize + 12, slotSize + 12),
+          hitAreaCallback: Phaser.Geom.Rectangle.Contains }).on("pointerdown", () => {
+          this.selection = { col: colIndex, row: rowIndex };
+          this.applySelection();
+        });
         const equippedBorder = this.scene.add.rectangle(x, y, slotSize + 6, slotSize + 6);
         equippedBorder.setStrokeStyle(2, 0xf5d37a);
         equippedBorder.setFillStyle(0x000000, 0);
@@ -142,6 +148,15 @@ export default class InventoryOverlay {
       });
     });
     this.refreshHighlights();
+    const close = this.scene.add.text(840, 62, "Schließen ×", {
+      fontFamily: "Trebuchet MS, sans-serif", fontSize: "17px", color: "#fff0bd",
+      backgroundColor: "#654b32", padding: { x: 10, y: 8 },
+    }).setOrigin(1, .5).setInteractive({ useHandCursor: true });
+    close.on("pointerdown", () => {
+      this.close();
+      this.onClose?.();
+    });
+    this.container.add(close);
     this.container.setDepth(200);
     this.container.setScrollFactor(0, 0, true);
   }
@@ -171,6 +186,9 @@ export default class InventoryOverlay {
         withModes("shoes", { id: "shoes", icon: "item-winged-shoes", label: "Schuhe" })
       );
     }
+    if (inventory.passives?.bow) {
+      passives.push(withModes("bow", { id: "bow", icon: "item-bow", label: "Bogen · Shift" }));
+    }
 
     const consumables = [{ id: null, icon: null, label: "" }];
     const honeyCount = inventory.consumables?.honey ?? 0;
@@ -196,7 +214,7 @@ export default class InventoryOverlay {
 
     return [
       { key: "weapon", title: "Primär", options: weapons, equipped: equipped.weapon ?? null },
-      { key: "passive", title: "Passiv", options: passives, equipped: equipped.passive ?? null },
+      { key: "passive", title: "Sekundär", options: passives, equipped: equipped.passive ?? null },
       { key: "consumable", title: "Verbrauch", options: consumables, equipped: equipped.consumable ?? null },
       { key: "companion", title: "Begleiter", options: companions, equipped: equipped.companion ?? null },
     ];
