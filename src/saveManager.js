@@ -52,7 +52,10 @@ export function loadSave() {
       ...defaultSave,
       ...data,
     };
-    const normalized = normalizeInventory(merged);
+    if (!Number.isFinite(merged.health) || merged.health <= 0) {
+      merged.health = defaultSave.health;
+    }
+    const normalized = normalizeInventory(data || {});
     return { ...merged, inventory: normalized.inventory, equipped: normalized.equipped };
   } catch (error) {
     const normalized = normalizeInventory(defaultSave);

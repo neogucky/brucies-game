@@ -58,7 +58,7 @@ export default class ShopSceneBase extends Phaser.Scene {
       consumables: { honey: this.honeyCount },
       passiveOwned: this.equipped.passive === "shield",
       passiveShoes: this.equipped.passive === "shoes",
-      activeEquipped: this.equipped.weapon === "sword",
+      activeEquipped: this.equipped.weapon,
       passiveEquipped: this.equipped.passive,
       consumableEquipped: this.equipped.consumable === "honey",
       activeDisabled: true,
@@ -66,7 +66,7 @@ export default class ShopSceneBase extends Phaser.Scene {
       companionHealth: 1,
       companionRespawnRatio: 0,
     });
-    this.hud.setActiveEquipped(this.equipped.weapon === "sword");
+    this.hud.setActiveEquipped(this.equipped.weapon);
     this.hud.setPassiveEquipped(this.equipped.passive);
     this.hud.setConsumableEquipped(this.equipped?.consumable === "honey");
     applyItemModeSupport(this.hud, this.equipped, this.gameMode);
@@ -158,6 +158,7 @@ export default class ShopSceneBase extends Phaser.Scene {
   }
 
   canShowItem(item) {
+    if (item.id === "powerHammer") return !this.inventory.weapons?.powerHammer;
     if (item.id === "shield") return !this.hasShield;
     if (item.id === "shoes") return !this.hasShoes;
     return true;
@@ -171,7 +172,9 @@ export default class ShopSceneBase extends Phaser.Scene {
       return;
     }
     this.coins -= item.price;
-    if (item.id === "honey") {
+    if (item.id === "powerHammer") {
+      this.inventory.weapons.powerHammer = true;
+    } else if (item.id === "honey") {
       this.honeyCount += 1;
       this.inventory.consumables.honey = this.honeyCount;
       if (!this.equipped.consumable) {

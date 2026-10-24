@@ -16,6 +16,12 @@ export default class UndergroundShopScene extends ShopSceneBase {
       promptText: "Was möchtest du kaufen?",
       items: [
         {
+          id: "powerHammer",
+          label: "Power Hammer",
+          price: 200,
+          successText: "Ein schwerer Hammer für harte Gegner!\nRüste ihn mit Tab im Inventar aus.\nSpringen + Unten: mächtiger Landungsschlag!",
+        },
+        {
           id: "honey",
           label: "Honigsaft",
           price: 10,

@@ -143,6 +143,7 @@ export default class InventoryOverlay {
     });
     this.refreshHighlights();
     this.container.setDepth(200);
+    this.container.setScrollFactor(0, 0, true);
   }
 
   createColumns() {
@@ -156,6 +157,9 @@ export default class InventoryOverlay {
     const weapons = [{ id: null, icon: null, label: "" }];
     if (inventory.weapons?.sword) {
       weapons.push(withModes("sword", { id: "sword", icon: "item-sword", label: "Schwert" }));
+    }
+    if (inventory.weapons?.powerHammer) {
+      weapons.push(withModes("powerHammer", { id: "powerHammer", icon: "item-power-hammer", label: "Power Hammer" }));
     }
 
     const passives = [{ id: null, icon: null, label: "" }];

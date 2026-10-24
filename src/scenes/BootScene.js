@@ -28,6 +28,7 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("ui-heart", "assets/common/ui/heart.png");
     this.load.image("ui-heart-empty", "assets/common/ui/heart_empty.png");
     this.load.image("knight-standing", "assets/common/characters/knight_standing.png");
+    this.load.image("power-hammer-atlas", "assets/common/characters/power-hammer-atlas.png");
     this.load.image("knight-hitting", "assets/common/characters/knight_hitting.png");
     this.load.image("knight-crouching", "assets/common/characters/knight_crouching.png");
     this.load.image("knight-crouching-hitting", "assets/common/characters/knight_crouching_hitting.png");
@@ -141,7 +142,21 @@ export default class BootScene extends Phaser.Scene {
   }
 
   create() {
+    this.createHammerTextures();
     const saveData = loadSave();
+    const unlockAll = new URLSearchParams(window.location.search).get("unlockAll") === "1";
+    if (unlockAll) {
+      saveData.unlockedLevels = Array.from(new Set([
+        ...(saveData.unlockedLevels || []),
+        "Wuestenruine", "Taverne", "DesertEndless", "Fremdweg",
+        "UnderShop", "UnderDig", "Schluesseltor", "Schluesselweg",
+      ]));
+      saveData.undergroundKeyCollected = true;
+      saveData.health = 5;
+      saveData.currentLevel = "Schluesselweg";
+      saveData.mapState = { ...saveData.mapState, undergroundNode: "Schluesselweg" };
+      saveProgress(saveData);
+    }
     this.registry.set("saveData", { ...defaultSave, ...saveData });
     this.installDisplaySizeGuard();
     this.installPhaserErrorGuards();
@@ -158,7 +173,34 @@ export default class BootScene extends Phaser.Scene {
       this.registry.set("saveData", nextSave);
       saveProgress(nextSave);
     });
-    this.scene.start("MainMenuScene");
+    this.scene.start(unlockAll ? "UndergroundMapScene" : "MainMenuScene");
+  }
+
+  createHammerTextures() {
+    const atlas = this.textures.get("power-hammer-atlas").getSourceImage();
+    const frames = [
+      ["knight-hammer-standing", 0, 0, 420, 443],
+      ["knight-hammer-hitting", 420, 0, 425, 443],
+      ["knight-hammer-crouching", 845, 0, 435, 443],
+      ["knight-hammer-crouching-hitting", 0, 443, 452, 414],
+      ["knight-female-hammer-standing", 452, 443, 362, 414],
+      ["knight-female-hammer-hitting", 814, 443, 466, 414],
+      ["knight-female-hammer-crouching", 0, 857, 417, 423],
+      ["knight-female-hammer-crouching-hitting", 417, 857, 474, 423],
+      ["item-power-hammer", 891, 857, 389, 423],
+    ];
+    frames.forEach(([key, x, y, width, height]) => {
+      if (this.textures.exists(key)) return;
+      const texture = this.textures.createCanvas(key, 150, 150);
+      const scale = Math.min(142 / width, 142 / height);
+      const destWidth = width * scale;
+      const destHeight = height * scale;
+      texture.getContext().drawImage(atlas,
+        x * atlas.width / 1280, y * atlas.height / 1280,
+        width * atlas.width / 1280, height * atlas.height / 1280,
+        (150 - destWidth) / 2, 146 - destHeight, destWidth, destHeight);
+      texture.refresh();
+    });
   }
 
   installDisplaySizeGuard() {

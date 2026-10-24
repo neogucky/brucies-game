@@ -13,6 +13,8 @@ export default class MainMenuScene extends Phaser.Scene {
   }
 
   create() {
+    this.menuItems = [];
+    this.isDialogOpen = false;
     const saveData = this.registry.get("saveData");
     this.hasSave = Boolean(saveData && saveData.lastPlayed);
     this.selectedIndex = this.hasSave ? 0 : 1;

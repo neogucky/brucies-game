@@ -35,15 +35,18 @@ export function normalizeInventory(saveData = {}) {
     consumable: hasEquippedConsumable ? existingEquipped.consumable : null,
     companion: hasEquippedCompanion ? existingEquipped.companion : "default",
   };
+  if (equipped.weapon && !inventory.weapons[equipped.weapon]) {
+    equipped.weapon = inventory.weapons.sword ? "sword" : null;
+  }
 
-  if (!equipped.passive) {
+  if (!hasEquippedPassive) {
     if (legacyEquipment.shield) {
       equipped.passive = "shield";
     } else if (legacyEquipment.shoes) {
       equipped.passive = "shoes";
     }
   }
-  if (!equipped.consumable && inventory.consumables.honey > 0) {
+  if (!hasEquippedConsumable && inventory.consumables.honey > 0) {
     equipped.consumable = "honey";
   }
 

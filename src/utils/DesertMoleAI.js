@@ -9,6 +9,7 @@ export default class DesertMoleAI {
     this.attackTexture = options.attackTexture || "desert-mole-attacking";
     this.chargeTexture = options.chargeTexture || this.attackTexture;
     this.runTexture = options.runTexture || "desert-mole-running";
+    this.stunTexture = options.stunTexture || "desert-mole-stunned";
     this.mirrorX = options.mirrorX ?? false;
     this.speed = options.speed ?? 80;
     this.chaseSpeedMultiplier = options.chaseSpeedMultiplier ?? 1;
@@ -44,8 +45,32 @@ export default class DesertMoleAI {
     this.status = "";
   }
 
+  stun(durationMs = 500) {
+    if (!this.mole?.active) return;
+    const until = Math.max(this.mole.getData("stunnedUntil") || 0, this.scene.time.now + durationMs);
+    this.mole.setData("stunnedUntil", until);
+    this.pendingAttack = false;
+    this.chargeUntil = 0;
+    this.attackAnimUntil = 0;
+    this.attackPauseUntil = 0;
+    this.action = null;
+    this.stepTarget = null;
+    this.mode = "idle";
+    this.nextActionAt = until;
+    this.stuckSince = null;
+    this.mole.body?.setVelocity(0, 0);
+    this.mole.setTexture(this.stunTexture);
+  }
+
   update(now, deltaMs) {
     if (!this.mole?.active) return;
+    if (now < (this.mole.getData("stunnedUntil") || 0)) {
+      this.mole.body?.setVelocity(0, 0);
+      return;
+    }
+    if (this.mole.texture?.key === this.stunTexture) {
+      this.setRunTexture();
+    }
     this.updateAttackAnimation(now);
     this.updateCharge(now);
 
@@ -334,6 +359,7 @@ export default class DesertMoleAI {
   }
 
   tryAttack(now) {
+    if (now < (this.mole.getData("stunnedUntil") || 0)) return;
     if (now - this.lastAttackAt < this.attackCooldownMs) {
       this.mole.body?.setVelocity(0, 0);
       return;
@@ -351,6 +377,7 @@ export default class DesertMoleAI {
   }
 
   executeAttack(now) {
+    if (now < (this.mole.getData("stunnedUntil") || 0)) return;
     this.playAttackAnimation();
     this.onAttack?.();
     this.onStrike?.();

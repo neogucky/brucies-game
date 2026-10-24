@@ -1,3 +1,4 @@
+import { getWeaponStats, isMeleeWeapon, getWeaponTextures, applyWeaponAppearance } from "../../utils/weapons.js";
 import { saveProgress } from "../../saveManager.js";
 import { playMusic } from "../../soundManager.js";
 import DialogManager from "../../dialogManager.js";
@@ -113,8 +114,7 @@ export default class DesertRuinScene extends Phaser.Scene {
   createPlayer() {
     const saveData = this.registry.get("saveData") || {};
     const isFemale = saveData.playerGender === "female";
-    const standingTexture = isFemale ? "knight-female-standing" : "knight-standing";
-    const hittingTexture = isFemale ? "knight-female-hitting" : "knight-hitting";
+    const { standingTexture, hitTexture: hittingTexture } = getWeaponTextures(saveData.equipped?.weapon, saveData.playerGender);
     this.player = this.add.image(480, 360, standingTexture).setOrigin(0.5);
     this.player.setScale(0.5);
     this.player.setDepth(5);
@@ -156,6 +156,11 @@ export default class DesertRuinScene extends Phaser.Scene {
   }
 
   resetState() {
+    this.inventoryOpen = false;
+    this.isPromptActive = false;
+    this.isSwinging = false;
+    this.skipShutdownSave = false;
+    this.time.paused = false;
     this.isGameOver = false;
     this.isPaused = false;
     this.isComplete = false;
@@ -188,6 +193,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     if (!this.shield) {
       this.shield = new ShieldManager(this);
     }
+    this.shield.setHud(null);
     this.shield.initFromSave(normalizedSave);
     this.levelCompleted = (saveData.completedLevels || []).includes("Wuestenruine");
     this.ruinStoredCoins = 0;
@@ -315,7 +321,7 @@ export default class DesertRuinScene extends Phaser.Scene {
       consumables: this.consumables,
       passiveOwned: this.equipment.shield,
       passiveShoes: this.equipment.shoes,
-      activeEquipped: this.equipped.weapon === "sword",
+      activeEquipped: this.equipped.weapon,
       passiveEquipped: this.equipped.passive,
       consumableEquipped: this.equipped.consumable === "honey",
       activeDisabled: false,
@@ -324,11 +330,11 @@ export default class DesertRuinScene extends Phaser.Scene {
       companionRespawnRatio: 0,
     });
     this.shield.setHud(this.hud);
-    this.hud.setActiveEquipped(this.equipped.weapon === "sword");
+    this.hud.setActiveEquipped(this.equipped.weapon);
     this.hud.setPassiveEquipped(this.equipped.passive);
     this.hud.setConsumableEquipped(this.equipped?.consumable === "honey");
     applyItemModeSupport(this.hud, this.equipped, this.gameMode);
-    this.hud.setItemDisabled("active", this.equipped?.weapon !== "sword");
+    this.hud.setItemDisabled("active", !isMeleeWeapon(this.equipped?.weapon));
     this.hud.setConsumableEquipped(this.equipped?.consumable === "honey");
 
     this.add
@@ -467,9 +473,9 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.hud.setConsumableCount(this.consumables?.honey ?? 0);
     this.hud.setConsumableEquipped(this.equipped?.consumable === "honey");
     this.hud.setShoesOwned(this.equipment.shoes);
-    this.hud.setActiveEquipped(this.equipped?.weapon === "sword");
+    this.hud.setActiveEquipped(this.equipped?.weapon);
     this.hud.setPassiveEquipped(this.equipped?.passive ?? null);
-    this.hud.setItemDisabled("active", this.equipped?.weapon !== "sword");
+    this.hud.setItemDisabled("active", !isMeleeWeapon(this.equipped?.weapon));
     applyItemModeSupport(this.hud, this.equipped, this.gameMode);
     this.hud.setCompanionStatus({
       health: this.companionHealth,
@@ -713,6 +719,7 @@ export default class DesertRuinScene extends Phaser.Scene {
   }
 
   useConsumable() {
+    if (this.isGameOver || this.isPaused || this.isComplete) return;
     if (!this.hud) return;
     if (this.equipped?.consumable !== "honey") return;
     const result = this.hud.tryUseHoney({
@@ -782,8 +789,16 @@ export default class DesertRuinScene extends Phaser.Scene {
     if (!this.equipped) return;
     if (slot === "weapon") {
       this.equipped.weapon = itemId;
-      this.hud.setItemDisabled("active", this.equipped.weapon !== "sword");
-      this.hud.setActiveEquipped(this.equipped.weapon === "sword");
+      this.swingTimer?.remove(false);
+      this.weaponWindupTimer?.remove(false);
+      this.isSwinging = false;
+      this.hammerSlamActive = false;
+      this.swingReadyAt = 0;
+      this.swordHitbox?.body?.setEnable(false);
+      this.swordHitbox?.setVisible(false);
+      applyWeaponAppearance(this, this.player || this.playerMarker);
+      this.hud.setItemDisabled("active", !isMeleeWeapon(this.equipped.weapon));
+      this.hud.setActiveEquipped(this.equipped.weapon);
     } else if (slot === "passive") {
       this.equipped.passive = itemId;
       this.equipment.shield = itemId === "shield";
@@ -791,7 +806,8 @@ export default class DesertRuinScene extends Phaser.Scene {
       this.hasShoes = this.equipment.shoes;
       this.hud.setPassiveEquipped(itemId);
       this.shield?.initFromSave(
-        applyInventoryToSave(this.registry.get("saveData") || {}, this.inventory, this.equipped)
+        applyInventoryToSave(this.registry.get("saveData") || {}, this.inventory, this.equipped),
+        { resetCooldown: false }
       );
     } else if (slot === "consumable") {
       this.equipped.consumable = itemId;
@@ -903,6 +919,7 @@ export default class DesertRuinScene extends Phaser.Scene {
   attemptMonsterAttack(monster, target) {
     if (this.isGameOver || this.isPaused || this.isComplete) return;
     if (!monster || !monster.active || monster.getData("emerging")) return;
+    if (this.time.now < (monster.getData("stunnedUntil") || 0)) return;
     if (!target || !target.active) return;
     if (this.getMonsterTarget(monster) !== target) return;
     if (target === this.companion) {
@@ -948,6 +965,7 @@ export default class DesertRuinScene extends Phaser.Scene {
   }
 
   damagePlayer(amount) {
+    if (this.isGameOver || this.isPaused || this.isComplete) return;
     if (this.shield?.tryBlockHit()) {
       return;
     }
@@ -973,9 +991,9 @@ export default class DesertRuinScene extends Phaser.Scene {
 
   swingSword() {
     if (this.isGameOver || this.isPaused) return;
-    if (this.equipped?.weapon !== "sword") return;
+    if (!isMeleeWeapon(this.equipped?.weapon)) return;
     const now = this.time.now;
-    if (now - this.lastAttackAt < this.attackCooldown) return;
+    if (now - this.lastAttackAt < (this.equipped.weapon === "powerHammer" ? this.attackCooldown * 1.8 : this.attackCooldown)) return;
     this.lastAttackAt = now;
     if (this.hud?.flashItem) {
       this.hud.flashItem("active");
@@ -998,10 +1016,14 @@ export default class DesertRuinScene extends Phaser.Scene {
       this.player.setScale(0.5);
     }
     this.positionSword();
-    this.swordHitbox.body.setEnable(true);
-    this.swordHitbox.setVisible(true);
+    const stats = getWeaponStats(this.equipped.weapon);
+    this.weaponWindupTimer = this.time.delayedCall(stats.windupMs, () => {
+      if (!this.isSwinging || this.isGameOver) return;
+      this.swordHitbox.body.setEnable(true);
+      this.swordHitbox.setVisible(true);
+    });
 
-    this.time.delayedCall(140, () => {
+    this.swingTimer = this.time.delayedCall(getWeaponStats(this.equipped.weapon).swingMs, () => {
       this.swordHitbox.body.setEnable(false);
       this.swordHitbox.setVisible(false);
       this.isSwinging = false;
@@ -1014,7 +1036,10 @@ export default class DesertRuinScene extends Phaser.Scene {
   }
 
   positionSword() {
-    const offset = 26;
+    const stats = getWeaponStats(this.equipped.weapon) || getWeaponStats("sword");
+    const offset = this.equipped.weapon === "powerHammer" ? stats.offset : 20.8;
+    this.swordHitbox.setSize(this.equipped.weapon === "powerHammer" ? stats.width : 43.2, stats.height);
+    this.swordHitbox.body.setSize(this.swordHitbox.width, this.swordHitbox.height);
     this.swordHitbox.setPosition(
       this.player.x + this.facing.x * offset,
       this.player.y + this.facing.y * offset
@@ -1072,6 +1097,10 @@ export default class DesertRuinScene extends Phaser.Scene {
       this.scene.restart();
     });
     this.input.keyboard.once("keydown-ESC", () => {
+      this.health = this.maxHealth;
+      this.companionHealth = 1;
+      this.companionRespawnAt = 0;
+      this.saveInventory();
       this.scene.start("DessertMapScene");
     });
   }
@@ -1188,8 +1217,10 @@ export default class DesertRuinScene extends Phaser.Scene {
   }
 
   openExitPrompt() {
+    if (this.inventoryOpen) return;
     if (this.isPromptActive || this.isComplete || this.isGameOver) return;
     this.isPaused = true;
+    this.time.paused = true;
     this.player.body.setVelocity(0, 0);
     this.physics.world.pause();
     this.promptBox.setVisible(true);
@@ -1203,6 +1234,7 @@ export default class DesertRuinScene extends Phaser.Scene {
       this.promptBox.setVisible(false);
       this.isPromptActive = false;
       if (resumeWorld) {
+        this.time.paused = false;
         this.physics.world.resume();
         this.isPaused = false;
       }

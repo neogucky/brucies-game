@@ -24,7 +24,7 @@ const config = {
     roundPixels: false,
   },
   scale: {
-    mode: Phaser.Scale.ENVELOP,
+    mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
     fullscreenTarget: document.getElementById("game"),
   },

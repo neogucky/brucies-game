@@ -1,3 +1,5 @@
+import { getWeaponStats } from "../utils/weapons.js";
+
 export default class TopHud {
   constructor(scene, options = {}) {
     this.scene = scene;
@@ -294,8 +296,10 @@ export default class TopHud {
 
   setActiveEquipped(equipped) {
     this.activeEquipped = Boolean(equipped);
+    this.activeWeapon = typeof equipped === "string" ? equipped : equipped ? "sword" : null;
     const item = this.items.active;
     if (!item) return;
+    item.icon.setTexture(getWeaponStats(this.activeWeapon)?.icon || "item-sword");
     item.icon.setVisible(this.activeEquipped);
     this.updateHintForKey("active");
   }

@@ -1,3 +1,4 @@
+import { applyWeaponAppearance } from "../utils/weapons.js";
 import { saveProgress } from "../saveManager.js";
 import { playMusic } from "../soundManager.js";
 import TopHud from "../ui/topHud.js";
@@ -54,6 +55,9 @@ export default class UndergroundMapScene extends Phaser.Scene {
   }
 
   create() {
+    this.isMoving = false;
+    this.inventoryOpen = false;
+    this.isDialogOpen = false;
     this.gameMode = GAME_MODES.ISOMETRIC;
     this.addBackground();
     this.ensureUnlocks();
@@ -72,6 +76,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
     const normalized = normalizeInventory(saveData);
     this.inventory = normalized.inventory;
     this.equipped = normalized.equipped;
+    applyWeaponAppearance(this, this.playerMarker);
     const normalizedSave = applyInventoryToSave(saveData, this.inventory, this.equipped);
     this.registry.set("saveData", normalizedSave);
     this.health = normalizedSave.health ?? 5;
@@ -84,7 +89,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
       consumables: this.consumables,
       passiveOwned: this.equipped.passive === "shield",
       passiveShoes: this.equipped.passive === "shoes",
-      activeEquipped: this.equipped.weapon === "sword",
+      activeEquipped: this.equipped.weapon,
       passiveEquipped: this.equipped.passive,
       consumableEquipped: this.equipped.consumable === "honey",
       activeDisabled: true,
@@ -93,7 +98,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
       companionRespawnRatio: 0,
       keyCollected: Boolean(normalizedSave.undergroundKeyCollected),
     });
-    this.hud.setActiveEquipped(this.equipped.weapon === "sword");
+    this.hud.setActiveEquipped(this.equipped.weapon);
     this.hud.setPassiveEquipped(this.equipped.passive);
     this.hud.setConsumableEquipped(this.equipped?.consumable === "honey");
     applyItemModeSupport(this.hud, this.equipped, this.gameMode);
@@ -259,6 +264,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
     const standingTexture = isFemale ? "knight-female-standing" : "knight-standing";
     this.playerMarker = this.add.image(startNode.x, startNode.y + 6, standingTexture);
     this.playerMarker.setScale(0.46);
+    applyWeaponAppearance(this, this.playerMarker);
     this.playerMarker.setDepth(5);
     this.companionMarker = this.add.image(
       startNode.x - 18,
@@ -328,6 +334,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
   }
 
   startCurrentLevel() {
+    if (this.isMoving || this.inventoryOpen || this.isDialogOpen) return;
     if (!this.currentNode) return;
     const saveData = this.registry.get("saveData") || {};
     if (!this.unlocked.has(this.currentNode.id)) {
@@ -382,6 +389,8 @@ export default class UndergroundMapScene extends Phaser.Scene {
   }
 
   returnToDesert() {
+    if (!this.currentNode || this.isMoving || this.inventoryOpen || this.isDialogOpen) return;
+    this.isMoving = true;
     const saveData = this.registry.get("saveData") || {};
     const desertNode = saveData.mapState?.desertNode ?? "Fremdweg";
     const nextSave = {
@@ -470,7 +479,8 @@ export default class UndergroundMapScene extends Phaser.Scene {
     if (!this.equipped) return;
     if (slot === "weapon") {
       this.equipped.weapon = itemId;
-      this.hud.setActiveEquipped(itemId === "sword");
+      applyWeaponAppearance(this, this.player || this.playerMarker);
+      this.hud.setActiveEquipped(itemId);
     } else if (slot === "passive") {
       this.equipped.passive = itemId;
       this.hud.setPassiveOwned(itemId === "shield");

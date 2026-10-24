@@ -1,3 +1,4 @@
+import { getWeaponStats, isMeleeWeapon, getWeaponTextures, applyWeaponAppearance } from "../../utils/weapons.js";
 import { saveProgress } from "../../saveManager.js";
 import { playMusic, bumpMusicRate } from "../../soundManager.js";
 import TopHud from "../../ui/topHud.js";
@@ -124,8 +125,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
   createPlayer() {
     const saveData = this.registry.get("saveData") || {};
     const isFemale = saveData.playerGender === "female";
-    const standingTexture = isFemale ? "knight-female-standing" : "knight-standing";
-    const hittingTexture = isFemale ? "knight-female-hitting" : "knight-hitting";
+    const { standingTexture, hitTexture: hittingTexture } = getWeaponTextures(saveData.equipped?.weapon, saveData.playerGender);
     this.player = this.add.image(480, 360, standingTexture).setOrigin(0.5);
     this.player.setScale(0.5);
     this.player.setDepth(5);
@@ -168,6 +168,11 @@ export default class DesertEndlessScene extends Phaser.Scene {
   }
 
   resetState() {
+    this.inventoryOpen = false;
+    this.isPromptActive = false;
+    this.isSwinging = false;
+    this.skipShutdownSave = false;
+    this.time.paused = false;
     this.isGameOver = false;
     this.isPaused = false;
     this.isComplete = false;
@@ -198,6 +203,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
     if (!this.shield) {
       this.shield = new ShieldManager(this);
     }
+    this.shield.setHud(null);
     this.shield.initFromSave(normalizedSave);
     this.lastAttackAt = 0;
     this.swordDidHit = false;
@@ -316,7 +322,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
       consumables: this.consumables,
       passiveOwned: this.equipment.shield,
       passiveShoes: this.equipment.shoes,
-      activeEquipped: this.equipped.weapon === "sword",
+      activeEquipped: this.equipped.weapon,
       passiveEquipped: this.equipped.passive,
       consumableEquipped: this.equipped.consumable === "honey",
       activeDisabled: false,
@@ -325,11 +331,11 @@ export default class DesertEndlessScene extends Phaser.Scene {
       companionRespawnRatio: 0,
     });
     this.shield.setHud(this.hud);
-    this.hud.setActiveEquipped(this.equipped.weapon === "sword");
+    this.hud.setActiveEquipped(this.equipped.weapon);
     this.hud.setPassiveEquipped(this.equipped.passive);
     this.hud.setConsumableEquipped(this.equipped?.consumable === "honey");
     applyItemModeSupport(this.hud, this.equipped, this.gameMode);
-    this.hud.setItemDisabled("active", this.equipped?.weapon !== "sword");
+    this.hud.setItemDisabled("active", !isMeleeWeapon(this.equipped?.weapon));
 
     this.add
       .text(14, 575, "Pfeiltasten zum bewegen, Früchte heilen, Schlag Truhen für Münzen", {
@@ -485,9 +491,9 @@ export default class DesertEndlessScene extends Phaser.Scene {
     this.hud.setConsumableCount(this.consumables?.honey ?? 0);
     this.hud.setConsumableEquipped(this.equipped?.consumable === "honey");
     this.hud.setShoesOwned(this.equipment.shoes);
-    this.hud.setActiveEquipped(this.equipped?.weapon === "sword");
+    this.hud.setActiveEquipped(this.equipped?.weapon);
     this.hud.setPassiveEquipped(this.equipped?.passive ?? null);
-    this.hud.setItemDisabled("active", this.equipped?.weapon !== "sword");
+    this.hud.setItemDisabled("active", !isMeleeWeapon(this.equipped?.weapon));
     applyItemModeSupport(this.hud, this.equipped, this.gameMode);
     this.hud.setCompanionStatus({
       health: this.companionHealth,
@@ -934,6 +940,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
   }
 
   useConsumable() {
+    if (this.isGameOver || this.isPaused || this.isComplete) return;
     if (!this.hud) return;
     if (this.equipped?.consumable !== "honey") return;
     const result = this.hud.tryUseHoney({
@@ -994,6 +1001,13 @@ export default class DesertEndlessScene extends Phaser.Scene {
   }
 
   damageMonster(monster, amount) {
+    if (!monster?.active) return;
+    if (monster.getData("isWindingUp")) {
+      monster.getData("bossAttackEvent")?.remove(false);
+      monster.setData("bossAttackEvent", null);
+      monster.setData("isWindingUp", false);
+      monster.setData("attackUntil", 0);
+    }
     const currentHp = monster.getData("hp") ?? 0;
     const nextHp = Math.max(0, currentHp - amount);
     monster.setData("hp", nextHp);
@@ -1153,7 +1167,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
     monster.setData("stunnedUntil", Math.max(monster.getData("stunnedUntil") || 0, now + 500));
     monster.body.setVelocity(0, 0);
     monster.body.setSize(monster.displayWidth * 0.5, monster.displayHeight * 0.5, true);
-    this.time.delayedCall(500, () => {
+    const attackEvent = this.time.delayedCall(500, () => {
       if (!monster.active) return;
       monster.setData("isWindingUp", false);
       monster.setData("bossAttackPoseUntil", this.time.now + 200);
@@ -1162,9 +1176,12 @@ export default class DesertEndlessScene extends Phaser.Scene {
       this.playBossAttackSound();
       this.executeMonsterAttack(monster, target, 2, { allowMiss: true });
     });
+    monster.setData("bossAttackEvent", attackEvent);
   }
 
   executeMonsterAttack(monster, target, damage = 1, options = {}) {
+    if (this.isGameOver || this.isPaused || this.isComplete) return;
+    if (this.time.now < (monster.getData("stunnedUntil") || 0)) return;
     if (!monster.active || monster.getData("emerging")) return;
     if (!target || !target.active) return;
     if (this.getMonsterTarget(monster) !== target) return;
@@ -1262,6 +1279,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
   }
 
   damagePlayer(amount) {
+    if (this.isGameOver || this.isPaused || this.isComplete) return;
     if (this.shield?.tryBlockHit()) {
       return;
     }
@@ -1287,9 +1305,9 @@ export default class DesertEndlessScene extends Phaser.Scene {
 
   swingSword() {
     if (this.isGameOver || this.isPaused) return;
-    if (this.equipped?.weapon !== "sword") return;
+    if (!isMeleeWeapon(this.equipped?.weapon)) return;
     const now = this.time.now;
-    if (now - this.lastAttackAt < this.attackCooldown) return;
+    if (now - this.lastAttackAt < (this.equipped.weapon === "powerHammer" ? this.attackCooldown * 1.8 : this.attackCooldown)) return;
     this.lastAttackAt = now;
     if (this.hud?.flashItem) {
       this.hud.flashItem("active");
@@ -1312,10 +1330,14 @@ export default class DesertEndlessScene extends Phaser.Scene {
       this.player.setScale(0.5);
     }
     this.positionSword();
-    this.swordHitbox.body.setEnable(true);
-    this.swordHitbox.setVisible(true);
+    const stats = getWeaponStats(this.equipped.weapon);
+    this.weaponWindupTimer = this.time.delayedCall(stats.windupMs, () => {
+      if (!this.isSwinging || this.isGameOver) return;
+      this.swordHitbox.body.setEnable(true);
+      this.swordHitbox.setVisible(true);
+    });
 
-    this.time.delayedCall(140, () => {
+    this.swingTimer = this.time.delayedCall(getWeaponStats(this.equipped.weapon).swingMs, () => {
       this.swordHitbox.body.setEnable(false);
       this.swordHitbox.setVisible(false);
       this.isSwinging = false;
@@ -1328,7 +1350,10 @@ export default class DesertEndlessScene extends Phaser.Scene {
   }
 
   positionSword() {
-    const offset = 26;
+    const stats = getWeaponStats(this.equipped.weapon) || getWeaponStats("sword");
+    const offset = this.equipped.weapon === "powerHammer" ? stats.offset : 20.8;
+    this.swordHitbox.setSize(this.equipped.weapon === "powerHammer" ? stats.width : 43.2, stats.height);
+    this.swordHitbox.body.setSize(this.swordHitbox.width, this.swordHitbox.height);
     this.swordHitbox.setPosition(
       this.player.x + this.facing.x * offset,
       this.player.y + this.facing.y * offset
@@ -1385,6 +1410,10 @@ export default class DesertEndlessScene extends Phaser.Scene {
       this.scene.restart();
     });
     this.input.keyboard.once("keydown-ESC", () => {
+      this.health = this.maxHealth;
+      this.companionHealth = 1;
+      this.companionRespawnAt = 0;
+      this.saveInventory();
       this.scene.start("DessertMapScene");
     });
   }
@@ -2175,8 +2204,16 @@ export default class DesertEndlessScene extends Phaser.Scene {
     if (!this.equipped) return;
     if (slot === "weapon") {
       this.equipped.weapon = itemId;
-      this.hud.setItemDisabled("active", this.equipped.weapon !== "sword");
-      this.hud.setActiveEquipped(this.equipped.weapon === "sword");
+      this.swingTimer?.remove(false);
+      this.weaponWindupTimer?.remove(false);
+      this.isSwinging = false;
+      this.hammerSlamActive = false;
+      this.swingReadyAt = 0;
+      this.swordHitbox?.body?.setEnable(false);
+      this.swordHitbox?.setVisible(false);
+      applyWeaponAppearance(this, this.player || this.playerMarker);
+      this.hud.setItemDisabled("active", !isMeleeWeapon(this.equipped.weapon));
+      this.hud.setActiveEquipped(this.equipped.weapon);
     } else if (slot === "passive") {
       this.equipped.passive = itemId;
       this.equipment.shield = itemId === "shield";
@@ -2184,7 +2221,8 @@ export default class DesertEndlessScene extends Phaser.Scene {
       this.hasShoes = this.equipment.shoes;
       this.hud.setPassiveEquipped(itemId);
       this.shield?.initFromSave(
-        applyInventoryToSave(this.registry.get("saveData") || {}, this.inventory, this.equipped)
+        applyInventoryToSave(this.registry.get("saveData") || {}, this.inventory, this.equipped),
+        { resetCooldown: false }
       );
     } else if (slot === "consumable") {
       this.equipped.consumable = itemId;

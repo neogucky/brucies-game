@@ -16,10 +16,13 @@ export default class ShieldManager {
     this.player = null;
   }
 
-  initFromSave(saveData) {
+  initFromSave(saveData, { resetCooldown = true } = {}) {
     this.owned = Boolean(saveData?.equipment?.shield);
-    this.active = this.owned;
-    this.cooldownUntil = 0;
+    if (resetCooldown || this.scene.time.now >= this.cooldownUntil) {
+      this.cooldownUntil = 0;
+      this.cooldownStartedAt = 0;
+    }
+    this.active = this.owned && !this.cooldownUntil;
     this.syncHud();
   }
 
