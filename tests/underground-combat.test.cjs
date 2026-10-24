@@ -29,6 +29,11 @@ const context = {
   },
 };
 vm.createContext(context);
+vm.runInContext(fs.readFileSync(path.join(__dirname, '../src/utils/undergroundBoss.js'), 'utf8')
+  .replace(/export /g, ''), context);
+vm.runInContext(fs.readFileSync(path.join(__dirname, '../src/utils/inventory.js'), 'utf8')
+  .replace(/export /g, ''), context);
+context.showUndergroundVictory = (scene, options) => { context.victory = options; return {}; };
 vm.runInContext(fs.readFileSync(path.join(__dirname, '../src/utils/ShieldManager.js'), 'utf8')
   .replace('export default class ShieldManager', 'globalThis.ShieldManager = class ShieldManager'), context);
 vm.runInContext(fs.readFileSync(path.join(__dirname, '../src/utils/weapons.js'), 'utf8')
@@ -53,6 +58,8 @@ function actor(x = 400, y = 100, data = {}) {
     getData(key) { return this.data[key]; },
     setData(key, value) { this.data[key] = value; return this; },
     setTexture(value) { this.texture = { key: value }; return this; },
+    setAlpha(value) { this.alpha = value; return this; },
+    setTint(value) { this.tint = value; return this; },
     setFlipX() {},
     setVisible(value) { this.visible = value; return this; },
     getBounds() { return new Rectangle(this.x - 15, this.y - 40, 30, 40); },
@@ -918,15 +925,342 @@ for (const weapon of ['sword', 'powerHammer']) {
   });
 }
 
-test('hammer landing shatters the stone beneath the impact and keeps surrounding tiles intact', () => {
+for (const weapon of ['sword', 'powerHammer']) {
+  for (const facing of [-1, 1]) {
+    test(`crouched ${weapon} facing ${facing} digs only the foot-level row even with raised auto-aim`, () => {
+      const { scene, monster } = setup(); monster.active = false;
+      withSword(scene); scene.equipped.weapon = weapon;
+      scene.isDucking = true; scene.facingX = facing;
+      scene.player.body.bottom = 160;
+      scene.autoAimEnabled = true;
+      const target = actor(400 + facing * 42, 110);
+      scene.autoAimTarget = { enemy: target, kind: 'mole' };
+      // Keep the fixture's target fixed so the tile check also covers upward aim.
+      scene.applyAutoAim = () => {};
+      const col = facing > 0 ? 11 : 9;
+      const tiles = [2, 3, 4].map(row => {
+        const block = actor(0, 0, { type: 'earth', col, row });
+        block.getBounds = () => new Rectangle(col * 40, row * 40, 40, 40);
+        scene.blockMap.set(`${col},${row}`, block);
+        return block;
+      });
+      scene.blocks = { children: { size: tiles.length }, getChildren: () => tiles,
+        remove(block) { block.destroy(); } };
+      scene.digBlock();
+      assert.equal(tiles[0].active, true, 'upper tile stays intact');
+      assert.equal(tiles[1].active, false, 'lower tile in front is broken');
+      assert.equal(tiles[2].active, true, 'floor stays intact during a forward strike');
+      assert.equal(scene.blockMap.has(`${col},3`), false);
+    });
+  }
+}
+
+for (const type of ['earth', 'stone', 'black']) {
+test(`hammer landing handles ${type} beneath the impact and keeps surrounding tiles intact`, () => {
   const { scene, monster } = setup(); monster.active = false;
   withHammer(scene);
-  const block = withDigBlock(scene, 'stone', 10, 4);
+  const block = withDigBlock(scene, type, 10, 4);
   const neighbor = actor(475, 160, { type: 'stone', col: 11, row: 4 });
   scene.blockMap.set('11,4', neighbor);
   scene.beginHammerSlam(); scene.landHammerSlam();
-  assert.equal(block.active, false);
-  assert.equal(scene.blockMap.has('10,4'), false);
+  assert.equal(block.active, type === 'black');
+  assert.equal(scene.blockMap.has('10,4'), type === 'black');
   assert.equal(neighbor.active, true);
   assert.equal(scene.blockMap.has('11,4'), true);
+});
+}
+
+function withBoss(levelId = 'Schluesselweg') {
+  const config = vm.runInContext('UNDERGROUND_BOSSES.' + levelId, context);
+  const { scene, monster } = setup({
+    isStoneBoss: true, bossConfig: config, bossStage: 1, hp: config.maxHp,
+    maxHp: config.maxHp, bossHomeX: 700, bossHomeY: 100,
+  });
+  Object.assign(scene, {
+    levelId, bossEncounter: config, bossUpperTiles: [], keyPathArenaTriggered: true,
+    keyPathMiniBoss: monster, coinsCollected: 30,
+    inventory: { weapons: { sword: true }, passives: {}, consumables: { honey: 2 }, companions: { default: true } },
+    equipped: { weapon: 'sword', companion: 'default' },
+    physics: { world: { pause() {} } }, showDanger() {},
+    scene: { start(key) { this.destination = key; } },
+  });
+  scene.player.body.setVelocity = () => {};
+  scene.hud.setCoins = value => { scene.hud.coins = value; };
+  let saved = { coins: 30, health: 5, completedLevels: [], unlockedLevels: [levelId] };
+  scene.registry = { get: () => saved, set: (_, next) => { saved = next; } };
+  return { scene, monster, config, getSaved: () => saved };
+}
+
+test('boss armor blocks damage while rolling, dropping, waiting, or outside the arena', () => {
+  const { scene, monster, config } = withBoss();
+  for (const state of ['rolling', 'dropping', 'returning', 'ready', 'perched']) {
+    monster.setData('stoneState', state);
+    assert.equal(scene.damageStoneMonster(monster, 3), false);
+    assert.equal(monster.getData('hp'), config.maxHp);
+    assert.equal(monster.getData('stoneState'), state);
+  }
+  monster.setData('stoneState', 'rolling');
+  scene.stunStoneMonster(monster);
+  scene.keyPathArenaTriggered = false;
+  assert.equal(scene.damageStoneMonster(monster, 3), false);
+  assert.equal(monster.getData('hp'), config.maxHp);
+});
+
+test('boss permits two hits per impact and repeated attacks cannot extend its stun', () => {
+  const { scene, monster } = withBoss();
+  scene.stunStoneMonster(monster);
+  const until = monster.getData('stateUntil');
+  for (let i = 0; i < 8; i += 1) {
+    scene.time.now = i * 100;
+    scene.damageStoneMonster(monster, 2);
+    scene.stunStoneMonster(monster);
+  }
+  assert.equal(monster.getData('hp'), 16);
+  assert.equal(monster.getData('stateUntil'), until);
+  assert.equal(monster.getData('bossHitsLeft'), 0);
+  scene.time.now = until; scene.updateStoneMonsters();
+  assert.equal(monster.getData('stoneState'), 'rolling');
+});
+
+test('helper gets one separate boss hit without consuming either player opening', () => {
+  const { scene, monster } = withBoss();
+  scene.stunStoneMonster(monster);
+  scene.damageStoneMonster(monster, 1, 'companion');
+  scene.damageStoneMonster(monster, 1, 'companion');
+  assert.equal(monster.getData('hp'), 19);
+  assert.equal(monster.getData('bossHitsLeft'), 2);
+  scene.damageStoneMonster(monster, 2); scene.damageStoneMonster(monster, 2);
+  assert.equal(monster.getData('hp'), 15);
+  assert.equal(monster.getData('bossHitsLeft'), 0);
+});
+
+test('phase boundaries prevent burst kills, restore the upper tier, and give a safe return telegraph', () => {
+  const { scene, monster } = withBoss();
+  const restored = [];
+  scene.bossUpperTiles = [{ col: 20, row: 3, type: 'earth' }];
+  scene.placeBlock = (...args) => restored.push(args);
+  scene.stunStoneMonster(monster);
+  scene.damageStoneMonster(monster, 999);
+  assert.equal(monster.active, true);
+  assert.equal(monster.getData('hp'), 14);
+  assert.equal(monster.getData('bossStage'), 2);
+  assert.equal(monster.getData('stoneState'), 'returning');
+  assert.equal(scene.tweens.pending.y, 100);
+  assert.equal(scene.damageStoneMonster(monster, 999), false);
+  scene.tweens.pending.onComplete();
+  assert.equal(restored.length, 1);
+  assert.equal(restored[0][0], 20);
+  assert.equal(restored[0][2], 'earth');
+  assert.equal(monster.x, 700);
+  assert.equal(monster.getData('stoneState'), 'ready');
+  scene.time.now = monster.getData('bossReadyUntil') - 1;
+  scene.updateStoneMonsters();
+  assert.equal(monster.getData('stoneState'), 'ready');
+  scene.time.now += 1; scene.updateStoneMonsters();
+  assert.equal(monster.getData('stoneState'), 'rolling');
+});
+
+test('rebuilding the upper tier never traps the player in a new tile', () => {
+  const { scene, monster } = withBoss();
+  scene.player.body = { x: 800, y: 120, width: 20, height: 40 };
+  scene.bossUpperTiles = [{ col: 20, row: 3, type: 'earth' }, { col: 22, row: 3, type: 'earth' }];
+  const restored = [];
+  scene.placeBlock = (...args) => restored.push(args);
+  scene.returnBossToUpperTier(monster);
+  scene.tweens.pending.onComplete();
+  assert.equal(restored.length, 1);
+  assert.equal(restored[0][0], 22);
+});
+
+test('boss becomes faster in each phase and the super boss is stronger', () => {
+  for (const level of ['Schluesselweg', 'Kristalltiefen']) {
+    const { scene, monster, config } = withBoss(level);
+    for (let stage = 1; stage <= 3; stage += 1) {
+      monster.x = 400; monster.setData('bossStage', stage);
+      monster.setData('stoneState', 'rolling'); monster.setData('bossPhase', 'groundSweep');
+      scene.updateStoneMonsterRoll(monster, .05);
+      assert.equal(monster.x, 400 + (config.rollSpeed + (stage - 1) * config.speedPerStage) * .05);
+    }
+  }
+  const normal = withBoss(), superBoss = withBoss('Kristalltiefen');
+  assert.ok(superBoss.config.maxHp > normal.config.maxHp);
+  assert.ok(superBoss.config.rollSpeed > normal.config.rollSpeed);
+});
+
+for (const level of ['Schluesselweg', 'Kristalltiefen']) {
+  test(level + ': victory requires three phases and immediately saves completion, reward, and unlock', () => {
+    const { scene, monster, config, getSaved } = withBoss(level);
+    for (let stage = 1; stage <= 3; stage += 1) {
+      monster.setData('stoneState', 'rolling');
+      scene.stunStoneMonster(monster);
+      scene.damageStoneMonster(monster, 999);
+      if (stage < 3) {
+        assert.equal(scene.levelCompleted, undefined);
+        scene.tweens.pending.onComplete();
+        scene.time.now = monster.getData('bossReadyUntil');
+      }
+    }
+    assert.equal(monster.active, false);
+    assert.equal(scene.levelCompleted, true);
+    assert.equal(scene.time.paused, true);
+    assert.equal(getSaved().completedLevels.includes(level), true);
+    assert.equal(getSaved().coins, 30 + config.reward);
+    assert.equal(getSaved().inventory.consumables.honey, 2);
+    if (config.unlock) assert.equal(getSaved().unlockedLevels.includes(config.unlock), true);
+    assert.equal(getSaved().currentLevel, config.unlock || level);
+    assert.equal(context.victory.name, config.name);
+    scene.winBossLevel(config);
+    assert.equal(getSaved().coins, 30 + config.reward);
+    context.victory.onContinue();
+    assert.equal(scene.scene.destination, 'UndergroundMapScene');
+    assert.equal(scene.time.paused, false);
+  });
+}
+
+test('Kristalltiefen contains five supported chests, healing, enemies, a sealed arena and no invalid tiles', () => {
+  const map = JSON.parse(fs.readFileSync(path.join(__dirname, '../assets/levels/underground_crystal.json')));
+  const keys = new Set(map.blocks.map(b => b.col + ',' + b.row));
+  assert.equal(keys.size, map.blocks.length);
+  assert.equal(map.chests.length, 5);
+  for (const block of map.blocks) {
+    assert.ok(block.col >= 0 && block.col < map.cols && block.row >= 0 && block.row < map.rows);
+  }
+  for (const chest of map.chests) {
+    assert.equal(keys.has(chest.col + ',' + chest.row), false);
+    assert.equal(keys.has(chest.col + ',' + (chest.row + 1)), true);
+    assert.ok(chest.col < map.bossArena.wallCol);
+  }
+  assert.equal(keys.has(map.start.col + ',' + map.start.row), false);
+  assert.ok(map.hearts.length >= 2);
+  assert.ok(map.moles.length > 0 && map.stoneMonsters.length > 0);
+  assert.ok(map.bossArena.triggerCol > map.bossArena.wallCol);
+  assert.ok(map.bossArena.bossCol > map.bossArena.triggerCol);
+});
+
+function withAutoAim(scene) {
+  withSword(scene);
+  scene.autoAimEnabled = true;
+  scene.hasLineOfSight = () => true;
+}
+
+test('underground auto-aim turns toward a nearby enemy behind the player before attacking', () => {
+  const { scene, monster } = setup(); monster.active = false;
+  withAutoAim(scene);
+  const { mole } = withMole(scene); mole.x = 360;
+  scene.digBlock();
+  assert.equal(scene.facingX, -1);
+  assert.equal(mole.getData('hp'), 2);
+});
+
+test('disabled auto-aim leaves manual direction and attack reach unchanged', () => {
+  const { scene, monster } = setup(); monster.active = false;
+  withAutoAim(scene); scene.autoAimEnabled = false;
+  const { mole } = withMole(scene); mole.x = 360;
+  scene.digBlock();
+  assert.equal(scene.facingX, 1);
+  assert.equal(mole.getData('hp'), 3);
+});
+
+test('auto-aim ignores targets behind walls and selects a visible nearby target', () => {
+  const { scene, monster } = setup(); monster.active = false;
+  withAutoAim(scene);
+  const left = actor(365, 140), right = actor(445, 140);
+  scene.molesGroup = { getChildren: () => [left, right] };
+  scene.hasLineOfSight = (_x, _y, targetX) => targetX > scene.player.x;
+  scene.applyAutoAim();
+  assert.equal(scene.autoAimTarget.enemy, right);
+  assert.equal(scene.facingX, 1);
+  scene.hasLineOfSight = () => false;
+  scene.applyAutoAim();
+  assert.equal(scene.autoAimTarget, null);
+});
+
+test('auto-aim does not pull aim toward distant or vertically unreachable enemies', () => {
+  const { scene, monster } = setup(); monster.active = false;
+  withAutoAim(scene);
+  const { mole } = withMole(scene); mole.x = 1000;
+  scene.applyAutoAim(); assert.equal(scene.autoAimTarget, null);
+  mole.x = 360; mole.y = -300;
+  scene.applyAutoAim(); assert.equal(scene.autoAimTarget, null);
+});
+
+test('auto-aim keeps its chosen direction for an entire swing including hammer windup', () => {
+  const { scene, monster } = setup();
+  withHammer(scene); scene.autoAimEnabled = true;
+  monster.x = 350; monster.y = 105;
+  scene.startSwing();
+  assert.equal(scene.facingX, -1);
+  monster.x = 450;
+  scene.applyAutoAim();
+  assert.equal(scene.facingX, -1);
+  assert.equal(scene.isSwinging, true);
+});
+
+test('auto-aim also reaches bats in melee range and a swing damages each bat only once', () => {
+  const { scene, monster } = setup(); monster.active = false;
+  withAutoAim(scene);
+  const bat = actor(365, 92, { hp: 2 });
+  scene.batsGroup = { getChildren: () => [bat] };
+  scene.batSystem = {
+    getBounds: enemy => new Rectangle(enemy.x - 17, enemy.y - 12, 34, 24),
+    damage(enemy, amount) { enemy.setData('hp', enemy.getData('hp') - amount); },
+  };
+  scene.digBlock();
+  assert.equal(scene.autoAimTarget.enemy, bat);
+  assert.equal(scene.facingX, -1);
+  assert.equal(bat.getData('hp'), 1);
+  scene.hitSwordEnemies();
+  assert.equal(bat.getData('hp'), 1);
+});
+
+for (const damage of [1, 2]) {
+  test('flying enemy hit applies ' + damage + ' damage and protects against repeated overlap', () => {
+    const { scene } = setup();
+    assert.equal(scene.applyFlyingEnemyHit(damage), true);
+    assert.equal(scene.health, 5 - damage);
+    assert.equal(scene.hud.health, 5 - damage);
+    assert.equal(scene.saves, 1);
+    scene.time.now = 999;
+    assert.equal(scene.applyFlyingEnemyHit(damage), false);
+    assert.equal(scene.health, 5 - damage);
+  });
+}
+
+test('shield absorbs bat and poisonous berry damage without losing hearts', () => {
+  const { scene } = setup();
+  const shield = withShield(scene);
+  scene.applyFlyingEnemyHit(2);
+  assert.equal(scene.health, 5);
+  assert.equal(shield.active, false);
+  assert.equal(shield.bubble.visible, false);
+  scene.time.now = 1; scene.applyFlyingEnemyHit(1);
+  assert.equal(scene.health, 5);
+});
+
+for (const flag of ['isPaused', 'isGameOver', 'levelCompleted']) {
+  test(flag + ' prevents bat and berry damage', () => {
+    const { scene } = setup(); scene[flag] = true;
+    assert.equal(scene.applyFlyingEnemyHit(2), false);
+    assert.equal(scene.health, 5);
+    assert.equal(scene.saves, 0);
+  });
+}
+
+test('respawn protection does not consume a shield when a bat or berry touches the player', () => {
+  const { scene } = setup();
+  const shield = withShield(scene);
+  scene.player.setData('invulnerableUntil', 1000);
+  scene.applyFlyingEnemyHit(2);
+  assert.equal(scene.health, 5);
+  assert.equal(shield.active, true);
+});
+
+test('a fatal berry hit triggers defeat once', () => {
+  const { scene } = setup();
+  scene.health = 2;
+  scene.applyFlyingEnemyHit(2);
+  assert.equal(scene.health, 0);
+  assert.equal(scene.isGameOver, true);
+  scene.time.now = 2000; scene.applyFlyingEnemyHit(2);
+  assert.equal(scene.saves, 1);
 });

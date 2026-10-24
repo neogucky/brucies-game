@@ -8,6 +8,9 @@ import DesertMoleAI from "../../utils/DesertMoleAI.js";
 import ShieldManager from "../../utils/ShieldManager.js";
 import { applyInventoryToSave, normalizeInventory } from "../../utils/inventory.js";
 import { applyItemModeSupport, GAME_MODES } from "../../utils/itemRegistry.js";
+import { UNDERGROUND_BOSSES, getBossStageFloor } from "../../utils/undergroundBoss.js";
+import showUndergroundVictory from "../../ui/UndergroundVictoryScreen.js";
+import UndergroundBats from "../../utils/UndergroundBats.js";
 
 export default class UndergroundDigScene extends Phaser.Scene {
   constructor() {
@@ -143,11 +146,15 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.gameMode = GAME_MODES.JUMP;
     this.resetSceneState();
     this.loadLevelMap();
+    this.coinsPerChest = this.levelMap?.coinsPerChest ?? 500;
     this.addBackground();
+    if (this.levelMap?.theme === "crystal") this.addCrystalDecorations();
     this.createPlayer();
     this.createBlocks();
+    this.batSystem = new UndergroundBats(this, this.levelMap?.bats || []);
     this.createCompanion();
     this.createUI();
+    this.createBossHud();
     this.createAudio();
     playMusic(this, "music-underground", { rate: 1 });
     this.ensureSaveState();
@@ -178,6 +185,17 @@ export default class UndergroundDigScene extends Phaser.Scene {
   }
 
   resetSceneState() {
+    this.batSystem?.destroy();
+    this.batSystem = null;
+    this.batsGroup = null;
+    this.poisonBerriesGroup = null;
+    this.autoAimTarget = null;
+    this.bossEncounter = UNDERGROUND_BOSSES[this.levelId] || null;
+    this.bossUpperTiles = [];
+    this.bossHud?.destroy(true);
+    this.bossHud = null;
+    this.victoryScreen?.destroy(true);
+    this.victoryScreen = null;
     this._shutdownHandled = false;
     this.isPaused = false;
     this.isEditorMode = false;
@@ -304,6 +322,10 @@ export default class UndergroundDigScene extends Phaser.Scene {
   handleShutdown() {
     if (this._shutdownHandled) return;
     this._shutdownHandled = true;
+    this.batSystem?.destroy();
+    this.batSystem = null;
+    this.batsGroup = null;
+    this.poisonBerriesGroup = null;
     this.isPaused = true;
     if (this.keyPathArenaFallEvent) {
       this.keyPathArenaFallEvent.remove(false);
@@ -400,6 +422,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     while (x - scaledWidth / 2 < width) {
       const key = index % 2 === 0 ? baseKey : altKey;
       const bg = this.add.image(x, height / 2, key);
+      if (this.levelMap?.theme === "crystal") bg.setTint(0xb5d6ff);
       bg.setScale(scale);
       bg.setDepth(-2);
       x += scaledWidth;
@@ -908,14 +931,20 @@ export default class UndergroundDigScene extends Phaser.Scene {
       if (this.hasItemAt(this.chests, col, row)) return;
       const chest = this.add.image(
         (col + 0.5) * this.tileSize,
-        (row + 1) * this.tileSize + 20,
+        (row + 1) * this.tileSize,
         "chest-closed"
       );
+      chest.setOrigin(0.5, 1);
       chest.setScale(0.45);
       chest.setDepth(2);
       chest.setData("opened", false);
       chest.setData("col", col);
       chest.setData("row", row);
+      const id = this.levelId + ":" + col + "," + row;
+      chest.setData("id", id);
+      const opened = Boolean(this.registry.get("saveData")?.undergroundDigChests?.[id]);
+      chest.setData("opened", opened);
+      if (opened) chest.setTexture("chest-opened");
       this.physics.add.existing(chest, true);
       this.chests.add(chest);
     });
@@ -1010,7 +1039,8 @@ export default class UndergroundDigScene extends Phaser.Scene {
     const spawnRow = Phaser.Math.Clamp(row, 1, (this.gridRows ?? 1) - 2);
     const isBoss = Boolean(options?.isBoss);
     const scale = isBoss ? 1.16 : 0.58;
-    const maxHp = isBoss ? 20 : 5;
+    const config = isBoss ? this.bossEncounter || UNDERGROUND_BOSSES.Schluesselweg : null;
+    const maxHp = config?.maxHp || 5;
     const monster = this.add.image(
       (spawnCol + 0.5) * this.tileSize,
       (spawnRow + 0.5) * this.tileSize,
@@ -1030,6 +1060,13 @@ export default class UndergroundDigScene extends Phaser.Scene {
     monster.setData("hp", maxHp);
     monster.setData("maxHp", maxHp);
     monster.setData("rollingSound", null);
+    if (isBoss) {
+      monster.setData("bossConfig", config);
+      monster.setData("bossStage", 1);
+      monster.setData("bossHomeX", monster.x);
+      monster.setData("bossHomeY", monster.y);
+      if (config.isSuperBoss) monster.setTint(0xa7d4ff).setScale(1.32);
+    }
     this.stoneMonstersGroup.add(monster);
     if (isBoss) {
       this.keyPathMiniBoss = monster;
@@ -1785,6 +1822,21 @@ export default class UndergroundDigScene extends Phaser.Scene {
     return true;
   }
 
+  applyFlyingEnemyHit(amount) {
+    if (this.isPaused || this.isGameOver || this.levelCompleted || !this.player?.active || this.health <= 0) return false;
+    const now = this.time.now;
+    if (now < (this.player.getData("invulnerableUntil") || 0) ||
+      now < (this.player.getData("flyingEnemyInvulnerableUntil") || 0)) return false;
+    this.player.setData("flyingEnemyInvulnerableUntil", now + 1000);
+    if (this.shield?.tryBlockHit()) return false;
+    this.health = Math.max(0, this.health - amount);
+    this.hud?.setHealth(this.health, this.maxHealth);
+    this.cameras?.main?.shake(100, .003);
+    this.saveInventory();
+    if (this.health <= 0) this.triggerGameOver();
+    return true;
+  }
+
   applyMoleAttack(mole) {
     if (!mole?.active || !this.player?.active) return;
     const now = this.time.now;
@@ -1905,6 +1957,41 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.keyItem.setDepth(2);
   }
 
+  getSwingCenterY() {
+    let y = this.player.y - this.player.displayHeight * .6 + (this.isDucking ? 20 : -10);
+    if (this.cursors.up.isDown || this.wasd.W.isDown) y -= 10;
+    return y + (this.isDucking ? 12 : 3);
+  }
+
+  applyAutoAim() {
+    if (!this.autoAimEnabled || this.isSwinging || this.hammerSlamActive) return;
+    const stats = getWeaponStats(this.equipped?.weapon);
+    if (!stats) return;
+    const centerY = this.getSwingCenterY();
+    let nearest = null, best = Infinity;
+    const groups = [[this.molesGroup, "mole"], [this.stoneMonstersGroup, "stone"], [this.batsGroup, "bat"]];
+    groups.forEach(([group, kind]) => {
+      group?.getChildren?.().forEach(enemy => {
+        if (!enemy.active) return;
+        if (kind === "stone" && ["returning", "ready"].includes(enemy.getData("stoneState"))) return;
+        const bounds = kind === "stone" ? this.getStoneMonsterHitbox(enemy)
+          : kind === "bat" ? this.batSystem.getBounds(enemy) : enemy.getBounds();
+        const gapX = Math.max(0, bounds.x - this.player.x, this.player.x - bounds.right);
+        const gapY = Math.max(0, bounds.y - centerY, centerY - bounds.bottom);
+        if (gapX > stats.width + 12 || gapY > stats.height / 2 + 16) return;
+        const targetY = bounds.y + bounds.height / 2;
+        if (!this.hasLineOfSight(this.player.x, centerY, enemy.x, targetY)) return;
+        const distance = Math.abs(enemy.x - this.player.x) + Math.abs(targetY - centerY);
+        if (distance >= best) return;
+        best = distance; nearest = { enemy, kind };
+      });
+    });
+    this.autoAimTarget = nearest;
+    if (!nearest) return;
+    this.facingX = nearest.enemy.x >= this.player.x ? 1 : -1;
+    this.player.setFlipX(this.facingX > 0);
+  }
+
   digBlock() {
     if (this.isPaused || this.isEditorMode) return;
     if (!isMeleeWeapon(this.equipped?.weapon)) return;
@@ -1922,12 +2009,18 @@ export default class UndergroundDigScene extends Phaser.Scene {
       }
     }
     if (!this.blocks?.children?.size) return;
+    // Crouched digging stays in the row at the feet, even when auto-aim looks up.
+    const feetY = this.player.body?.bottom ?? this.player.y;
+    const blockHitBounds = this.isDucking
+      ? new Phaser.Geom.Rectangle(hitBounds.x,
+        Math.floor((feetY - 1) / this.tileSize) * this.tileSize, hitBounds.width, this.tileSize)
+      : hitBounds;
     const candidates = this.blocks.getChildren();
     let hitBlocked = false;
     for (let i = 0; i < candidates.length; i += 1) {
       const block = candidates[i];
       if (!block.active) continue;
-      if (!Phaser.Geom.Intersects.RectangleToRectangle(hitBounds, block.getBounds())) continue;
+      if (!Phaser.Geom.Intersects.RectangleToRectangle(blockHitBounds, block.getBounds())) continue;
       const type = block.getData("type");
       if (type === "coin") {
         this.handleCoinTileHit(block);
@@ -1994,6 +2087,14 @@ export default class UndergroundDigScene extends Phaser.Scene {
         hitEnemy = true;
       }
     }
+    this.batsGroup?.getChildren?.().slice().forEach(bat => {
+      if (!bat.active || this.swingHits.has(bat)) return;
+      if (!Phaser.Geom.Intersects.RectangleToRectangle(hitBounds, this.batSystem.getBounds(bat))) return;
+      if (!this.hasLineOfSight(this.player.x, hitBounds.y + hitBounds.height / 2, bat.x, bat.y)) return;
+      this.swingHits.add(bat);
+      this.batSystem.damage(bat, getWeaponDamage(this.equipped.weapon));
+      hitEnemy = true;
+    });
     return hitEnemy;
   }
 
@@ -2001,6 +2102,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     if (this.isSwinging) return false;
     const stats = getWeaponStats(this.equipped?.weapon);
     if (!stats) return false;
+    this.applyAutoAim();
     this.isSwinging = true;
     this.player.setFlipX(this.facingX > 0);
     this.swingReadyAt = this.time.now + stats.windupMs;
@@ -2041,18 +2143,14 @@ export default class UndergroundDigScene extends Phaser.Scene {
     const stats = getWeaponStats(this.equipped?.weapon) || getWeaponStats("sword");
     this.swordHitbox.setSize(stats.width, stats.height);
     const offsetX = this.facingX * stats.offset;
-    const baseCenterY = this.player.y - this.player.displayHeight * 0.6;
-    let centerY = baseCenterY - 10;
-    if (this.isDucking) {
-      centerY = baseCenterY + 20;
-      if (this.cursors.up.isDown || this.wasd.W.isDown) {
-        centerY -= 10;
-      }
-    } else if (this.cursors.up.isDown || this.wasd.W.isDown) {
-      centerY -= 10;
+    let centerY = this.getSwingCenterY();
+    const target = this.autoAimTarget;
+    if (this.autoAimEnabled && target?.enemy.active) {
+      const bounds = target.kind === "stone" ? this.getStoneMonsterHitbox(target.enemy)
+        : target.kind === "bat" ? this.batSystem.getBounds(target.enemy) : target.enemy.getBounds();
+      centerY = Phaser.Math.Clamp(bounds.y + bounds.height / 2, centerY - 16, centerY + 16);
     }
-    const hitboxYOffset = this.isDucking ? 12 : 3;
-    this.swordHitbox.setPosition(this.player.x + offsetX, centerY + hitboxYOffset);
+    this.swordHitbox.setPosition(this.player.x + offsetX, centerY);
   }
 
   performDownStrike() {
@@ -2090,11 +2188,12 @@ export default class UndergroundDigScene extends Phaser.Scene {
     const x = this.player.x;
     const y = this.player.body.bottom;
     const radius = this.tileSize * 2.5;
-    const groups = [[this.molesGroup, false], [this.stoneMonstersGroup, true]];
-    groups.forEach(([group, isStone]) => {
+    const groups = [[this.molesGroup, false, false], [this.stoneMonstersGroup, true, false], [this.batsGroup, false, true]];
+    groups.forEach(([group, isStone, isBat]) => {
       [...(group?.getChildren?.() || [])].forEach((enemy) => {
         if (!enemy.active) return;
-        const bounds = isStone ? this.getStoneMonsterHitbox(enemy) : enemy.getBounds();
+        const bounds = isStone ? this.getStoneMonsterHitbox(enemy)
+          : isBat ? this.batSystem.getBounds(enemy) : enemy.getBounds();
         const closestX = Phaser.Math.Clamp(x, bounds.x, bounds.right);
         const closestY = Phaser.Math.Clamp(y, bounds.y, bounds.bottom);
         if (Math.hypot(closestX - x, closestY - y) > radius) return;
@@ -2102,11 +2201,12 @@ export default class UndergroundDigScene extends Phaser.Scene {
         this.swingHits.add(enemy);
         const damage = getWeaponDamage("powerHammer", isStone, 1.5);
         if (isStone) this.damageStoneMonster(enemy, damage);
+        else if (isBat) this.batSystem.damage(enemy, damage);
         else this.damageMole(enemy, damage);
       });
     });
     const landingBlock = this.blockMap?.get(`${Math.floor(x / this.tileSize)},${Math.floor((y + 1) / this.tileSize)}`);
-    if (landingBlock?.getData("type") === "stone") this.breakDigBlock(landingBlock);
+    this.breakDigBlock(landingBlock);
     const shockwave = this.add.ellipse(x, y, radius * 2, 28, 0xffcd64, 0.5).setDepth(4);
     shockwave.setScale(0.25);
     this.tweens.add({ targets: shockwave, scaleX: 1.2, scaleY: 1.2, alpha: 0,
@@ -2227,6 +2327,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
   createUI() {
     const saveData = this.registry.get("saveData") || {};
     const normalized = normalizeInventory(saveData);
+    this.autoAimEnabled = Boolean(saveData.settings?.autoAim);
     this.inventory = normalized.inventory;
     this.equipped = normalized.equipped;
     applyWeaponAppearance(this);
@@ -2342,6 +2443,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
       companionHit: this.sound.add("sfx-companion-hit"),
       explosion: this.sound.add("sfx-explosion"),
       stoneHit: this.sound.add("sfx-stone-hit"),
+      success: this.sound.add("sfx-success"),
     };
   }
 
@@ -2371,11 +2473,12 @@ export default class UndergroundDigScene extends Phaser.Scene {
       if (this.cursors.left.isDown || this.wasd.A.isDown) vx -= speed;
       if (this.cursors.right.isDown || this.wasd.D.isDown) vx += speed;
     }
-    if (vx !== 0) {
+    if (vx !== 0 && !(this.autoAimEnabled && this.isSwinging)) {
       this.facingX = vx > 0 ? 1 : -1;
       this.player.setFlipX(vx > 0);
     }
     if (this.hammerSlamActive) vx = 0;
+    this.applyAutoAim();
     this.player.body.setVelocityX(vx);
 
     const duckPressed = this.cursors.down.isDown || this.wasd.S.isDown;
@@ -2441,6 +2544,8 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.updateCameraScroll();
     this.updateMoles();
     this.updateStoneMonsters();
+    this.batSystem?.update(Math.min(.05, (this.game?.loop?.delta ?? 16) / 1000));
+    this.updateBossHud();
     this.updateCompanion();
     this.updateCompanionUI();
     this.shield?.update();
@@ -2449,8 +2554,167 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.checkKeyPathArenaTrigger();
   }
 
+  addCrystalDecorations() {
+    const tile = this.levelMap.tileSize;
+    const facets = this.add.graphics().setDepth(0);
+    [6, 17, 30, 47, 61, 73, 84, 96].forEach((col, index) => {
+      const x = col * tile;
+      const height = 48 + index % 3 * 10;
+      this.add.ellipse(x + 15, 563, 72, 14, 0x62cfff, 0.18).setDepth(0);
+      facets.fillStyle(0x6acfff, 0.85).fillTriangle(x, 565, x + 14, 565 - height, x + 28, 565);
+      facets.fillStyle(0x3275a4, 0.8).fillTriangle(x + 14, 565 - height, x + 28, 565, x + 18, 565);
+      facets.fillStyle(0xc5f3ff, 0.8).fillTriangle(x, 565, x + 14, 565 - height, x + 9, 565);
+      facets.lineStyle(1, 0xd9faff, 0.7).lineBetween(x + 14, 565 - height, x + 18, 565);
+      facets.fillStyle(0x9bdce9, 0.9).fillTriangle(x + 23, 570, x + 29, 540, x + 40, 570);
+      facets.fillStyle(0x437ca1, 0.9).fillTriangle(x + 29, 540, x + 40, 570, x + 31, 570);
+    });
+    this.add.text(5 * tile, 405, "KRISTALLTIEFEN\n5 Schatztruhen · 1 Obsidian-Titan", {
+      fontFamily: "Trebuchet MS, sans-serif", fontSize: "18px", color: "#ccecff",
+      stroke: "#142331", strokeThickness: 4,
+    }).setDepth(0);
+  }
+
+  createBossHud() {
+    if (!this.bossEncounter) return;
+    this.bossHud = this.add.container(0, 0).setDepth(210).setVisible(false);
+    const panel = this.add.rectangle(480, 111, 500, 70, 0x151921, 0.86);
+    this.bossNameText = this.add.text(480, 88, "", {
+      fontFamily: "Trebuchet MS, sans-serif", fontSize: "17px", color: "#f5db9c",
+    }).setOrigin(0.5);
+    const bar = this.add.rectangle(480, 110, 440, 14, 0x4b3431).setStrokeStyle(1, 0x987d55);
+    this.bossHealthFill = this.add.rectangle(262, 110, 436, 10, 0xd97b57).setOrigin(0, 0.5);
+    this.bossStatusText = this.add.text(480, 132, "", {
+      fontFamily: "Trebuchet MS, sans-serif", fontSize: "14px", color: "#d8e8ef",
+    }).setOrigin(0.5);
+    this.bossHud.add([panel, this.bossNameText, bar, this.bossHealthFill, this.bossStatusText]);
+    this.bossHud.setScrollFactor(0, 0, true);
+  }
+
+  updateBossHud() {
+    const boss = this.keyPathMiniBoss;
+    if (!this.bossHud || !boss?.active || !this.keyPathArenaTriggered) return;
+    const config = boss.getData("bossConfig");
+    const stage = boss.getData("bossStage") || 1;
+    const hp = boss.getData("hp");
+    this.bossNameText.setText(config.name + " · Phase " + stage + " / 3");
+    this.bossHealthFill.displayWidth = Math.max(0, 436 * hp / config.maxHp);
+    const state = boss.getData("stoneState");
+    const hits = boss.getData("bossHitsLeft") || 0;
+    const vulnerable = state === "stunned" && this.time.now < boss.getData("bossVulnerableUntil") && hits > 0;
+    this.bossStatusText.setText(state === "returning" ? "Die obere Ebene wird wiederhergestellt …"
+      : vulnerable ? "Jetzt angreifen! Noch " + hits + " Treffer"
+      : state === "stunned" ? "Panzer schließt sich – Abstand halten!"
+      : "Gepanzert · Nach dem Aufprall zweimal zuschlagen");
+    this.bossHealthFill.setFillStyle(vulnerable ? 0x92d6b0 : 0xd97b57);
+  }
+
+  returnBossToUpperTier(monster, nextStage = true) {
+    if (!monster?.active || monster.getData("stoneState") === "returning") return;
+    const stage = (monster.getData("bossStage") || 1) + (nextStage ? 1 : 0);
+    monster.setData("bossStage", stage);
+    monster.setData("stoneState", "returning");
+    monster.setData("bossVulnerableUntil", 0);
+    monster.setData("bossHitsLeft", 0);
+    monster.setData("bossGroundBounces", 0);
+    monster.setData("bossReturnAfterStun", false);
+    monster.setData("pendingBossPhase", null);
+    monster.setData("pendingRollDir", null);
+    monster.setData("hitResumeState", null);
+    this.tweens.killTweensOf(monster);
+    this.setStoneMonsterRollingSound(monster, false);
+    monster.setTexture("underground-stonemonster-standing");
+    monster.angle = 0;
+    if (nextStage) this.showDanger(1500, false, "Phase " + stage + " / 3");
+    this.player.setData("stoneInvulnerableUntil", this.time.now + 1500);
+    this.tweens.add({
+      targets: monster, y: monster.getData("bossHomeY"), alpha: 0.5,
+      duration: 650, ease: "Sine.easeInOut",
+      onComplete: () => {
+        if (!monster.active || this.levelCompleted || this.isGameOver) return;
+        monster.x = monster.getData("bossHomeX");
+        this.bossUpperTiles.forEach((block) => {
+          const body = this.player.body;
+          const tile = this.tileSize;
+          // Do not rebuild a tile over the player if they reached the upper tier.
+          if (body && body.x < (block.col + 1) * tile && body.x + body.width > block.col * tile &&
+            body.y < (block.row + 1) * tile && body.y + body.height > block.row * tile) return;
+          this.placeBlock(block.col, block.row, block.type, true);
+        });
+        monster.setAlpha(1);
+        monster.setTint(monster.getData("bossConfig").isSuperBoss ? 0xa7d4ff : 0xffddbb);
+        monster.setData("bossPhase", "huntDrop");
+        monster.setData("stoneState", "ready");
+        monster.setData("bossReadyUntil", this.time.now + 650);
+      },
+    });
+  }
+
+  damageBoss(monster, amount, source) {
+    const now = this.time.now;
+    if (!this.keyPathArenaTriggered || monster.getData("stoneState") !== "stunned" ||
+      now >= (monster.getData("bossVulnerableUntil") || 0)) return false;
+    if (source === "companion") {
+      if (monster.getData("bossCompanionHit")) return false;
+      monster.setData("bossCompanionHit", true);
+    } else {
+      const hits = monster.getData("bossHitsLeft") || 0;
+      if (hits <= 0) return false;
+      monster.setData("bossHitsLeft", hits - 1);
+    }
+    const stage = monster.getData("bossStage") || 1;
+    const config = monster.getData("bossConfig");
+    const floor = getBossStageFloor(config.maxHp, stage);
+    const hp = Math.max(floor, monster.getData("hp") - amount);
+    monster.setData("hp", hp);
+    this.sfx?.monsterInjured?.play();
+    if (hp <= 0) {
+      this.setStoneMonsterRollingSound(monster, false);
+      monster.destroy();
+      this.keyPathMiniBoss = null;
+      this.winBossLevel(config);
+    } else if (hp <= floor) {
+      this.returnBossToUpperTier(monster);
+    }
+    return true;
+  }
+
+  winBossLevel(config) {
+    if (this.levelCompleted) return;
+    this.levelCompleted = true;
+    this.isPaused = true;
+    this.player.body.setVelocity(0, 0);
+    this.companion?.body?.setVelocity(0, 0);
+    this.stopStoneMonsterRollingSounds();
+    this.physics.world.pause();
+    this.time.paused = true;
+    this.bossHud?.setVisible(false);
+    this.coinsCollected += config.reward;
+    this.hud?.setCoins(this.coinsCollected);
+    const save = this.registry.get("saveData") || {};
+    const completed = new Set(save.completedLevels || []);
+    const unlocked = new Set(save.unlockedLevels || []);
+    completed.add(this.levelId);
+    if (config.unlock) unlocked.add(config.unlock);
+    const nextNode = config.unlock || this.levelId;
+    const nextSave = applyInventoryToSave({
+      ...save, completedLevels: Array.from(completed), unlockedLevels: Array.from(unlocked),
+      coins: this.coinsCollected, health: this.health, currentLevel: nextNode,
+      mapState: { ...save.mapState, undergroundNode: nextNode },
+    }, this.inventory, this.equipped);
+    this.registry.set("saveData", nextSave);
+    saveProgress(nextSave);
+    this.sfx?.success?.play();
+    this.victoryScreen = showUndergroundVictory(this, {
+      name: config.name, reward: config.reward, unlocked: config.unlock,
+      onContinue: () => {
+        this.time.paused = false;
+        this.scene.start("UndergroundMapScene");
+      },
+    });
+  }
+
   configureKeyPathArenaTrigger() {
-    this.isKeyPathLevel = this.levelId === "Schluesselweg";
+    this.isKeyPathLevel = Boolean(this.bossEncounter);
     this.keyPathLastStoneCol = null;
     this.keyPathArenaWallCol = null;
     this.keyPathArenaTriggered = false;
@@ -2465,15 +2729,24 @@ export default class UndergroundDigScene extends Phaser.Scene {
     const stoneCols = this.levelMap.blocks
       .filter((entry) => entry?.type === "stone" && Number.isFinite(entry.col))
       .map((entry) => entry.col);
-    if (!stoneCols.length) return;
-    const lastStoneCol = Math.max(...stoneCols);
+    if (!stoneCols.length && !this.levelMap.bossArena) return;
+    this.bossArena = this.levelMap.bossArena || {
+      triggerCol: Math.max(...stoneCols), wallCol: Math.max(...stoneCols) - 6,
+      bossCol: this.gridCols - 4, bossRow: 2, restoreBottom: 9,
+    };
+    const lastStoneCol = this.bossArena.triggerCol;
     this.keyPathLastStoneCol = lastStoneCol;
-    this.keyPathArenaWallCol = Phaser.Math.Clamp(lastStoneCol - 6, 1, (this.gridCols ?? 1) - 2);
+    this.keyPathArenaWallCol = Phaser.Math.Clamp(this.bossArena.wallCol, 1, (this.gridCols ?? 1) - 2);
+    this.bossUpperTiles = this.levelMap.blocks.filter((block) =>
+      block.col > this.keyPathArenaWallCol && block.col < this.gridCols - 1 &&
+      block.row > 0 && block.row <= this.bossArena.restoreBottom &&
+      (block.type === "earth" || block.type === "stone")
+    );
     if (!this.stoneMonstersGroup) {
       this.stoneMonstersGroup = this.add.group();
     }
-    const bossCol = Phaser.Math.Clamp((this.gridCols ?? 2) - 4, 1, (this.gridCols ?? 1) - 2);
-    this.placeStoneMonsterAt(bossCol, 2, { isBoss: true });
+    const bossCol = Phaser.Math.Clamp(this.bossArena.bossCol, 1, (this.gridCols ?? 1) - 2);
+    this.placeStoneMonsterAt(bossCol, this.bossArena.bossRow, { isBoss: true });
   }
 
   checkKeyPathArenaTrigger() {
@@ -2520,6 +2793,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
   removeMonstersLeftOfArenaWall() {
     if (!Number.isFinite(this.keyPathArenaWallCol) || !this.tileSize) return;
     const wallX = (this.keyPathArenaWallCol + 0.5) * this.tileSize;
+    this.batSystem?.removeBefore(wallX);
     if (this.molesGroup?.getChildren) {
       const moles = [...this.molesGroup.getChildren()];
       moles.forEach((mole) => {
@@ -2552,15 +2826,16 @@ export default class UndergroundDigScene extends Phaser.Scene {
     boss.setData("rollDir", -1);
     boss.setData("rollStartX", boss.x);
     boss.setTexture("underground-stonemonster-rolledup");
+    this.bossHud?.setVisible(true);
   }
 
-  showDanger(duration, wobble) {
+  showDanger(duration, wobble, label = "Gefahr") {
     if (this.dangerText) {
       this.dangerText.destroy();
       this.dangerText = null;
     }
     const text = this.add
-      .text(480, 300, "Gefahr", {
+      .text(480, 300, label, {
         fontFamily: "Georgia, serif",
         fontSize: "48px",
         color: "#d12b2b",
@@ -2647,6 +2922,11 @@ export default class UndergroundDigScene extends Phaser.Scene {
       if (!monster?.active) return;
       const state = monster.getData("stoneState") || "perched";
       const isBoss = Boolean(monster.getData("isStoneBoss"));
+      if (state === "returning") return;
+      if (state === "ready") {
+        if (now >= monster.getData("bossReadyUntil")) this.resumeStoneMonsterRoll(monster);
+        return;
+      }
       if (state === "perched") {
         this.setStoneMonsterRollingSound(monster, false);
         monster.angle = 0;
@@ -2671,6 +2951,10 @@ export default class UndergroundDigScene extends Phaser.Scene {
       if (state === "stunned") {
         this.setStoneMonsterRollingSound(monster, false);
         if (now >= (monster.getData("stateUntil") || 0)) {
+          if (isBoss && monster.getData("bossReturnAfterStun")) {
+            this.returnBossToUpperTier(monster, false);
+            return;
+          }
           const resumeState = monster.getData("hitResumeState");
           monster.setData("hitResumeState", null);
           if (resumeState === "perched") {
@@ -2774,7 +3058,9 @@ export default class UndergroundDigScene extends Phaser.Scene {
   updateStoneMonsterDrop(monster, deltaSec) {
     if (!monster?.active || !this.tileSize) return;
     const previousBounds = this.getStoneMonsterHitbox(monster);
-    const dropSpeed = 520;
+    const config = monster.getData("bossConfig");
+    const stage = monster.getData("bossStage") || 1;
+    const dropSpeed = config ? config.dropSpeed + (stage - 1) * 40 : 520;
     const centerCol = Phaser.Math.Clamp(
       Math.floor(monster.x / this.tileSize),
       0,
@@ -2815,6 +3101,10 @@ export default class UndergroundDigScene extends Phaser.Scene {
         const hitboxHalfHeight = this.getStoneMonsterHitbox(monster).height * 0.5;
         const extraLift = monster.getData("isStoneBoss") ? 10 : 0;
         monster.y = row * this.tileSize - hitboxHalfHeight - extraLift;
+        if (monster.getData("isStoneBoss")) {
+          monster.setData("bossPhase", "groundSweep");
+          monster.setData("bossGroundBounces", 0);
+        }
         this.stunStoneMonster(monster, true);
         return;
       }
@@ -2831,7 +3121,9 @@ export default class UndergroundDigScene extends Phaser.Scene {
     const previousBounds = this.getStoneMonsterHitbox(monster);
     const isBoss = Boolean(monster.getData("isStoneBoss"));
     const bossPhase = monster.getData("bossPhase");
-    const rollSpeed = 230;
+    const config = monster.getData("bossConfig");
+    const stage = monster.getData("bossStage") || 1;
+    const rollSpeed = config ? config.rollSpeed + (stage - 1) * config.speedPerStage : 230;
     const dir = monster.getData("rollDir") || 1;
     const rollStartX = monster.getData("rollStartX") ?? monster.x;
     const maxRollDistance = this.tileSize * 10;
@@ -2898,6 +3190,11 @@ export default class UndergroundDigScene extends Phaser.Scene {
             monster.setData("pendingBossPhase", "huntDrop");
             monster.setData("pendingRollDir", -1);
           } else if (bossPhase === "huntDrop") {
+            monster.setData("pendingRollDir", -dir);
+          } else if (bossPhase === "groundSweep") {
+            const bounces = (monster.getData("bossGroundBounces") || 0) + 1;
+            monster.setData("bossGroundBounces", bounces);
+            monster.setData("bossReturnAfterStun", bounces >= 2);
             monster.setData("pendingRollDir", -dir);
           } else {
             monster.setData("pendingRollDir", -dir);
@@ -2968,6 +3265,16 @@ export default class UndergroundDigScene extends Phaser.Scene {
 
   stunStoneMonster(monster, shake = false, playHitSound = true, duration = 1000) {
     if (!monster?.active) return;
+    const isBoss = Boolean(monster.getData("isStoneBoss"));
+    if (isBoss && ["returning", "ready"].includes(monster.getData("stoneState"))) return;
+    if (isBoss && monster.getData("stoneState") === "stunned") return;
+    if (isBoss) {
+      const config = monster.getData("bossConfig");
+      duration = Math.max(650, (config?.windowMs ?? 1000) - ((monster.getData("bossStage") || 1) - 1) * 100);
+      monster.setData("bossVulnerableUntil", this.time.now + duration);
+      monster.setData("bossHitsLeft", 2);
+      monster.setData("bossCompanionHit", false);
+    }
     this.tweens.killTweensOf(monster);
     this.setStoneMonsterRollingSound(monster, false);
     if (playHitSound) {
@@ -3007,8 +3314,9 @@ export default class UndergroundDigScene extends Phaser.Scene {
     }
   }
 
-  damageStoneMonster(monster, amount) {
+  damageStoneMonster(monster, amount, source = "player") {
     if (!monster?.active) return;
+    if (monster.getData("isStoneBoss")) return this.damageBoss(monster, amount, source);
     const currentHp = monster.getData("hp") ?? 0;
     const nextHp = Math.max(0, currentHp - amount);
     monster.setData("hp", nextHp);
@@ -3259,11 +3567,12 @@ export default class UndergroundDigScene extends Phaser.Scene {
     const playerY = this.player.y - this.player.displayHeight * 0.5;
     let nearest = null;
     let nearestDistance = this.tileSize * 3;
-    const groups = [[this.molesGroup, false], [this.stoneMonstersGroup, true]];
-    groups.forEach(([group, isStone]) => {
+    const groups = [[this.molesGroup, false, false], [this.stoneMonstersGroup, true, false], [this.batsGroup, false, true]];
+    groups.forEach(([group, isStone, isBat]) => {
       group?.getChildren?.().forEach((enemy) => {
         if (!enemy.active) return;
-        const bounds = isStone ? this.getStoneMonsterHitbox(enemy) : enemy.getBounds();
+        const bounds = isStone ? this.getStoneMonsterHitbox(enemy)
+          : isBat ? this.batSystem.getBounds(enemy) : enemy.getBounds();
         const y = bounds.y + bounds.height * 0.5;
         if (Math.abs(enemy.x - this.player.x) > this.tileSize * 5) return;
         if (Math.abs(y - playerY) > this.tileSize * 2) return;
@@ -3271,7 +3580,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
         const distance = Math.hypot(enemy.x - this.companion.x, y - fromY);
         if (distance > nearestDistance) return;
         if (!this.hasLineOfSight(this.companion.x, fromY, enemy.x, y)) return;
-        nearest = { enemy, isStone, distance, y };
+        nearest = { enemy, isStone, isBat, distance, y };
         nearestDistance = distance;
       });
     });
@@ -3306,7 +3615,8 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.companion.setData("attackUntil", now + 180);
     this.companion.setData("nextAttackAt", now + 900);
     this.companion.setData("invulnerableUntil", Math.max(this.companion.getData("invulnerableUntil") || 0, now + 300));
-    if (target.isStone) this.damageStoneMonster(target.enemy, 1);
+    if (target.isStone) this.damageStoneMonster(target.enemy, 1, "companion");
+    else if (target.isBat) this.batSystem.damage(target.enemy, 1);
     else this.damageMole(target.enemy, 1);
     this.sfx?.companionHit?.play();
     return true;

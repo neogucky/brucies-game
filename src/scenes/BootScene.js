@@ -81,9 +81,12 @@ export default class BootScene extends Phaser.Scene {
       "assets/underground/enemies/stonemonster_stunned.png"
     );
     this.load.image("underground-coin", "assets/underground/coin_tile.png");
+    this.load.image("cute-bat-atlas", "assets/underground/enemies/cute-bat-atlas.png");
+    this.load.image("poison-berry", "assets/underground/enemies/poison-berry.png");
     this.load.image("underground-coin-used", "assets/underground/coin_tile_used.png");
     this.load.json("underground-dig-map", "assets/levels/underground_dig.json");
     this.load.json("underground-keytower-map", "assets/levels/underground_keytower.json");
+    this.load.json("underground-crystal-map", "assets/levels/underground_crystal.json");
     this.load.image("tavern-bg", "assets/tavern/tavern.png");
     this.load.image("tavern-loading", "assets/tavern/tavern_loading.png");
     this.load.image("tavern-barkeeper", "assets/tavern/barkeeper.png");
@@ -143,13 +146,14 @@ export default class BootScene extends Phaser.Scene {
 
   create() {
     this.createHammerTextures();
+    this.createBatTextures();
     const saveData = loadSave();
     const unlockAll = new URLSearchParams(window.location.search).get("unlockAll") === "1";
     if (unlockAll) {
       saveData.unlockedLevels = Array.from(new Set([
         ...(saveData.unlockedLevels || []),
         "Wuestenruine", "Taverne", "DesertEndless", "Fremdweg",
-        "UnderShop", "UnderDig", "Schluesseltor", "Schluesselweg",
+        "UnderShop", "UnderDig", "Schluesseltor", "Schluesselweg", "Kristalltiefen",
       ]));
       saveData.undergroundKeyCollected = true;
       saveData.health = 5;
@@ -174,6 +178,32 @@ export default class BootScene extends Phaser.Scene {
       saveProgress(nextSave);
     });
     this.scene.start(unlockAll ? "UndergroundMapScene" : "MainMenuScene");
+  }
+
+  createBatTextures() {
+    const atlas = this.textures.get("cute-bat-atlas").getSourceImage();
+    const frames = [
+      ["cave-bat-up", 50, 20, 745, 475, 470, 315],
+      ["cave-bat-down", 840, 20, 680, 475, 1180, 315],
+      ["cave-bat-glide", 20, 520, 800, 480, 430, 805],
+      ["cave-bat-drop", 820, 520, 710, 480, 1190, 815],
+    ];
+    frames.forEach(([key, x, y, width, height, anchorX, anchorY]) => {
+      if (this.textures.exists(key)) return;
+      const texture = this.textures.createCanvas(key, 160, 112);
+      texture.getContext().drawImage(atlas,
+        x * atlas.width / 1536, y * atlas.height / 1024,
+        width * atlas.width / 1536, height * atlas.height / 1024,
+        80 - (anchorX - x) * .19, 56 - (anchorY - y) * .19,
+        width * .19, height * .19);
+      texture.refresh();
+    });
+    if (!this.anims.exists("cave-bat-flight")) this.anims.create({
+      key: "cave-bat-flight", frames: [
+        { key: "cave-bat-up" }, { key: "cave-bat-glide" },
+        { key: "cave-bat-down" }, { key: "cave-bat-glide" },
+      ], frameRate: 8, repeat: -1,
+    });
   }
 
   createHammerTextures() {

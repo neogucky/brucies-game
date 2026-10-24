@@ -28,7 +28,7 @@ const NODES = [
     label: "Schluesseltor",
     x: 338,
     y: 340,
-    neighbors: { upRight: "UnderShop", left: "Schluesselweg" },
+    neighbors: { upRight: "UnderShop", left: "Schluesselweg", downRight: "Kristalltiefen" },
   },
   {
     id: "Schluesselweg",
@@ -36,6 +36,13 @@ const NODES = [
     x: 191,
     y: 307,
     neighbors: { right: "Schluesseltor" },
+  },
+  {
+    id: "Kristalltiefen",
+    label: "Kristalltiefen",
+    x: 690,
+    y: 450,
+    neighbors: { upLeft: "Schluesseltor" },
   },
 ];
 
@@ -152,6 +159,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
     unlocked.add("UnderShop");
     unlocked.add("UnderDig");
     unlocked.add("Schluesseltor");
+    if (saveData.completedLevels?.includes("Schluesselweg")) unlocked.add("Kristalltiefen");
     if (unlocked.size !== (saveData.unlockedLevels || []).length) {
       const nextSave = { ...saveData, unlockedLevels: Array.from(unlocked) };
       this.registry.set("saveData", nextSave);
@@ -187,10 +195,17 @@ export default class UndergroundMapScene extends Phaser.Scene {
           ? "worldmap-underground-level"
           : node.id === "Schluesselweg"
           ? "worldmap-underground-molelevel"
-          : "worldmap-ruin";
+          : "underground-stonemonster-standing";
       const iconScale =
         node.id === "UnderShop" ? 0.3 : node.id === "Schluesseltor" ? 0.5 : 0.26;
       const icon = this.add.image(node.x, node.y, iconKey).setScale(iconScale);
+      if (node.id === "Kristalltiefen") {
+        icon.setTint(0xa9dcff);
+        this.add.text(node.x, node.y + 44, "Kristalltiefen", {
+          fontFamily: "Trebuchet MS, sans-serif", fontSize: "16px",
+          color: isUnlocked ? "#e2f5ff" : "#999999", stroke: "#1d1920", strokeThickness: 3,
+        }).setOrigin(0.5).setDepth(3);
+      }
       icon.setAlpha(isUnlocked ? 1 : 0.35);
       icon.setDepth(2);
       const glowKey = "worldmap-glow";
@@ -308,7 +323,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
 
   createUI() {
     this.hintText = this.add
-      .text(14, 585, "Enter = Shop, W/Pfeil hoch = Wüstenkarte, Esc = Menü", {
+      .text(14, 585, "Enter = Betreten, Pfeile/WASD = Bewegen, Esc = Menü", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "14px",
         color: "#ffffff",
@@ -384,6 +399,10 @@ export default class UndergroundMapScene extends Phaser.Scene {
         mapKey: "underground-keytower-map",
         levelId: "Schluesselweg",
         locationName: "Schluesselweg",
+      });
+    } else if (this.currentNode.id === "Kristalltiefen") {
+      this.scene.start("UndergroundDigScene", {
+        mapKey: "underground-crystal-map", levelId: "Kristalltiefen", locationName: "Kristalltiefen",
       });
     }
   }
