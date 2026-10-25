@@ -1,0 +1,19 @@
+{
+  "generator": "Built-in image_gen",
+  "characters": {
+    "file": "assets/common/characters/bow-characters-atlas.png",
+    "dimensions": [1774, 887],
+    "layout": "4 columns: standing, horizontal shot, upward shot, crouched shot; male row then female row",
+    "prompt": "assets/common/characters/prompts/bow-characters.txt",
+    "generation": "exec-73b86a53-bd7a-43f1-a47d-2fd694afe848.png",
+    "upwardPoseCorrection": "exec-b21f3dd9-0faf-4d06-aa45-6dc00bfdf4f5.png"
+  },
+  "jungleObjects": {
+    "file": "assets/jungle/jungle-equipment-atlas.png",
+    "dimensions": [1374, 1145],
+    "layout": "Shield top left; foliage top right; vine bottom left; belt bottom right",
+    "prompt": "assets/jungle/prompts/jungle-equipment.txt",
+    "generation": "exec-dec1f523-b1fc-490b-87c0-a5ddea282d0e.png"
+  },
+  "registration": "BootScene.createJungleTextures trims alpha into named runtime textures. Existing female hammer textures remain in power-hammer-atlas.png."
+}

@@ -6,7 +6,7 @@ export const defaultSave = {
   currentLevel: "Wuestenruine",
   currentWorld: "desert",
   unlockedWorlds: ["desert"],
-  unlockedLevels: ["Wuestenruine"],
+  unlockedLevels: ["Wuestenruine", "Wuestenexperte"],
   completedLevels: [],
   repairedRuinShown: false,
   health: 5,
@@ -32,6 +32,7 @@ export const defaultSave = {
   },
   settings: {
     autoAim: false,
+    controlProfile: "ipadKeyboard",
   },
   playerGender: "male",
   mapState: {
@@ -43,9 +44,9 @@ export const defaultSave = {
 };
 
 export const WORLD_LEVELS = {
-  desert: ["Wuestenruine", "Taverne", "DesertEndless", "Fremdweg"],
-  underground: ["UnderShop", "UnderDig", "Schluesseltor", "Schluesselweg", "Kristalltiefen"],
-  jungle: ["UrwaldShop", "Urwaldkronen", "Lianenpfad"],
+  desert: ["Wuestenruine", "Taverne", "DesertEndless", "Fremdweg", "Wuestenexperte"],
+  underground: ["UnderShop", "UnderDig", "Schluesseltor", "Schluesselweg", "Kristalltiefen", "Unterweltexperte"],
+  jungle: ["UrwaldShop", "Urwaldkronen", "Lianenpfad", "Urwaldexperte"],
 };
 
 export function worldForLevel(level) {
@@ -70,6 +71,9 @@ export function normalizeWorldProgress(save) {
     worlds.add("underground"); levels.add("UrwaldShop"); levels.add("Urwaldkronen");
   }
   if (completed.includes("Urwaldkronen")) levels.add("Lianenpfad");
+  levels.add("Wuestenexperte");
+  if (worlds.has("underground")) levels.add("Unterweltexperte");
+  if (worlds.has("jungle")) levels.add("Urwaldexperte");
   const mapState = { ...save.mapState };
   if (mapState.undergroundNode === "Urwald") mapState.undergroundNode = "Kristalltiefen";
   if (!WORLD_LEVELS.jungle.includes(mapState.jungleNode)) mapState.jungleNode = "UrwaldShop";

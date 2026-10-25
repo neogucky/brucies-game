@@ -1,3 +1,5 @@
+import WorldMapTravel from "../../utils/WorldMapTravel.js";
+import { drawWorldMapPaths, mapFoot, WORLD_MAP_EXITS } from "../../utils/worldMapRoutes.js";
 import { saveProgress, normalizeWorldProgress } from "../../saveManager.js";
 import { playMusic } from "../../soundManager.js";
 import { applyWeaponAppearance } from "../../utils/weapons.js";
@@ -7,9 +9,10 @@ import TopHud from "../../ui/topHud.js";
 import InventoryOverlay from "../../ui/InventoryOverlay.js";
 
 export const JUNGLE_NODES = [
-  { id: "UrwaldShop", label: "Urwald-Shop", x: 220, y: 360, neighbors: ["Urwaldkronen"] },
+  { id: "UrwaldShop", label: "Urwald-Shop", x: 220, y: 360, neighbors: ["Urwaldkronen", "Urwaldexperte"] },
   { id: "Urwaldkronen", label: "Kokoskronen", x: 485, y: 230, neighbors: ["UrwaldShop", "Lianenpfad"] },
   { id: "Lianenpfad", label: "Lianenpfad", x: 760, y: 360, neighbors: ["Urwaldkronen"] },
+  { id: "Urwaldexperte", label: "Urwaldexperte", x: 200, y: 490, neighbors: ["UrwaldShop"] },
 ];
 const style = { fontFamily: "Trebuchet MS, sans-serif", color: "#fff2c9", stroke: "#183b25", strokeThickness: 4 };
 
@@ -51,21 +54,16 @@ export default class JungleMapScene extends Phaser.Scene {
     this.events.once("shutdown", () => this.inventoryOverlay.destroy());
     if (this.entryFromUnderworld) {
       this.entryFromUnderworld = false;
-      this.playerMarker.setPosition(30, this.currentNode.y + 6);
-      this.companionMarker.setPosition(12, this.currentNode.y + 17);
-      this.walkTo(this.currentNode);
+      const exit = WORLD_MAP_EXITS.jungle.underground, edge = mapFoot(exit);
+      this.playerMarker.setPosition(edge.x, edge.y);
+      this.companionMarker.setPosition(edge.x - 28, edge.y);
+      this.mapTravel.travel(exit, this.currentNode);
     }
   }
 
   drawPaths() {
-    const paths = this.add.graphics().setDepth(-1);
-    paths.lineStyle(5, 0xb89557, .9);
-    paths.lineBetween(0, 378, JUNGLE_NODES[0].x, JUNGLE_NODES[0].y + 18);
-    JUNGLE_NODES.forEach(node => node.neighbors.forEach(id => {
-      const next = JUNGLE_NODES.find(n => n.id === id);
-      if (next.x <= node.x || !this.unlocked.has(node.id) || !this.unlocked.has(id)) return;
-      paths.lineBetween(node.x, node.y + 18, next.x, next.y + 18);
-    }));
+    this.pathGraphics = drawWorldMapPaths(this, "jungle", JUNGLE_NODES,
+      [[JUNGLE_NODES[0], WORLD_MAP_EXITS.jungle.underground]]);
   }
 
   createNodes() {
@@ -75,7 +73,9 @@ export default class JungleMapScene extends Phaser.Scene {
       const open = this.unlocked.has(node.id);
       this.add.ellipse(node.x, node.y + 14, 140, 46, 0xead58c, open ? .34 : .1).setDepth(0);
       let icon;
-      if (node.id === "UrwaldShop") {
+      if (node.id === "Urwaldexperte") {
+        icon = this.add.image(node.x, node.y - 12, "professor-jungle").setDisplaySize(84, 94);
+      } else if (node.id === "UrwaldShop") {
         icon = this.add.image(node.x, node.y - 15, "tavern-map").setDisplaySize(142, 115);
         this.add.image(node.x + 47, node.y + 5, "item-bow").setDisplaySize(37, 37).setDepth(3);
       } else {
@@ -107,18 +107,19 @@ export default class JungleMapScene extends Phaser.Scene {
   }
 
   createPlayerMarker() {
-    const node = this.currentNode, female = this.registry.get("saveData")?.playerGender === "female";
-    this.playerMarker = this.add.image(node.x, node.y + 6, female ? "knight-female-standing" : "knight-standing")
-      .setScale(.46).setDepth(5);
+    const foot = mapFoot(this.currentNode), female = this.registry.get("saveData")?.playerGender === "female";
+    this.playerMarker = this.add.image(foot.x, foot.y, female ? "knight-female-standing" : "knight-standing")
+      .setOrigin(.5, 1).setScale(.46).setDepth(5);
     applyWeaponAppearance(this, this.playerMarker);
-    this.companionMarker = this.add.image(node.x - 20, node.y + 17, "companion-running")
-      .setScale(.46).setDepth(5).setVisible(Boolean(this.equipped.companion));
+    this.companionMarker = this.add.image(foot.x - 28, foot.y, "companion-running")
+      .setOrigin(.5, 1).setScale(.46).setDepth(5).setVisible(Boolean(this.equipped.companion));
+    this.mapTravel = new WorldMapTravel(this, "jungle");
   }
 
   createUI(save) {
     this.hud = new TopHud(this, { coins: save.coins ?? 0, health: this.health, maxHealth: 5,
       consumables: this.inventory.consumables, activeEquipped: this.equipped.weapon,
-      passiveOwned: this.equipped.passive === "shield", passiveShoes: this.equipped.passive === "shoes",
+      passiveOwned: Boolean(this.equipped?.shield || this.equipped?.passive === "shield"), passiveShoes: Boolean(this.equipped?.shoes || this.equipped?.passive === "shoes"),
       passiveEquipped: this.equipped.passive, consumableEquipped: this.equipped.consumable === "honey",
       activeDisabled: true, showCompanion: true, companionHealth: this.equipped.companion ? 1 : 0 });
     applyItemModeSupport(this.hud, this.equipped, this.gameMode);
@@ -126,7 +127,7 @@ export default class JungleMapScene extends Phaser.Scene {
     this.lockText = this.add.text(480, 518, "", { ...style, fontSize: "18px", align: "center",
       wordWrap: { width: 860 } }).setOrigin(.5).setDepth(8);
     this.locationText = this.add.text(940, 585, "Urwaldwelt", { ...style, fontSize: "16px" }).setOrigin(1, 1).setDepth(6);
-    this.add.text(14, 585, "Pfeile / WASD: Bewegen · E / Enter: Betreten · I: Inventar · Q: Menü", {
+    this.add.text(14, 585, "{move}: Bewegen · {confirm}: Betreten · {inventory}: Inventar · {back}: Menü", {
       ...style, fontSize: "14px" }).setOrigin(0, 1).setDepth(6);
   }
 
@@ -145,12 +146,9 @@ export default class JungleMapScene extends Phaser.Scene {
 
   walkTo(node) {
     if (this.isMoving || this.inventoryOpen || !this.unlocked.has(node.id)) return;
-    this.isMoving = true;
-    const duration = Math.max(220, Math.hypot(node.x - this.playerMarker.x, node.y + 6 - this.playerMarker.y) / this.travelSpeed * 1000);
-    this.tweens.add({ targets: this.playerMarker, x: node.x, y: node.y + 6, duration,
-      onComplete: () => { this.currentNode = node; this.isMoving = false; this.saveLocation(); } });
-    if (this.companionMarker.visible) this.tweens.add({ targets: this.companionMarker,
-      x: node.x - 20, y: node.y + 17, duration });
+    this.mapTravel.travel(this.currentNode, node, () => {
+      this.currentNode = node; this.saveLocation();
+    });
   }
 
   tryMove(direction) {
@@ -170,6 +168,7 @@ export default class JungleMapScene extends Phaser.Scene {
     if (this.isMoving || this.inventoryOpen || !this.unlocked.has(this.currentNode.id)) return;
     this.saveLocation();
     if (this.currentNode.id === "UrwaldShop") this.scene.start("JungleShopScene");
+    else if (this.currentNode.id === "Urwaldexperte") this.scene.start("ExpertScene", { world: "jungle" });
     else this.scene.start("JungleScene", { levelId: this.currentNode.id });
   }
 
@@ -180,11 +179,9 @@ export default class JungleMapScene extends Phaser.Scene {
     const next = { ...save, currentWorld: "underground", currentLevel: "Kristalltiefen",
       mapState: { ...save.mapState, undergroundNode: "Kristalltiefen", jungleNode: "UrwaldShop" } };
     this.registry.set("saveData", next); saveProgress(next);
-    this.tweens.add({ targets: this.playerMarker, x: 0, y: this.currentNode.y + 6,
-      duration: Math.max(220, this.playerMarker.x / this.travelSpeed * 1000),
-      onComplete: () => this.scene.start("UndergroundMapScene", { fromJungle: true }) });
-    if (this.companionMarker.visible) this.tweens.add({ targets: this.companionMarker, x: -20,
-      y: this.currentNode.y + 17, duration: Math.max(220, this.companionMarker.x / this.travelSpeed * 1000) });
+    this.mapTravel.travel(this.currentNode, WORLD_MAP_EXITS.jungle.underground, () => {
+      this.scene.start("UndergroundMapScene", { fromJungle: true });
+    });
   }
 
   toggleInventory() { if (this.inventoryOpen) this.closeInventory(); else if (!this.isMoving) {
@@ -196,7 +193,7 @@ export default class JungleMapScene extends Phaser.Scene {
     if (slot === "weapon") applyWeaponAppearance(this, this.playerMarker);
     if (slot === "companion") this.companionMarker.setVisible(Boolean(id));
     this.hud.setActiveEquipped(this.equipped.weapon); this.hud.setPassiveEquipped(this.equipped.passive);
-    this.hud.setPassiveOwned(this.equipped.passive === "shield"); this.hud.setShoesOwned(this.equipped.passive === "shoes");
+    this.hud.setPassiveOwned(Boolean(this.equipped?.shield || this.equipped?.passive === "shield")); this.hud.setShoesOwned(Boolean(this.equipped?.shoes || this.equipped?.passive === "shoes"));
     this.hud.setConsumableEquipped(this.equipped.consumable === "honey");
     applyItemModeSupport(this.hud, this.equipped, this.gameMode); this.saveLocation();
   }

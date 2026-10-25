@@ -170,10 +170,11 @@ for (const name of ['DessertMapScene', 'UndergroundMapScene']) {
 }
 
 test('underground world transition cannot be retriggered or started from inventory/dialog', () => {
-  const { scene } = loadScene('UndergroundMapScene', 'scenes/UndergroundMapScene.js');
+  const { scene, context } = loadScene('UndergroundMapScene', 'scenes/UndergroundMapScene.js');
+  context.WORLD_MAP_EXITS = { underground: { desert: { id: '@desert' } } };
   scene.currentNode = { id: 'UnderShop', x: 445, y: 210 };
   const moves = [];
-  scene.tweens = { add(config) { moves.push(config); } };
+  scene.mapTravel = { travel(from, to) { moves.push({ from, to }); } };
   scene.inventoryOpen = true; scene.returnToDesert();
   scene.inventoryOpen = false; scene.isDialogOpen = true; scene.returnToDesert();
   assert.equal(moves.length, 0);

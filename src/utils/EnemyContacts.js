@@ -31,7 +31,7 @@ export function contactSeparation(a, b, previousA = a, previousB = b) {
 export function getContactEnemies(scene) {
   const result = [], now = scene.worldTime ?? scene.time.now;
   const add = (enemy, bounds, hit, harmless = false) => {
-    if (!enemy || enemy.active === false || enemy.getData?.("emerging")) return;
+    if (!enemy || enemy.active === false || enemy.hidden || enemy.getData?.("emerging")) return;
     result.push({ enemy, bounds: rect(bounds), hit, harmless });
   };
   if (Array.isArray(scene.monkeys)) {

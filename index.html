@@ -4,33 +4,77 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Ritter & Begleiter - Brucies Game</title>
-    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="style.css?v=world-trails-2" />
   </head>
   <body>
     <main id="play-shell">
       <div id="game"></div>
       <nav id="game-controls" aria-label="Spielsteuerung"></nav>
-      <p class="controls-hint">Bewegen: Pfeile / WASD · Angriff: Leertaste · Bestätigen: E · Zurück: Q · Inventar: I</p>
+      <p class="controls-hint">Steuerung wird geladen …</p>
     </main>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
-    <!-- Version shared progression modules together so existing browser caches cannot mix save formats. -->
+    <!-- Version local modules together so browser caches cannot mix equipment and gameplay formats. -->
     <script type="importmap">
-      {
-        "imports": {
-          "./src/scenes/jungle/JungleScene.js": "./src/scenes/jungle/JungleScene.js?v=king-coconuts-1",
-          "./src/utils/jungleRules.js": "./src/utils/jungleRules.js?v=king-coconuts-1",
-          "./src/saveManager.js": "./src/saveManager.js?v=worlds-2",
-          "./src/utils/undergroundBoss.js": "./src/utils/undergroundBoss.js?v=worlds-2",
-          "./src/scenes/BootScene.js": "./src/scenes/BootScene.js?v=worlds-2",
-          "./src/scenes/MainMenuScene.js": "./src/scenes/MainMenuScene.js?v=worlds-2",
-          "./src/scenes/DessertMapScene.js": "./src/scenes/DessertMapScene.js?v=worlds-2",
-          "./src/scenes/UndergroundMapScene.js": "./src/scenes/UndergroundMapScene.js?v=worlds-2",
-          "./src/scenes/jungle/JungleMapScene.js": "./src/scenes/jungle/JungleMapScene.js?v=worlds-2",
-          "./src/scenes/underground/UndergroundDigScene.js": "./src/scenes/underground/UndergroundDigScene.js?v=worlds-2",
-          "./src/ui/UndergroundVictoryScreen.js": "./src/ui/UndergroundVictoryScreen.js?v=worlds-2"
-        }
-      }
-    </script>
+{
+  "imports": {
+    "./src/dialogManager.js": "./src/dialogManager.js?v=world-trails-2",
+    "./src/main.js": "./src/main.js?v=world-trails-2",
+    "./src/saveManager.js": "./src/saveManager.js?v=world-trails-2",
+    "./src/scenes/BootScene.js": "./src/scenes/BootScene.js?v=world-trails-2",
+    "./src/scenes/CharacterSelectScene.js": "./src/scenes/CharacterSelectScene.js?v=world-trails-2",
+    "./src/scenes/DesertRuinScene.js": "./src/scenes/DesertRuinScene.js?v=world-trails-2",
+    "./src/scenes/DessertMapScene.js": "./src/scenes/DessertMapScene.js?v=world-trails-2",
+    "./src/scenes/ExpertScene.js": "./src/scenes/ExpertScene.js?v=world-trails-2",
+    "./src/scenes/MainMenuScene.js": "./src/scenes/MainMenuScene.js?v=world-trails-2",
+    "./src/scenes/TavernScene.js": "./src/scenes/TavernScene.js?v=world-trails-2",
+    "./src/scenes/UndergroundMapScene.js": "./src/scenes/UndergroundMapScene.js?v=world-trails-2",
+    "./src/scenes/desert/DesertEndlessScene.js": "./src/scenes/desert/DesertEndlessScene.js?v=world-trails-2",
+    "./src/scenes/desert/DesertRuinScene.js": "./src/scenes/desert/DesertRuinScene.js?v=world-trails-2",
+    "./src/scenes/desert/DesertTunnelScene.js": "./src/scenes/desert/DesertTunnelScene.js?v=world-trails-2",
+    "./src/scenes/desert/MonsterSpawner.js": "./src/scenes/desert/MonsterSpawner.js?v=world-trails-2",
+    "./src/scenes/desert/TavernScene.js": "./src/scenes/desert/TavernScene.js?v=world-trails-2",
+    "./src/scenes/jungle/JungleMapScene.js": "./src/scenes/jungle/JungleMapScene.js?v=world-trails-2",
+    "./src/scenes/jungle/JungleScene.js": "./src/scenes/jungle/JungleScene.js?v=world-trails-2",
+    "./src/scenes/jungle/JungleShopScene.js": "./src/scenes/jungle/JungleShopScene.js?v=world-trails-2",
+    "./src/scenes/shop/ShopSceneBase.js": "./src/scenes/shop/ShopSceneBase.js?v=world-trails-2",
+    "./src/scenes/underground/UndergroundDigScene.js": "./src/scenes/underground/UndergroundDigScene.js?v=world-trails-2",
+    "./src/scenes/underground/UndergroundShopScene.js": "./src/scenes/underground/UndergroundShopScene.js?v=world-trails-2",
+    "./src/soundManager.js": "./src/soundManager.js?v=world-trails-2",
+    "./src/ui/ConfirmationDialog.js": "./src/ui/ConfirmationDialog.js?v=world-trails-2",
+    "./src/ui/InventoryOverlay.js": "./src/ui/InventoryOverlay.js?v=world-trails-2",
+    "./src/ui/UndergroundVictoryScreen.js": "./src/ui/UndergroundVictoryScreen.js?v=world-trails-2",
+    "./src/ui/topHud.js": "./src/ui/topHud.js?v=world-trails-2",
+    "./src/utils/BowManager.js": "./src/utils/BowManager.js?v=world-trails-2",
+    "./src/utils/CompanionNavigator.js": "./src/utils/CompanionNavigator.js?v=world-trails-2",
+    "./src/utils/ControlLabels.js": "./src/utils/ControlLabels.js?v=world-trails-2",
+    "./src/utils/DesertMoleAI.js": "./src/utils/DesertMoleAI.js?v=world-trails-2",
+    "./src/utils/EnemyContacts.js": "./src/utils/EnemyContacts.js?v=world-trails-2",
+    "./src/utils/JungleHazards.js": "./src/utils/JungleHazards.js?v=world-trails-2",
+    "./src/utils/PortableControls.js": "./src/utils/PortableControls.js?v=world-trails-2",
+    "./src/utils/ShieldManager.js": "./src/utils/ShieldManager.js?v=world-trails-2",
+    "./src/utils/UndergroundBats.js": "./src/utils/UndergroundBats.js?v=world-trails-2",
+    "./src/utils/WeaponSwitch.js": "./src/utils/WeaponSwitch.js?v=world-trails-2",
+    "./src/utils/controlProfiles.js": "./src/utils/controlProfiles.js?v=world-trails-2",
+    "./src/utils/coordinateDebugger.js": "./src/utils/coordinateDebugger.js?v=world-trails-2",
+    "./src/utils/expertKnowledge.js": "./src/utils/expertKnowledge.js?v=world-trails-2",
+    "./src/utils/gameSystems.js": "./src/utils/gameSystems.js?v=world-trails-2",
+    "./src/utils/inventory.js": "./src/utils/inventory.js?v=world-trails-2",
+    "./src/utils/itemRegistry.js": "./src/utils/itemRegistry.js?v=world-trails-2",
+    "./src/utils/jungleRules.js": "./src/utils/jungleRules.js?v=world-trails-2",
+    "./src/utils/potions.js": "./src/utils/potions.js?v=world-trails-2",
+    "./src/utils/undergroundBoss.js": "./src/utils/undergroundBoss.js?v=world-trails-2",
+    "./src/utils/weapons.js": "./src/utils/weapons.js?v=world-trails-2",
+    "./src/scenes/IntroScene.js": "./src/scenes/IntroScene.js?v=world-trails-2",
+    "./src/utils/IntroAudio.js": "./src/utils/IntroAudio.js?v=world-trails-2",
+    "./src/utils/introTimeline.js": "./src/utils/introTimeline.js?v=world-trails-2",
+    "./src/utils/introAssets.js": "./src/utils/introAssets.js?v=world-trails-2",
+    "./src/utils/worldMapAssets.js": "./src/utils/worldMapAssets.js?v=world-trails-2",
+    "./src/utils/worldMapRoutes.js": "./src/utils/worldMapRoutes.js?v=world-trails-2",
+    "./src/utils/companionDrinking.js": "./src/utils/companionDrinking.js?v=world-trails-2",
+    "./src/utils/WorldMapTravel.js": "./src/utils/WorldMapTravel.js?v=world-trails-2"
+  }
+}
+</script>
     <script type="module" src="src/main.js"></script>
   </body>
 </html>

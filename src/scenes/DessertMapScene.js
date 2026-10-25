@@ -1,3 +1,5 @@
+import WorldMapTravel from "../utils/WorldMapTravel.js";
+import { drawWorldMapPaths, mapFoot, WORLD_MAP_EXITS } from "../utils/worldMapRoutes.js";
 import { applyWeaponAppearance } from "../utils/weapons.js";
 import { saveProgress } from "../saveManager.js";
 import { playMusic } from "../soundManager.js";
@@ -13,7 +15,7 @@ const NODES = [
     label: "Wüstenruine",
     x: 180,
     y: 490,
-    neighbors: { right: "Taverne" },
+    neighbors: { right: "Taverne", up: "Wuestenexperte" },
   },
   {
     id: "Taverne",
@@ -36,6 +38,7 @@ const NODES = [
     y: 460,
     neighbors: { up: "Taverne" },
   },
+  { id: "Wuestenexperte", label: "Wüstenexperte", x: 195, y: 290, neighbors: { down: "Wuestenruine" } },
 ];
 
 export default class DessertMapScene extends Phaser.Scene {
@@ -59,6 +62,7 @@ export default class DessertMapScene extends Phaser.Scene {
     this.gameMode = GAME_MODES.ISOMETRIC;
     this.addBackground();
     this.ensureUnlocks();
+    this.equipped = normalizeInventory(this.registry.get("saveData") || {}).equipped;
     this.createNodes();
     this.drawPaths();
     this.createPlayerMarker();
@@ -80,8 +84,8 @@ export default class DessertMapScene extends Phaser.Scene {
       health: this.health,
       maxHealth: this.maxHealth,
       consumables: this.consumables,
-      passiveOwned: this.equipped.passive === "shield",
-      passiveShoes: this.equipped.passive === "shoes",
+      passiveOwned: Boolean(this.equipped?.shield || this.equipped?.passive === "shield"),
+      passiveShoes: Boolean(this.equipped?.shoes || this.equipped?.passive === "shoes"),
       activeEquipped: this.equipped.weapon,
       passiveEquipped: this.equipped.passive,
       consumableEquipped: this.equipped.consumable === "honey",
@@ -139,6 +143,7 @@ export default class DessertMapScene extends Phaser.Scene {
       unlocked.add("DesertEndless");
       unlocked.add("Fremdweg");
     }
+    unlocked.add("Wuestenexperte");
     if (unlocked.size !== (saveData.unlockedLevels || []).length) {
       const nextSave = { ...saveData, unlockedLevels: Array.from(unlocked) };
       this.registry.set("saveData", nextSave);
@@ -154,39 +159,11 @@ export default class DessertMapScene extends Phaser.Scene {
   }
 
   drawPaths() {
-    const graphics = this.add.graphics();
-    graphics.setDepth(-1);
-    graphics.lineStyle(4, 0x9a7c56, 1);
-    for (let i = 0; i < NODES.length; i += 1) {
-      const node = NODES[i];
-      Object.values(node.neighbors).forEach((neighborId) => {
-        const neighbor = NODES.find((item) => item.id === neighborId);
-        if (!neighbor) return;
-        if (!this.unlocked.has(node.id) || !this.unlocked.has(neighbor.id)) return;
-        graphics.strokeLineShape(
-          new Phaser.Geom.Line(
-            node.x,
-            node.y + 20,
-            neighbor.x,
-            neighbor.y + 20
-          )
-        );
-      });
-    }
-    const fremdweg = NODES.find((node) => node.id === "Fremdweg");
-    if (fremdweg && this.unlocked.has("Fremdweg")) {
-      const saveData = this.registry.get("saveData") || {};
-      if (saveData.completedLevels?.includes("Fremdweg")) {
-        graphics.strokeLineShape(
-          new Phaser.Geom.Line(
-            fremdweg.x,
-            fremdweg.y + 20,
-            fremdweg.x,
-            600
-          )
-        );
-      }
-    }
+    const save = this.registry.get("saveData") || {};
+    const exit = NODES.find(n => n.id === "Fremdweg");
+    const exits = this.unlocked.has(exit.id) && save.completedLevels?.includes(exit.id)
+      ? [[exit, WORLD_MAP_EXITS.desert.underground]] : [];
+    this.pathGraphics = drawWorldMapPaths(this, "desert", NODES, exits);
   }
 
   createNodes() {
@@ -198,7 +175,10 @@ export default class DessertMapScene extends Phaser.Scene {
       const isUnlocked = this.unlocked.has(node.id);
       let label = null;
       let icon = null;
-      if (node.id === "Wuestenruine" && isUnlocked) {
+      if (node.id === "Wuestenexperte") {
+        icon = this.add.image(node.x, node.y - 14, "professor-desert").setDisplaySize(90, 105);
+        label = this.add.text(node.x, node.y + 50, node.label, { fontFamily: "Trebuchet MS, sans-serif", fontSize: "19px", color: "#fff0bf", stroke: "#3b2a17", strokeThickness: 4 }).setOrigin(.5).setDepth(4);
+      } else if (node.id === "Wuestenruine" && isUnlocked) {
         const isCompleted = saveData.completedLevels?.includes("Wuestenruine");
         const ruinKey = isCompleted
           ? "worldmap-ruin-repaired"
@@ -273,61 +253,35 @@ export default class DessertMapScene extends Phaser.Scene {
           .setOrigin(0.5);
       }
 
+      icon.setInteractive({ useHandCursor: true }).on("pointerdown", () => this.chooseNode(node));
+      label?.setInteractive({ useHandCursor: true }).on("pointerdown", () => this.chooseNode(node));
       this.nodeSprites.set(node.id, { icon, label });
     });
   }
 
   createPlayerMarker() {
-    const saveData = this.registry.get("saveData");
+    const saveData = this.registry.get("saveData") || {};
     const currentId = saveData.mapState?.desertNode || saveData.currentLevel || "Wuestenruine";
-    const startNode = NODES.find((node) => node.id === currentId) || NODES[0];
+    let startNode = NODES.find(node => node.id === currentId) || NODES[0];
     this.currentNode = startNode;
-    const isFemale = saveData.playerGender === "female";
-    const standingTexture = isFemale ? "knight-female-standing" : "knight-standing";
-    this.playerMarker = this.add.image(startNode.x, startNode.y + 2, standingTexture);
-    this.playerMarker.setScale(0.42);
+    const foot = mapFoot(startNode);
+    const standingTexture = saveData.playerGender === "female" ? "knight-female-standing" : "knight-standing";
+    this.playerMarker = this.add.image(foot.x, foot.y, standingTexture).setOrigin(.5, 1).setScale(.42).setDepth(5);
     applyWeaponAppearance(this, this.playerMarker);
-    this.playerMarker.setDepth(5);
-    this.companionMarker = this.add.image(
-      startNode.x - 18,
-      startNode.y + 8,
-      "companion-running"
-    );
-    this.companionMarker.setScale(0.42);
-    this.companionMarker.setDepth(5);
-    const showCompanion = this.equipped?.companion !== null;
-    this.companionMarker.setVisible(showCompanion);
-
+    this.companionMarker = this.add.image(foot.x - 28, foot.y, "companion-running")
+      .setOrigin(.5, 1).setScale(.42).setDepth(5).setVisible(Boolean(this.equipped?.companion));
+    this.mapTravel = new WorldMapTravel(this, "desert");
     if (this.entryFromUnderground && startNode.id === "Fremdweg") {
-      const edgeY = Math.min(590, startNode.y + 90);
-      const duration = this.getTravelDuration(edgeY, startNode.y + 2);
-      this.playerMarker.setPosition(startNode.x, edgeY);
-      this.companionMarker.setPosition(startNode.x - 18, edgeY + 8);
-      this.isMoving = true;
-      this.tweens.add({
-        targets: this.playerMarker,
-        x: startNode.x,
-        y: startNode.y + 2,
-        duration,
-        onComplete: () => {
-          this.isMoving = false;
-          this.entryFromUnderground = false;
-        },
-      });
-      if (this.companionMarker.visible) {
-        this.tweens.add({
-          targets: this.companionMarker,
-          x: startNode.x - 18,
-          y: startNode.y + 8,
-          duration: duration + 40,
-        });
-      }
+      const exit = WORLD_MAP_EXITS.desert.underground, edge = mapFoot(exit);
+      this.playerMarker.setPosition(edge.x, edge.y);
+      this.companionMarker.setPosition(edge.x - 28, edge.y);
+      this.mapTravel.travel(exit, startNode, () => { this.entryFromUnderground = false; });
     }
   }
 
   createUI() {
     this.hintText = this.add
-      .text(14, 585, "Pfeile/WASD = Bewegen, Enter = Start, Esc = Menü", {
+      .text(14, 585, "{move} = Bewegen · {confirm} = Start · {back} = Menü", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "14px",
         color: "#ffffff",
@@ -390,27 +344,9 @@ export default class DessertMapScene extends Phaser.Scene {
       };
       this.registry.set("saveData", nextSave);
       saveProgress(nextSave);
-      const edgeY = Math.min(590, this.currentNode.y + 90);
-      const duration = this.getTravelDuration(this.currentNode.y + 2, edgeY);
-      this.isMoving = true;
-      this.tweens.add({
-        targets: this.playerMarker,
-        x: this.currentNode.x,
-        y: edgeY,
-        duration,
-        onComplete: () => {
-          this.isMoving = false;
-          this.scene.start("UndergroundMapScene", { fromDesert: true });
-        },
+      this.mapTravel.travel(this.currentNode, WORLD_MAP_EXITS.desert.underground, () => {
+        this.scene.start("UndergroundMapScene", { fromDesert: true });
       });
-      if (this.companionMarker?.visible) {
-        this.tweens.add({
-          targets: this.companionMarker,
-          x: this.currentNode.x - 18,
-          y: edgeY + 8,
-          duration: duration + 40,
-        });
-      }
       return;
     }
 
@@ -419,13 +355,6 @@ export default class DessertMapScene extends Phaser.Scene {
     else if (up) this.tryMove({ x: 0, y: -1 });
     else if (down) this.tryMove({ x: 0, y: 1 });
 
-    if (this.companionMarker?.visible) {
-      const side = this.companionMarker.x >= this.playerMarker.x ? 1 : -1;
-      const targetX = this.playerMarker.x + side * 18;
-      const targetY = this.playerMarker.y + 17;
-      this.companionMarker.x = Phaser.Math.Linear(this.companionMarker.x, targetX, 0.12);
-      this.companionMarker.y = Phaser.Math.Linear(this.companionMarker.y, targetY, 0.12);
-    }
   }
 
   tryMove(direction) {
@@ -439,25 +368,17 @@ export default class DessertMapScene extends Phaser.Scene {
 
     const nextNode = NODES.find((node) => node.id === nextId);
     if (!nextNode) return;
-    this.isMoving = true;
-    this.tweens.add({
-      targets: this.playerMarker,
-      x: nextNode.x,
-      y: nextNode.y + 2,
-      duration: 400,
-      onComplete: () => {
-        this.currentNode = nextNode;
-        this.isMoving = false;
-      },
+    this.mapTravel.travel(this.currentNode, nextNode, () => {
+      this.currentNode = nextNode;
     });
-    if (this.companionMarker?.visible) {
-      this.tweens.add({
-        targets: this.companionMarker,
-        x: nextNode.x - 18,
-        y: nextNode.y - 6,
-        duration: 460,
-      });
-    }
+  }
+
+  chooseNode(node) {
+    if (this.isMoving || this.inventoryOpen || this.isDialogOpen) return;
+    if (this.currentNode.id === node.id) { this.startCurrentLevel(); return; }
+    if (!Object.values(this.currentNode.neighbors || {}).includes(node.id)) return;
+    const dx = node.x - this.currentNode.x, dy = node.y - this.currentNode.y, length = Math.hypot(dx, dy);
+    this.tryMove({ x: dx / length, y: dy / length });
   }
 
   getNeighborForDirection(direction) {
@@ -504,7 +425,9 @@ export default class DessertMapScene extends Phaser.Scene {
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);
 
-    if (this.currentNode.id === "Wuestenruine") {
+    if (this.currentNode.id === "Wuestenexperte") {
+      this.scene.start("ExpertScene", { world: "desert" });
+    } else if (this.currentNode.id === "Wuestenruine") {
       this.scene.start("DesertRuinScene");
     } else if (this.currentNode.id === "DesertEndless") {
       this.scene.start("DesertEndlessScene");
@@ -588,8 +511,8 @@ export default class DessertMapScene extends Phaser.Scene {
         this.companionMarker.setVisible(showCompanion);
         if (showCompanion) {
           this.companionMarker.setPosition(
-            this.playerMarker.x - 18,
-            this.playerMarker.y + 12
+            this.playerMarker.x - 28,
+            this.playerMarker.y
           );
         }
       }
@@ -609,8 +532,4 @@ export default class DessertMapScene extends Phaser.Scene {
     }
   }
 
-  getTravelDuration(fromY, toY) {
-    const distance = Math.abs(toY - fromY);
-    return Math.max(220, Math.round((distance / this.travelSpeed) * 1000));
-  }
 }

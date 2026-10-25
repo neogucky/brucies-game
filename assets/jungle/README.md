@@ -17,3 +17,15 @@ schneidet die Einzelbilder aus den Atlanten und richtet sie für das Spiel aus.
 
 Die Steingegner verwenden das bestehende Unterwelt-Asset
 `assets/underground/enemies/stonemonster_rolledup.png`.
+
+## Kletterwelt und Ausrüstung
+
+`jungle-equipment-atlas.png` enthält den runden Urwaldschild, Versteckblätter,
+die Kletterliane und den Gürtel mit zwei Trankhaltern.
+[Generierungsprompt](prompts/jungle-equipment.txt).
+
+Die Bogenposen für Ritter und Ritterin stehen in
+[`bow-characters-atlas.png`](../common/characters/bow-characters-atlas.png).
+Der Bogen ist beim Hochschuss waagerecht über dem Kopf gespannt; der Pfeil zeigt
+nach oben. [Prompts inklusive Korrektur](../common/characters/prompts/bow-characters.txt)
+und [Assetmanifest](../common/characters/prompts/equipment-manifest.json).

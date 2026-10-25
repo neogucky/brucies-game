@@ -1,3 +1,4 @@
+import { showExitConfirmation } from "../../ui/ConfirmationDialog.js";
 import { getWeaponStats, isMeleeWeapon, getWeaponTextures, applyWeaponAppearance, getWeaponDamage } from "../../utils/weapons.js";
 import { saveProgress } from "../../saveManager.js";
 import { bumpMusicRate, playMusic } from "../../soundManager.js";
@@ -2162,8 +2163,8 @@ export default class UndergroundDigScene extends Phaser.Scene {
 
   updateWeaponHint() {
     this.hintText?.setText(this.equipped?.weapon === "powerHammer"
-      ? "Pfeile/A/D = Bewegen, W = Springen, S in der Luft = Hammerschlag, Leertaste = Angriff, Esc = Menü"
-      : "Pfeile/A/D = Bewegen, W/Oben = Springen, Leertaste = Angriff/Graben, Esc = Menü");
+      ? "{move}: Bewegen · {jump}: Springen · ↓ in der Luft: Hammerschlag · {attack}: Angriff · {back}: Menü"
+      : "{move}: Bewegen · {jump}: Springen · {attack}: Angriff/Graben · {back}: Menü");
   }
 
   beginHammerSlam() {
@@ -2341,7 +2342,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.coinsCollected = normalizedSave.coins ?? 0;
     this.consumables = { honey: this.inventory.consumables?.honey ?? 0 };
     this.keyCollected = Boolean(normalizedSave.undergroundKeyCollected || this.keyCollected);
-    this.hasShoes = this.equipped.passive === "shoes";
+    this.hasShoes = Boolean(this.equipped?.shoes || this.equipped?.passive === "shoes");
     this.companionEnabled = this.equipped.companion !== null;
     if (!this.shield) {
       this.shield = new ShieldManager(this);
@@ -2353,8 +2354,8 @@ export default class UndergroundDigScene extends Phaser.Scene {
       health: this.health,
       maxHealth: this.maxHealth,
       consumables: this.consumables,
-      passiveOwned: this.equipped.passive === "shield",
-      passiveShoes: this.equipped.passive === "shoes",
+      passiveOwned: Boolean(this.equipped?.shield || this.equipped?.passive === "shield"),
+      passiveShoes: Boolean(this.equipped?.shoes || this.equipped?.passive === "shoes"),
       activeEquipped: this.equipped.weapon,
       passiveEquipped: this.equipped.passive,
       consumableEquipped: this.equipped.consumable === "honey",
@@ -2375,7 +2376,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.updateCompanionUI();
 
     this.hintText = this.add
-      .text(14, 585, "Pfeile/A/D = Bewegen, W/Oben = Springen, Leertaste = Graben, Esc = Menu", {
+      .text(14, 585, "{move}: Bewegen · {jump}: Springen · {attack}: Graben · {back}: Menü", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "14px",
         color: "#ffffff",
@@ -3888,7 +3889,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
       this.sfx.keyOpen.play();
     }
     this.promptText.setText("Du hast das Tor geoeffnet!");
-    this.promptHint.setText("Enter zur Karte");
+    this.promptHint.setText("Zur Karte · {confirm}");
 
     this.input.keyboard.once("keydown-ENTER", () => {
       const saveData = this.registry.get("saveData") || {};
@@ -3919,7 +3920,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.physics.world.pause();
     this.promptBox.setVisible(true);
     this.promptText.setText("Du bist gestorben!");
-    this.promptHint.setText("Enter fuer Neustart\nEsc zur Karte");
+    this.promptHint.setText("Neustart · {confirm}\nZur Karte · {back}");
     if (this.sfx?.gameOver) {
       this.sfx.gameOver.play();
     }
@@ -3969,37 +3970,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     return true;
   }
 
-  openExitPrompt() {
-    if (this.isPaused) return;
-    this.isPaused = true;
-    this.player.body.setVelocity(0, 0);
-    this.time.paused = true;
-    this.physics.world.pause();
-    this.promptBox.setVisible(true);
-    this.promptText.setText("Willst du das Level wirklich verlassen?");
-    this.promptHint.setText("[J]a oder [N]ein");
-
-    const closePrompt = (resumeWorld) => {
-      this.input.keyboard.off("keydown-J", onYes);
-      this.input.keyboard.off("keydown-N", onNo);
-      this.promptBox.setVisible(false);
-      if (resumeWorld) {
-        this.isPaused = false;
-        this.time.paused = false;
-        this.physics.world.resume();
-      }
-    };
-
-    const onYes = () => {
-      closePrompt(false);
-      this.time.paused = false;
-      this.scene.start("UndergroundMapScene");
-    };
-    const onNo = () => closePrompt(true);
-
-    this.input.keyboard.once("keydown-J", onYes);
-    this.input.keyboard.once("keydown-N", onNo);
-  }
+  openExitPrompt() { return showExitConfirmation(this, "UndergroundMapScene"); }
 
   useConsumable() {
     if (this.isGameOver || this.isPaused || this.levelCompleted) return;

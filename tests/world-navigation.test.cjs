@@ -14,6 +14,7 @@ function fixture(name, file, save = {}) {
   const context = { Phaser: { Scene: class {} }, normalizeWorldProgress: normalize,
     saveProgress: data => { stored = data; } };
   vm.createContext(context);
+  vm.runInContext(strip(fs.readFileSync(path.join(root, "utils/worldMapRoutes.js"), "utf8")), context);
   const code = fs.readFileSync(path.join(root, file), 'utf8').replace(/^import .*;\n/gm, '')
     .replace('export default class ' + name, 'globalThis.Scene = class ' + name).replace(/export /g, '');
   vm.runInContext(code, context);
@@ -21,6 +22,10 @@ function fixture(name, file, save = {}) {
   scene.registry = { get: () => stored, set: (_, data) => { stored = data; } };
   scene.scene = { start: (key, data) => starts.push({ key, data }) };
   scene.tweens = { add: config => { tweens.push(config); } };
+  scene.mapTravel = { travel(from, to, complete) {
+    scene.isMoving = true;
+    tweens.push({ from, to, onComplete() { scene.isMoving = false; complete?.(); } });
+  } };
   scene.playerMarker = { x: 220, y: 366 };
   scene.companionMarker = { x: 200, y: 377, visible: false };
   scene.lockText = { setText: text => hints.push(text) };

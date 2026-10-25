@@ -1,0 +1,8 @@
+Use case: illustration-story
+Asset type: transparent 2D game animation sprite atlas, four-frame looping DRINKING animation.
+Input images: Image 1 is the canonical yellow companion from the game, a cute round yellow helper with tiny feet and hands, orange cheeks, two thin antennae with dark tips and big friendly eyes. Image 2 is another reference pose of the same helper; do NOT use the searching/binocular pose.
+Primary request: precisely TWO COLUMNS and TWO ROWS, four consecutive frames of this same yellow helper crouching down and SLURPING a coconut puddle from the floor. Faces RIGHT in side/three-quarter view. Little hands braced on the floor, head low, mouth near the ground, antennae lean forward. No cup or straw. Frame 1 upper left: bends to sip with a tiny tongue at ground. Frame 2 upper right: mouth pursed slurping, cheeks lightly swell, eyes content and half closed. Frame 3 lower left: closes mouth and swallows with fuller cheeks and slight head lift. Frame 4 lower right: cheeks relax and lowers mouth for next sip. Subtle body squash, same character and stable foot baseline in each cell.
+Composition: square 1024x1024 atlas, four equal 512x512 cells. Helper complete and centered in each cell, identical scale, no overlap between cells, clear generous transparent margins.
+Style: match references' warm yellow hand-painted cartoon sprite, orange cheek patches, dark readable outline, cute friendly expression.
+Background: genuine transparent alpha; NO puddle, no floor, no scenery, no cast shadow. The game supplies the puddle separately.
+Constraints: no text, no grid, no borders, no binoculars, no glasses, no cup, no straw, no extra objects or characters.

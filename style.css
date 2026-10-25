@@ -50,3 +50,13 @@ body.fullscreen .controls-hint { color: #e7d9b2; }
   .controls-hint { font-size: 11px; max-width: 95%; }
 }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+.control-profile { flex: 1 0 100%; display: flex; justify-content: center; align-items: center; gap: 8px; color: #473c2c; font-size: 14px; }
+.control-profile select { font: 16px "Trebuchet MS", sans-serif; min-height: 40px; border: 2px solid #6c7047; border-radius: 8px; background: #f5edda; color: #244732; padding: 4px 10px; }
+#touch-controls:not([hidden]) { display: grid; grid-template-columns: repeat(4, minmax(50px, 1fr)); gap: 6px; width: min(100%, 560px); }
+#touch-controls button { min-height: 46px; font: 600 17px "Trebuchet MS", sans-serif; color: #fff2ca; background: #34543e; border: 2px solid #83955e; border-radius: 9px; touch-action: none; user-select: none; -webkit-user-select: none; }
+#touch-controls button:active { background: #68804b; }
+#game { width: min(94vw, 960px, calc((100svh - 200px) * 1.6)); }
+body.touch-profile #game { width: min(94vw, 960px, calc((100svh - 310px) * 1.6)); }
+body.fullscreen .control-profile { color: #fff2ca; }
+body.cinematic-mode #game { width: min(94vw, 960px, calc((100svh - 150px) * 1.6)); }
+#game-controls button[hidden], #touch-controls[hidden] { display: none; }

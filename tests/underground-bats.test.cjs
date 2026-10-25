@@ -29,9 +29,10 @@ function actor(x, y, texture) {
 function group() {
   const children = [];
   return {
+    children,
     add(value) { children.push(value); }, getChildren: () => children,
     remove(value) { const index = children.indexOf(value); if (index >= 0) children.splice(index, 1); value.destroy(); },
-    destroy() { children.forEach(value => value.destroy()); children.length = 0; },
+    destroy() { children.forEach(value => value.destroy()); children.length = 0; this.children = undefined; },
   };
 }
 function setup(entries = [{ col: 10, row: 7, minCol: 4, maxCol: 24 }]) {
@@ -216,6 +217,14 @@ test('closing the boss arena removes bats and berries behind its wall', () => {
   assert.equal(bat.active, false);
   assert.equal(berry.active, false);
   assert.equal(preview.active, false);
+});
+
+test('leaving after Phaser has already destroyed its groups is safe and repeatable', () => {
+  const { system } = setup();
+  system.group.destroy(); system.berries.destroy();
+  system.group.getChildren = system.berries.getChildren = () => { throw new Error('destroyed group'); };
+  assert.doesNotThrow(() => system.destroy());
+  assert.doesNotThrow(() => system.destroy());
 });
 
 test('bats make warning and attack sounds before a berry can hit anything', () => {

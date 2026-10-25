@@ -1,3 +1,4 @@
+import { showExitConfirmation } from "../../ui/ConfirmationDialog.js";
 import { getWeaponStats, isMeleeWeapon, getWeaponTextures, applyWeaponAppearance } from "../../utils/weapons.js";
 import { saveProgress } from "../../saveManager.js";
 import { playMusic, bumpMusicRate } from "../../soundManager.js";
@@ -189,8 +190,8 @@ export default class DesertEndlessScene extends Phaser.Scene {
       honey: this.inventory.consumables?.honey ?? 0,
     };
     this.equipment = {
-      shield: this.equipped.passive === "shield",
-      shoes: this.equipped.passive === "shoes",
+      shield: Boolean(this.equipped?.shield || this.equipped?.passive === "shield"),
+      shoes: Boolean(this.equipped?.shoes || this.equipped?.passive === "shoes"),
     };
     this.hasShoes = this.equipment.shoes;
     this.companionEnabled = this.equipped.companion !== null;
@@ -1364,7 +1365,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
     this.lostScreen = this.add.image(480, 300, "desert-lost").setDepth(25);
     this.fitScreenImage(this.lostScreen, 1);
     this.gameOverHint = this.add
-      .text(480, 540, "Enter für Neustart\nEsc für Weltkarte", {
+      .text(480, 540, "Neustart · {confirm}\nWeltkarte · {back}", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "18px",
         color: "#f7edd6",
@@ -1419,7 +1420,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
   showEndScreen() {
     this.isComplete = true;
     this.player.body.setVelocity(0, 0);
-    this.statusText.setText("Enter für die Weltkarte");
+    this.statusText.setText("Zur Weltkarte · {confirm}");
     this.endScreen = this.add.image(480, 300, "desert-end").setDepth(25);
     this.fitScreenImage(this.endScreen, 1);
     this.physics.world.pause();
@@ -1448,7 +1449,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
     saveProgress(nextSave);
 
     this.winHint = this.add
-      .text(480, 545, "Drücke Enter um zur Weltkarte zu kommen", {
+      .text(480, 545, "Zur Weltkarte · {confirm}", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "18px",
         color: "#f7edd6",
@@ -1470,39 +1471,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
     image.setScale(targetScale);
   }
 
-  openExitPrompt() {
-    if (this.isPromptActive || this.isComplete || this.isGameOver) return;
-    this.isPaused = true;
-    this.player.body.setVelocity(0, 0);
-    this.time.paused = true;
-    this.physics.world.pause();
-    this.promptBox.setVisible(true);
-    this.promptText.setText("Willst du das Level wirklich verlassen?");
-    this.promptHint.setText("[J]a oder [N]ein");
-    this.isPromptActive = true;
-
-    const closePrompt = (resumeWorld) => {
-      this.input.keyboard.off("keydown-J", onYes);
-      this.input.keyboard.off("keydown-N", onNo);
-      this.promptBox.setVisible(false);
-      this.isPromptActive = false;
-      if (resumeWorld) {
-        this.physics.world.resume();
-        this.isPaused = false;
-        this.time.paused = false;
-      }
-    };
-
-    const onYes = () => {
-      closePrompt(false);
-      this.time.paused = false;
-      this.scene.start("DessertMapScene");
-    };
-    const onNo = () => closePrompt(true);
-
-    this.input.keyboard.once("keydown-J", onYes);
-    this.input.keyboard.once("keydown-N", onNo);
-  }
+  openExitPrompt() { return showExitConfirmation(this, "DessertMapScene"); }
 
   update() {
     if (this.isGameOver || this.isPaused || this.isComplete) {

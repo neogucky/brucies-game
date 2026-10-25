@@ -15,6 +15,7 @@ function load(file, name) {
 load('src/utils/jungleRules.js');
 load('src/utils/inventory.js');
 load('src/utils/BowManager.js', 'BowManager');
+load('src/utils/controlProfiles.js');
 load('src/utils/PortableControls.js', 'PortableControls');
 load('src/scenes/shop/ShopSceneBase.js', 'ShopSceneBase');
 load('src/scenes/jungle/JungleShopScene.js', 'JungleShopScene');
@@ -136,15 +137,17 @@ test('bow ownership and selection survive save normalization without enabling sh
   assert.equal(save.equipment.shield, false); assert.equal(save.equipment.shoes, false);
 });
 
-for (const [event, action] of [
-  [{ key: 'Return', keyCode: 0 }, 'confirm'], [{ code: 'NumpadEnter' }, 'confirm'],
-  [{ key: 'e' }, 'confirm'], [{ key: 'E' }, 'confirm'], [{ key: 'UIKeyInputEscape' }, 'back'],
-  [{ code: 'KeyQ' }, 'back'], [{ code: 'Backspace' }, 'back'], [{ code: 'KeyI' }, 'inventory'],
-  [{ code: 'Tab' }, 'inventory'], [{ key: 'Shift' }, 'shoot'], [{ code: 'ShiftRight' }, 'shoot'],
-  [{ code: 'KeyP' }, 'pause'], [{ metaKey: true, key: '.' }, 'back'],
-]) test(JSON.stringify(event) + ' maps to portable action ' + action, () => assert.equal(context.actionForKey(event), action));
-test('browser shortcuts, text composition, and ordinary movement are not turned into actions', () => {
-  for (const event of [{ code: 'KeyE', ctrlKey: true }, { code: 'KeyQ', metaKey: true }, { key: 'e', isComposing: true }, { code: 'KeyW' }])
+for (const [event, profile, action] of [
+  [{ key: 'Return', keyCode: 0 }, 'pc', 'confirm'], [{ code: 'NumpadEnter' }, 'pc', 'confirm'],
+  [{ key: 'e' }, 'ipadKeyboard', 'confirm'], [{ key: 'E' }, 'ipadKeyboard', 'confirm'],
+  [{ key: 'UIKeyInputEscape' }, 'pc', 'back'], [{ code: 'KeyQ' }, 'ipadKeyboard', 'back'],
+  [{ code: 'KeyI' }, 'ipadKeyboard', 'inventory'], [{ code: 'Tab' }, 'pc', 'inventory'],
+  [{ key: 'Shift' }, 'ipadKeyboard', 'shoot'], [{ code: 'ShiftRight' }, 'pc', 'shoot'],
+  [{ code: 'KeyP' }, 'pc', 'pause'], [{ code: 'ArrowUp' }, 'ipadKeyboard', 'up'],
+]) test(JSON.stringify(event) + ' maps to ' + profile + ' action ' + action, () => assert.equal(context.actionForKey(event, profile), action));
+test('legacy aliases, shortcuts and composing text do not activate the default iPad profile', () => {
+  for (const event of [{ code: 'KeyE', ctrlKey: true }, { code: 'KeyQ', metaKey: true }, { key: 'e', isComposing: true },
+    { code: 'KeyW' }, { code: 'Enter' }, { code: 'Escape' }, { code: 'Tab' }, { code: 'Backspace' }, { code: 'KeyJ' }, { code: 'KeyN' }, { metaKey: true, key: '.' }])
     assert.equal(context.actionForKey(event), null);
 });
 function controls(scene) {
@@ -160,9 +163,8 @@ test('confirm in inventory equips once without starting a level; back closes wit
   const c = controls(scene); c.dispatch('confirm'); c.dispatch('back');
   assert.equal(equipped, 1); assert.equal(closed, 1); assert.equal(exits, 0);
 });
-test('portable confirmation and cancel operate the existing J/N exit prompt once', () => {
-  const keyboard = new EventEmitter(), scene = { input: { keyboard }, promptBox: { visible: true } };
-  let yes = 0, no = 0; keyboard.once('keydown-J', () => yes++); keyboard.once('keydown-N', () => no++);
+test('toolbar confirmation and cancel use the explicit dialog actions once', () => {
+  let yes = 0, no = 0; const scene = { confirmation: { isOpen: true, choose(answer) { if(answer) yes++; else no++; } } };
   const c = controls(scene); c.dispatch('confirm'); c.dispatch('back'); assert.equal(yes, 1); assert.equal(no, 1);
 });
 test('confirm advances a dialog page or selects the current shop option without needing Enter', () => {
@@ -172,14 +174,15 @@ test('confirm advances a dialog page or selects the current shop option without 
   const c = controls(scene); c.dispatch('confirm'); scene.dialog.pages[0] = { options: [{}] }; c.dispatch('confirm');
   assert.equal(next, 1); assert.equal(selected, 1);
 });
-test('broken iPad movement events update held keys and release them; native events remain native', () => {
+test('both broken and native iPad arrow events use the same held-key adapter; WASD is inactive', () => {
   let downs = 0, ups = 0, prevented = 0;
   const key = { onDown() { downs++; }, onUp() { ups++; } };
-  const c = controls({ wasd: { W: key }, input: { keyboard: new EventEmitter() } });
-  const event = { key: 'w', keyCode: 0, preventDefault() { prevented++; }, stopImmediatePropagation() {} };
+  const c = controls({ cursors: { up: key }, input: { keyboard: new EventEmitter() } }); c.held = new Set();
+  const event = { key: 'ArrowUp', keyCode: 0, preventDefault() { prevented++; }, stopImmediatePropagation() {} };
   c.onKey(event, true); c.onKey(event, false);
   assert.equal(downs, 1); assert.equal(ups, 1); assert.equal(prevented, 2);
-  c.onKey({ ...event, keyCode: 87 }, true); assert.equal(downs, 1);
+  c.onKey({ ...event, keyCode: 38 }, true); c.onKey({ ...event, keyCode: 38 }, false); assert.equal(downs, 2);
+  c.onKey({ ...event, key: 'w' }, true); assert.equal(downs, 2);
 });
 test('app switching clears stuck movement keys and pause/resume grants a short grace period', () => {
   let resets = 0, paused = 0, resumed = 0;

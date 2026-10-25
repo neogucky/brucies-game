@@ -103,18 +103,18 @@ test('red coconut explodes over an area and does not double its direct hit', () 
   assert.deepEqual(scene.hits, [2]); assert.equal(hazards.puddles.length, 1);
 });
 
-test('sticky ground and hero debuff have independent five-second countdowns', () => {
+test('puddles last ten seconds while hero debuffs have an independent five-second countdown', () => {
   const { scene, hazards } = hazardScene();
   const puddle = hazards.addPuddle(400, 562);
   scene.worldTime = 4000; hazards.updatePuddles();
-  assert.equal(puddle.label.text, 'Kleber · 1s');
+  assert.equal(puddle.label.text, 'Kleber · 6s');
   scene.worldTime = 4500; scene.player.body.x = 390; hazards.updatePuddles();
   assert.equal(hazards.slowUntil, 9500); assert.equal(hazards.isSticky(), true);
   scene.worldTime = 4990; hazards.updatePuddles();
   assert.equal(hazards.slowUntil, 9500, 'standing inside does not refresh on every frame');
-  scene.worldTime = 5000; hazards.updatePuddles();
+  scene.worldTime = 10000; hazards.updatePuddles();
   assert.equal(hazards.puddles.length, 0); assert.equal(puddle.sprite.active, false);
-  assert.equal(puddle.label.active, false); assert.equal(hazards.isSticky(), true);
+  assert.equal(puddle.label.active, false); assert.equal(hazards.isSticky(), false);
   scene.worldTime = 9500; assert.equal(hazards.isSticky(), false);
 });
 
@@ -136,12 +136,12 @@ test('paused gameplay freezes puddles and debuffs even if Phaser clock advances'
   assert.equal(hazards.slowUntil, 5000);
 });
 
-test('boss stones land, rotate, roll a limited distance, and stop after 380 pixels', () => {
-  const { scene, hazards } = hazardScene();
+test('boss stones land, rotate, bounce at screen edges, and stop after three screen widths', () => {
+  const { scene, hazards } = hazardScene(); scene.player.body.y = 0;
   const p = hazards.throw('stone', { x: 200, y: 500 }, { x: 600, y: 560 }); p.vy = 300;
-  for (let i = 0; i < 250 && hazards.projectiles.length; i++) step(scene, hazards);
-  assert.equal(p.rolling, true); assert.ok(p.sprite.angle > 0);
-  assert.ok(p.rollDistance >= 380 && p.rollDistance < 386);
+  for (let i = 0; i < 1000 && hazards.projectiles.length; i++) step(scene, hazards);
+  assert.equal(p.rolling, true); assert.ok(p.sprite.angle !== 0); assert.ok(p.bounces >= 2);
+  assert.ok(p.rollDistance >= 2880 && p.rollDistance < 2886);
   assert.equal(hazards.projectiles.length, 0);
 });
 
@@ -163,8 +163,8 @@ function playableScene(sticky) {
   const scene = Object.create(context.JungleScene.prototype), key = () => ({ isDown: false, justDown: false });
   const body = { x: 100, y: 490, bottom: 562, width: 30, height: 72,
     velocity: { x: 0, y: 0 }, blocked: { down: true }, touching: { down: false },
-    setVelocityX(x) { this.velocity.x = x; }, setVelocityY(y) { this.velocity.y = y; } };
-  Object.assign(scene, { worldTime: 0, lastGroundedAt: -1000, wasGrounded: true,
+    setVelocityX(x) { this.velocity.x = x; }, setVelocityY(y) { this.velocity.y = y; }, setSize() { return this; }, setOffset() { return this; } };
+  Object.assign(scene, { worldTime: 0, lastGroundedAt: -1000, wasGrounded: true, isDucking: false,
     player: Object.assign(visual(130, 562), { body }), equipped: { weapon: 'sword' },
     cursors: { left: key(), right: key(), up: key(), down: key() },
     wasd: { W: key(), A: key(), S: key(), D: key() },
@@ -243,7 +243,7 @@ test('monkeys telegraph audibly and play an attack sound on a throw that misses'
 
 test('a stunned monkey cannot produce an attack cue or throw', () => {
   const scene = Object.create(context.JungleScene.prototype), sounds = [];
-  Object.assign(scene, { worldTime: 1000, boss: null,
+  Object.assign(scene, { worldTime: 1000, boss: null, player: { body: { bottom: 600 } },
     monkeys: [{ active: true, stunnedUntil: 1500, nextThrowAt: 0 }],
     playJungleSound: key => sounds.push(key) });
   scene.updateMonkeys(.016); assert.deepEqual(sounds, []);

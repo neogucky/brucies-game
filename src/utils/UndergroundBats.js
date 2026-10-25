@@ -161,6 +161,7 @@ export default class UndergroundBats {
     const berry = this.scene.add.image(bat.x, bat.y + 25, "poison-berry")
       .setDisplaySize(18, 20).setDepth(5);
     berry.setData("velocityY", 65);
+    berry.setData("owner", bat);
     this.berries.add(berry);
     return berry;
   }
@@ -171,14 +172,30 @@ export default class UndergroundBats {
     berry.setData("velocityY", velocity);
     const distance = velocity * dt;
     // Small swept steps keep fast berries from passing through a platform or player.
-    const steps = Math.max(1, Math.ceil(distance / 6));
+    const steps = Math.max(1, Math.ceil(Math.abs(distance) / 6));
     for (let i = 0; i < steps; i += 1) {
       berry.y += distance / steps;
+      berry.x += (berry.getData("velocityX") || 0) * dt / steps;
       const bounds = boundsAt(berry.x, berry.y, 10, 12);
       const block = this.blockHit(bounds);
       if (block) { this.burstBerry(berry, berry.x, block.y); return; }
+      if (berry.getData("reflected")) {
+        const target = this.group.getChildren().find(bat => bat.active && intersects(bounds, this.getBounds(bat)));
+        if (target) { this.damage(target, BAT_STATS.berryDamage); this.burstBerry(berry); return; }
+        continue;
+      }
       const body = this.scene.player?.body;
       if (body && intersects(bounds, boundsAt(body.x + body.width / 2, body.y + body.height / 2, body.width, body.height))) {
+        const shield = this.scene.shield;
+        const now = this.scene.time?.now || 0, player = this.scene.player;
+        const protectedHit = now < (player.getData?.("invulnerableUntil") || 0) || now < (player.getData?.("flyingEnemyInvulnerableUntil") || 0);
+        if (!protectedHit && shield?.kind === "jungleShield" && shield.tryBlockHit()) {
+          player.setData?.("flyingEnemyInvulnerableUntil", now + 1000);
+          const owner = berry.getData("owner");
+          berry.setData("reflected", true); berry.setData("velocityY", -420);
+          berry.setData("velocityX", owner?.active ? (owner.x - berry.x) * 2 : 0);
+          berry.setTint(0xc4ff98); return;
+        }
         this.scene.applyFlyingEnemyHit(BAT_STATS.berryDamage);
         this.burstBerry(berry);
         return;
@@ -224,8 +241,13 @@ export default class UndergroundBats {
   }
 
   destroy() {
-    this.group.getChildren().forEach(bat => this.cancelCharge(bat));
-    this.group.destroy(true);
-    this.berries.destroy(true);
+    // Phaser may destroy scene groups before the scene's shutdown listeners.
+    if (this.group?.children) {
+      this.group.getChildren().forEach(bat => this.cancelCharge(bat));
+      this.group.destroy(true);
+    }
+    if (this.berries?.children) this.berries.destroy(true);
+    this.group = null;
+    this.berries = null;
   }
 }

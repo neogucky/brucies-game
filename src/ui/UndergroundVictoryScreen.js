@@ -26,11 +26,11 @@ export default function showUndergroundVictory(scene, { name, reward, unlocked, 
   }).setOrigin(0.5);
   const button = scene.add.rectangle(480, 500, 310, 44, 0x705b36)
     .setStrokeStyle(1, 0xe7c47c).setInteractive({ useHandCursor: true });
-  const hint = scene.add.text(480, 500, "Enter / Esc · Zur Unterweltkarte", {
+  const hint = scene.add.text(480, 500, "Zur Unterweltkarte · {confirm}", {
     fontFamily: "Trebuchet MS, sans-serif", fontSize: "17px", color: "#ffffff",
   }).setOrigin(0.5);
   screen.add([shade, panel, title, subtitle, hero, helper, coin, gold, message, button, hint]);
-  screen.setScrollFactor(0, 0, true);
+  screen.setScrollFactor(0); screen.list.forEach(child => child.setScrollFactor(0));
   let leaving = false;
   const leave = () => {
     if (leaving) return;
@@ -39,7 +39,6 @@ export default function showUndergroundVictory(scene, { name, reward, unlocked, 
   };
   button.on("pointerdown", leave);
   scene.input.keyboard.once("keydown-ENTER", leave);
-  scene.input.keyboard.once("keydown-ESC", leave);
   scene.tweens.add({ targets: title, scale: 1.05, duration: 800, yoyo: true, repeat: -1 });
   return screen;
 }

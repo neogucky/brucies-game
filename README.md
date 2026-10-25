@@ -18,15 +18,54 @@ http://localhost:8000
 
 ## Steuerung
 
+Beim Start erscheint ein animiertes Burgzimmer-Intro. „Intro starten“ gibt Bild
+und Ton gemeinsam frei. Es zeigt Ritter und Helfer, einen freundlichen Drachen
+mit Schätzen und die Credits „Spielidee von Brucy“ / „Entwickelt mit Onkel Tim“.
+Nach 30,5 Sekunden geht es zum Menü bzw. zur gewählten Testwelt. Im Hauptmenü
+lässt sich die Geschichte mit **Intro ansehen** erneut abspielen.
+Überspringen nutzt ausschließlich die Zurück-Taste des aktiven Profils (Q bzw.
+Esc) oder den gleichnamigen Knopf. Beim Tabwechsel pausieren Bild und Ton.
+Zum direkten Entwicklertest ohne Intro kann `&skipIntro=1` angehängt werden.
+Die Grafiken, vollständigen Prompts und eigenen Töne liegen in
+[assets/intro](assets/intro/README.md).
+
+Alle drei Weltkarten haben geschwungene, deutlich eingefasste Wege. Ritter und
+Helfer folgen diesen Wegen; das Tempo bleibt auch bei langen Pfaden und beim
+Weltwechsel gleich. Ritter und Ritterin haben sechs streckenabhängige Gehphasen.
+Der Helfer schlürft Kokosnusspfützen mit vier eigenen Animationsphasen, während
+die Pfütze wie bisher dreimal schneller verschwindet. Die neuen Grafiken und
+vollständigen Prompts liegen in
+[assets/common/characters/world-travel](assets/common/characters/world-travel/README.md).
+
 Zum Testen mit allen freigeschalteten Leveln direkt die Untergrundkarte öffnen:
 `http://localhost:8000/?unlockAll=1`
 
-- Pfeiltasten: Bewegung / Auswahl
-- Enter: Auswahl / Bestätigen
-- Esc: Zurück zur Levelauswahl
-- Leertaste: Mit der ausgerüsteten Waffe angreifen
-- Tab: Inventar öffnen und zwischen Schwert und Power Hammer wechseln
-- Im Untergrund: Springen (W/Pfeil hoch), dann S/Pfeil runter für den Hammer-Landungsschlag
+Das Profil lässt sich unter dem Spielfeld auswählen. Ohne verlässliche
+Tastaturerkennung startet das Spiel immer mit **iPad mit Tastatur**; eine bewusste
+Auswahl wird gespeichert und bleibt auch bei einem neuen Spiel erhalten.
+
+| Aktion | iPad mit Tastatur (Standard) | PC | iPad ohne Tastatur |
+| --- | --- | --- | --- |
+| Bestätigen / Ja / Gespräch weiter | E | Enter | Bestätigen / Ja antippen |
+| Zurück / Nein / Inventar schließen | Q | Esc | Zurück / Nein antippen |
+| Inventar öffnen | I | Tab | Inventar antippen |
+| Bewegen / Auswahl | Pfeile | Pfeile | Richtungsknöpfe |
+| Springen | ↑ | ↑ | Springen antippen |
+| Nahkampf | Leertaste | Leertaste | Angriff antippen |
+| Bogen | Shift | Shift | Schießen antippen |
+| Pause / Fortsetzen | P | P | Pause / Weiterspielen antippen |
+| Trankslots 1 und 2 | T und G | T und G | Trank 1 / Trank 2 antippen |
+
+Jede Aktion hat pro Tastaturprofil genau eine logische Taste. Andere Profile und
+frühere Alternativen (J/N, WASD, Rückschritt, Enter/Esc beim iPad-Profil) lösen
+keine Spielaktionen aus. Offene Dialoge und Inventarhinweise wechseln sofort mit
+dem Profil. Im Touchprofil stehen an den Knöpfen keine Tastaturkürzel.
+
+Im Inventar schließt nur die Zurück-Aktion; die Inventartaste öffnet es. Ein
+Gespräch blättert nur mit Bestätigen weiter. Nach einem Sieg führt nur Bestätigen
+zur Karte, nach einer Niederlage startet Bestätigen neu und Zurück führt zur Karte.
+
+Im Untergrund: ↑ zum Springen, dann ↓ in der Luft für den Hammer-Landungsschlag.
 
 Der Power Hammer kostet im Untergrund-Shop 200 Gold. Er schlägt langsamer zu und
 verursacht doppelten Schaden gegen Steingegner. Sein Landungsschlag trifft nahe
@@ -87,23 +126,28 @@ beim Urwald-Shop geht es zurück zu Kristalltiefen. Die Karte enthält zwei Leve
   Der König wirft abwechselnd braune, rote explosive und blaue Kokosnüsse sowie
   Steinmonster. Eine farbige Warnung und das sichtbare Wurfobjekt kündigen den
   nächsten Angriff an; jede vollständige Folge enthält alle vier Wurfarten.
-- **Lianenpfad:** Nach dem Affenkönig freigeschaltet. Alle Affen vertreiben und die
+- **Lianenpfad:** Nach dem Affenkönig freigeschaltet. An Lianen durch große Astlücken klettern und die
   goldene Kokosnuss ganz oben erreichen, Belohnung 200 Gold.
 
-Beide Level passen vollständig in einen festen 960×600-Bildausschnitt. Die Kamera
-scrollt nicht. Durch Äste kann man von unten springen; beim Herunterfallen landet
-man darauf. Alle Äste sind ohne Spezialschuhe erreichbar. Steuerung wie im
-Untergrund, einschließlich Inventar, Schwert, Hammer, Landungsschlag, Auto-Aim,
-Schild und kleinem Helfer. Esc führt zur Urwaldkarte; nach einer Niederlage startet
-Enter mit vollen Herzen neu.
+Beide Level sind 960 Pixel breit; die Kamera folgt nach oben durch 1820 bzw.
+2120 Pixel hohe Baumkronen. Die Kokoskronen haben engere Astfolgen, der Lianenpfad
+weniger Plattformen und vier lange Kletterlianen. An einer Liane mit ↑/↓ klettern,
+mit links/rechts loslassen oder mit seitwärts + ↑ abspringen. Zweimal ↓ innerhalb von 300 ms lässt den
+Ritter durch den aktuellen Ast auf die nächste Ebene fallen; der Boden bleibt fest.
+Beim Klettern verwendet der Ritter eine eigene Pose mit freien Händen; Nahkampf, Bogen und Waffenwechsel sind gesperrt. Alle Strecken sind ohne Spezialschuhe erreichbar. Die Zurück-Aktion öffnet eine Rückfrage zur
+Weltkarte; nach einer Niederlage startet die Bestätigen-Aktion mit vollen Herzen neu.
+
+Zu Beginn ist nur ein Affe aktiv. Weitere Affen spähen hinter Blättern hervor und
+kommen bei Annäherung oder einem Pfeiltreffer heraus. Versteckte Affen werfen und
+blockieren den Ritter nicht; Auto-Aim verrät ihre Verstecke nicht.
 
 Die Affen tragen Lederrüstungen mit Kokosnuss-Emblem und klettern am Baum zwischen
-den Astebenen nach oben und unten. Sie kündigen Würfe sichtbar an und zielen mit
+den Astebenen nach oben und unten. Dafür huschen sie zuerst zu einem erreichbaren Baum oder einer Liane; nur dort verändern sie ihre Höhe. Sie kündigen Würfe sichtbar an und zielen mit
 ballistischen Kokosnüssen auf die aktuelle Position des Ritters:
 
 | Affe | Schaden | Fehlschuss / Besonderheit |
 | --- | --- | --- |
-| Braun | 1 | Zerplatzt auf Boden oder Ast; hinterlässt 5 Sekunden Kleber |
+| Braun | 1 | Zerplatzt auf Boden oder Ast; hinterlässt 10 Sekunden Kleber |
 | Rot | 2 | Explosion mit Flächenschaden; auf dem Boden zusätzlich Kleber |
 | Blau | 3 | Zerplatzt ohne Explosion und ohne Kleber |
 
@@ -111,9 +155,12 @@ Klebeflächen zeigen ihren eigenen Countdown. Beim Betreten wird der Ritter für
 5 Sekunden auf 45 % Lauftempo verlangsamt und kann nicht springen. Der separate
 Spieler-Countdown bleibt auch nach dem Verschwinden der Fläche sichtbar. Im
 Inventar pausieren beide Countdown-Effekte. Über eine Fläche zu springen ist sicher.
+Der kleine Helfer läuft zu nahen Pfützen und schlürft sie auf: Sie verschwinden
+dann dreimal schneller. Der Countdown berücksichtigt diese Beschleunigung.
 
 Der Affenkönig wirft zusätzlich die rollenden Steingegner aus der Unterwelt.
-Diese rollen höchstens 380 Pixel und können mit Schwert oder Hammer bekämpft werden.
+Diese prallen an beiden Bildschirmrändern ab und rollen insgesamt höchstens
+2880 Pixel (drei Bildschirmbreiten). Schwert und Hammer können sie bekämpfen.
 Der Boss ist nach jedem Wurf 1,3 Sekunden verwundbar: zwei Spielertreffer und ein
 separater Helfertreffer. Treffer verlängern dieses Fenster nicht.
 
@@ -125,45 +172,65 @@ Dateien und verwendete Prompts stehen in [der Urwald-Assetübersicht](assets/jun
 
 ### Urwald-Shop und Bogen
 
-Der Urwald-Shop ist ein Ort auf der Weltkarte. Mit Pfeilen/WASD geht der Ritter
-zwischen Shop und Levels; E/Enter öffnet den aktuellen Ort. Antippen eines
+Der Urwald-Shop ist ein Ort auf der Weltkarte. Mit den Pfeilen oder Richtungsknöpfen geht der Ritter
+zwischen Shop und Levels; Bestätigen öffnet den aktuellen Ort. Antippen eines
 benachbarten Orts lässt den Ritter dorthin gehen, erneutes Antippen öffnet ihn.
-I öffnet das Inventar, Q führt wie auf den anderen Weltkarten ins Menü.
-**Pfeil & Bogen kosten 300 Gold**. Dort gibt es auch Honigsaft und einen Schild.
-Ein bereits gekaufter Bogen wird nicht nochmals berechnet. Der Kauf lässt einen
-vorhandenen Schild ausgerüstet; mit I das Inventar öffnen und den Bogen unter
-**Sekundär** auswählen. Schild, Schuhe und Bogen teilen sich diesen einen Platz.
-Die Primärwaffe bleibt ausgerüstet.
+Die Inventar- und Zurück-Aktionen hängen vom gewählten Steuerungsprofil ab.
+**Pfeil & Bogen kosten 300 Gold**, der reflektierende **Urwaldschild 200 Gold**.
+Honigsaft kostet 10 Gold. Alle Shops haben klickbare Warenkarten; gekaufte
+Einzelstücke sind ausgegraut und deaktiviert. Der Urwaldhändler erkennt den Ritter
+wieder und erzählt, wie er den Schild gegen die Affen entwickelt hat.
+
+Im Inventar umgeben unabhängige Plätze das Ritterbild: Primärwaffe, Sekundärwaffe,
+Rückenschild, Schuhe, Helm, Gürtel mit zwei Trankslots (T/G) und Begleiter. Bogen,
+Schild und Schuhe können gleichzeitig angelegt werden. Beide Trankslots nutzen
+den gemeinsamen Honigvorrat. Vorhandene Spielstände übernehmen die Ausrüstung;
+ausdrücklich geleerte Plätze bleiben leer.
+
+Der Urwaldschild blockiert wie der normale Schild und lädt sich in 20 Sekunden
+wieder auf. Kokosnüsse und Giftbeeren schleudert er zurück; ein Gegnertreffer
+verursacht den normalen Geschossschaden. Rote Kokosnüsse explodieren dabei gegen
+Gegner. Körperangriffe und Steine werden geblockt.
 
 **Shift links oder rechts** schießt einen Pfeil, alternativ der Schießen-Knopf
 unter dem Spielfeld. Pfeile verursachen 1 Schaden, haben eine leichte Flugkurve,
 650 ms Abklingzeit und etwa 10 Kacheln Reichweite (380 Pixel im Urwald). Es werden
-keine zusätzlichen Pfeile gekauft. Der Bogen funktioniert in Urwald, Unterwelt
+keine zusätzlichen Pfeile gekauft. ↑+Shift schießt senkrecht nach oben.
+Der erste Wechsel mit Shift zum Bogen bzw. mit Leertaste zurück zum Nahkampf
+dauert 200 ms. Weitere Angriffe mit derselben Waffe haben keine Wechselverzögerung;
+die normalen Angriffsabklingzeiten bleiben bestehen. Ritter und Ritterin haben
+eigene Bogenposen einschließlich eines vollständig nach oben gedrehten Bogens.
+Beide haben außerdem Hammerposen. Der Bogen funktioniert in Urwald, Unterwelt
 und Wüste, einschließlich Auto-Anvisieren; Wände stoppen die Pfeile und die
 Verwundbarkeitsfenster der Bosse bleiben maßgeblich.
 
 ### Tastatur und iPad
 
-Die Bedienleiste unter dem Spielfeld bietet große Knöpfe, damit Enter und Esc
-nicht erforderlich sind. Das Inventar lässt sich auch durch Antippen bedienen.
+Die Bedienleiste bietet dieselben Aktionen als große klickbare Knöpfe. Das
+Touchprofil ergänzt Richtungen, Springen, Angriff und beide Trankslots. Auch
+Heldenauswahl, alle Weltkarten, Shops, Experten, Dialoge und Inventar lassen sich
+antippen. Am Profilnamen lässt sich jederzeit erkennen, welche Tasten gelten.
 
-| Aktion | Tastatur / Alternative |
-| --- | --- |
-| Bestätigen, Gespräch weiter, Kaufen | Enter / E oder Bestätigen-Knopf |
-| Zurück, Dialog abbrechen | Esc / Q / Rückschritt oder Zurück-Knopf |
-| Inventar | Tab / I oder Inventar-Knopf |
-| Bogen abfeuern | Shift oder Schießen-Knopf |
-| Pause / Fortsetzen | P oder Pause-Knopf; E setzt ebenfalls fort |
+Beim Appwechsel werden gehaltene Tasten zurückgesetzt und laufende Level
+pausiert. Fortsetzen hat seine eigene eindeutige Aktion; Zurück aus der Pause
+öffnet stattdessen die Rückfrage zum Verlassen. Nach dem Fortsetzen gilt kurz
+Schutz vor Treffern. Ein Test mit einer echten iPad-Tastatur steht noch aus.
 
-Bei einer Ja/Nein-Rückfrage bestätigt E und Q bricht ab. Beide Shift-Tasten und
-abweichende Return-/Pfeiltasten-Ereignisse ohne klassischen `keyCode` werden
-berücksichtigt. Browser-Tastenkürzel bleiben erhalten. Das Spielfeld behält auch
-bei kleinerem Fenster und beim Drehen sein Seitenverhältnis; die Knöpfe bleiben
-außerhalb des Spiels. Beim Appwechsel werden gehaltene Tasten zurückgesetzt und
-laufende Level pausiert. Nach dem Fortsetzen gilt kurz Schutz vor Treffern.
+### Experten in allen Welten
 
-Diese Varianten werden automatisch und im Browser geprüft. Ein Test mit einer
-echten iPad-Tastatur steht noch aus.
+Professor Knobel ist an seiner wilden weißen Frisur, Messingbrille und blauen
+Fliege wiederzuerkennen. Die drei kostenlosen Orte sind mit ihrer Welt verfügbar:
+
+- **Wüstenexperte:** von der Wüstenruine nach oben.
+- **Unterweltexperte:** vom Unterwelt-Shop nach rechts.
+- **Urwaldexperte:** vom Urwald-Shop nach unten.
+
+Die Forschungsstube bietet die Rubriken Gegner, Ausrüstung und Level. Rubriken
+und einzelne Tipps sind anklickbar; mit ←/→ wechselt die Rubrik, mit ↑/↓ der Tipp.
+Zurück führt zur jeweiligen Weltkarte. Besuche und Kartenposition bleiben
+beim Speichern erhalten. Die Tipps kosten kein Gold und ändern keine Ausrüstung.
+
+[Grafiken und Bildbeschreibungen](assets/common/experts/README.md).
 
 ## Körperkontakt und Angriffssignale
 

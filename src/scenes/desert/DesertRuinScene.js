@@ -1,3 +1,4 @@
+import { showExitConfirmation } from "../../ui/ConfirmationDialog.js";
 import { getWeaponStats, isMeleeWeapon, getWeaponTextures, applyWeaponAppearance } from "../../utils/weapons.js";
 import { saveProgress } from "../../saveManager.js";
 import { playMusic } from "../../soundManager.js";
@@ -179,8 +180,8 @@ export default class DesertRuinScene extends Phaser.Scene {
       honey: this.inventory.consumables?.honey ?? 0,
     };
     this.equipment = {
-      shield: this.equipped.passive === "shield",
-      shoes: this.equipped.passive === "shoes",
+      shield: Boolean(this.equipped?.shield || this.equipped?.passive === "shield"),
+      shoes: Boolean(this.equipped?.shoes || this.equipped?.passive === "shoes"),
     };
     this.hasShoes = this.equipment.shoes;
     this.companionEnabled = this.equipped.companion !== null;
@@ -195,7 +196,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     }
     this.shield.setHud(null);
     this.shield.initFromSave(normalizedSave);
-    this.levelCompleted = (saveData.completedLevels || []).includes("Wuestenruine");
+    this.ruinPreviouslyCompleted = (saveData.completedLevels || []).includes("Wuestenruine");
     this.ruinStoredCoins = 0;
     this.ruinTransferAt = 0;
     this.lastAttackAt = 0;
@@ -450,7 +451,7 @@ export default class DesertRuinScene extends Phaser.Scene {
       this.startBarLabel = null;
     }
     this.canPromptRuin = true;
-    if (this.levelCompleted) {
+    if (this.ruinPreviouslyCompleted) {
       this.isPaused = false;
       this.physics.world.resume();
       this.time.paused = false;
@@ -536,7 +537,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     const targetWidth = 600;
     const scale = (targetWidth / this.ruinSprite.width) * 0.5;
     this.ruinSprite.setScale(scale);
-    if (this.levelCompleted) {
+    if (this.ruinPreviouslyCompleted) {
       this.ruinSprite.setTexture("desert-ruin-repaired");
     }
 
@@ -1050,7 +1051,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.lostScreen = this.add.image(480, 300, "desert-lost").setDepth(25);
     this.fitScreenImage(this.lostScreen, 1);
     this.gameOverHint = this.add
-      .text(480, 540, "Enter für Neustart\nEsc für Weltkarte", {
+      .text(480, 540, "Neustart · {confirm}\nWeltkarte · {back}", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "18px",
         color: "#f7edd6",
@@ -1106,7 +1107,7 @@ export default class DesertRuinScene extends Phaser.Scene {
   showEndScreen() {
     this.isComplete = true;
     this.player.body.setVelocity(0, 0);
-    this.statusText.setText("Enter für die Weltkarte");
+    this.statusText.setText("Zur Weltkarte · {confirm}");
     this.endScreen = this.add.image(480, 300, "desert-end").setDepth(25);
     this.fitScreenImage(this.endScreen, 1);
     this.physics.world.pause();
@@ -1139,7 +1140,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     saveProgress(nextSave);
 
     this.winHint = this.add
-      .text(480, 545, "Drücke Enter um zur Weltkarte zu kommen", {
+      .text(480, 545, "Zur Weltkarte · {confirm}", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "18px",
         color: "#f7edd6",
@@ -1166,7 +1167,7 @@ export default class DesertRuinScene extends Phaser.Scene {
   }
 
   showIntroDialog() {
-    if (!this.dialog || this.levelCompleted) return;
+    if (!this.dialog || this.ruinPreviouslyCompleted) return;
     this.isPaused = true;
     this.player.body.setVelocity(0, 0);
     this.physics.world.pause();
@@ -1188,7 +1189,7 @@ export default class DesertRuinScene extends Phaser.Scene {
   }
 
   tryDepositRuinCoins() {
-    if (this.levelCompleted || this.isPaused) return;
+    if (this.ruinPreviouslyCompleted || this.isPaused) return;
     if (this.time.now < this.ruinTransferAt) return;
     if (this.ruinStoredCoins >= this.ruinCost) {
       this.showEndScreen();
@@ -1214,39 +1215,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     }
   }
 
-  openExitPrompt() {
-    if (this.inventoryOpen) return;
-    if (this.isPromptActive || this.isComplete || this.isGameOver) return;
-    this.isPaused = true;
-    this.time.paused = true;
-    this.player.body.setVelocity(0, 0);
-    this.physics.world.pause();
-    this.promptBox.setVisible(true);
-    this.promptText.setText("Willst du das Level wirklich verlassen?");
-    this.promptHint.setText("[J]a oder [N]ein");
-    this.isPromptActive = true;
-
-    const closePrompt = (resumeWorld) => {
-      this.input.keyboard.off("keydown-J", onYes);
-      this.input.keyboard.off("keydown-N", onNo);
-      this.promptBox.setVisible(false);
-      this.isPromptActive = false;
-      if (resumeWorld) {
-        this.time.paused = false;
-        this.physics.world.resume();
-        this.isPaused = false;
-      }
-    };
-
-    const onYes = () => {
-      closePrompt(false);
-      this.scene.start("DessertMapScene");
-    };
-    const onNo = () => closePrompt(true);
-
-    this.input.keyboard.once("keydown-J", onYes);
-    this.input.keyboard.once("keydown-N", onNo);
-  }
+  openExitPrompt() { return showExitConfirmation(this, "DessertMapScene"); }
 
   update() {
     if (this.isGameOver || this.isPaused || this.isComplete) {

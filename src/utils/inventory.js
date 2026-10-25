@@ -9,6 +9,7 @@ export function normalizeInventory(saveData = {}) {
     passives: { ...(existingInventory.passives || {}) },
     consumables: { ...(existingInventory.consumables || {}) },
     companions: { default: true, ...(existingInventory.companions || {}) },
+    armor: { helmet: true, leatherBelt: true, ...(existingInventory.armor || {}) },
   };
 
   if (legacyEquipment.shield) {
@@ -50,6 +51,18 @@ export function normalizeInventory(saveData = {}) {
     equipped.consumable = "honey";
   }
 
+  const gear = ["secondary", "shield", "shoes", "helmet", "belt", "consumable2"];
+  const legacyEmpty = hasEquippedPassive && existingEquipped.passive === null;
+  const defaults = {
+    secondary: !legacyEmpty && inventory.passives.bow ? "bow" : null,
+    shield: !legacyEmpty ? inventory.passives.jungleShield ? "jungleShield" : inventory.passives.shield ? "shield" : null : null,
+    shoes: !legacyEmpty && inventory.passives.shoes ? "shoes" : null,
+    helmet: "helmet", belt: "leatherBelt", consumable2: null,
+  };
+  gear.forEach(slot => { equipped[slot] = Object.prototype.hasOwnProperty.call(existingEquipped, slot) ? existingEquipped[slot] : defaults[slot]; });
+  for (const slot of ["secondary", "shield", "shoes"]) {
+    if (equipped[slot] && !inventory.passives[equipped[slot]]) equipped[slot] = null;
+  }
   return { inventory, equipped };
 }
 
@@ -64,8 +77,17 @@ export function applyInventoryToSave(saveData, inventory, equipped) {
     },
     equipment: {
       ...(saveData.equipment || {}),
-      shield: equipped?.passive === "shield",
-      shoes: equipped?.passive === "shoes",
+      shield: Boolean(Object.hasOwn(equipped || {}, "shield") ? equipped.shield : equipped?.passive === "shield" || equipped?.passive === "jungleShield"),
+      shieldType: Object.hasOwn(equipped || {}, "shield") ? equipped.shield : (equipped?.passive === "shield" ? "shield" : null),
+      shoes: Boolean(Object.hasOwn(equipped || {}, "shoes") ? equipped.shoes : equipped?.passive === "shoes"),
     },
   };
+}
+
+export function syncEquipment(scene) {
+  const e = scene.equipped; if (!e) return;
+  scene.hasShoes = Boolean(Object.hasOwn(e, "shoes") ? e.shoes : e.passive === "shoes");
+  if (scene.equipment) Object.assign(scene.equipment, applyInventoryToSave({}, scene.inventory, e).equipment);
+  scene.shield?.initFromSave(applyInventoryToSave(scene.registry.get("saveData") || {}, scene.inventory, e), { resetCooldown: false });
+  scene.hud?.syncEquipment?.(e, scene.inventory);
 }

@@ -1,5 +1,6 @@
 import { defaultSave, loadSave, saveProgress } from "../saveManager.js";
-import { playMusic } from "../soundManager.js";
+import { registerIntroTextures } from "../utils/introAssets.js";
+import { registerWorldMapAnimationTextures } from "../utils/worldMapAssets.js";
 
 export default class BootScene extends Phaser.Scene {
   constructor() {
@@ -7,6 +8,14 @@ export default class BootScene extends Phaser.Scene {
   }
 
   preload() {
+    this.load.image('knight-walk-atlas', 'assets/common/characters/world-travel/knight-walk.png');
+    this.load.image('companion-drink-atlas', 'assets/common/characters/world-travel/helper-drink.png');
+    this.load.image('intro-bedroom', 'assets/intro/bedroom.png');
+    this.load.image('intro-exterior', 'assets/intro/exterior.png');
+    this.load.image('intro-bed-atlas', 'assets/intro/bed.png');
+    this.load.image('intro-bed-awake-source', 'assets/intro/bed-awake.png');
+    this.load.image('intro-helper-atlas', 'assets/intro/helper.png');
+    this.load.image('intro-dragon-atlas', 'assets/intro/dragon.png');
     this.load.image("worldmap-jungle-bg", "assets/jungle/jungle-worldmap.png");
     this.load.image("jungle-background", "assets/jungle/jungle-background.png");
     this.load.image("jungle-tree", "assets/jungle/jungle-tree.png");
@@ -14,6 +23,11 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("jungle-coconuts", "assets/jungle/jungle-coconuts.png");
     this.load.image("jungle-shop", "assets/jungle/jungle-shop-familiar.png");
     this.load.image("jungle-bow-atlas", "assets/jungle/jungle-bow-atlas.png");
+    this.load.image("climbing-atlas", "assets/common/characters/climbing-atlas.png");
+    this.load.image("professor-atlas", "assets/common/experts/professor-atlas.png");
+    this.load.image("professor-study", "assets/common/experts/professor-study.png");
+    this.load.image("bow-characters-atlas", "assets/common/characters/bow-characters-atlas.png");
+    this.load.image("jungle-equipment-atlas", "assets/jungle/jungle-equipment-atlas.png");
     this.createLoadingUI();
     this.load.once("filecomplete-image-menu-bg", () => {
       if (this.menuBg) return;
@@ -22,9 +36,6 @@ export default class BootScene extends Phaser.Scene {
       bg.setScale(scale);
       bg.setDepth(-2);
       this.menuBg = bg;
-    });
-    this.load.once("filecomplete-audio-music-menu", () => {
-      playMusic(this, "music-menu");
     });
     this.load.image("desert-start", "assets/desert/desert_start.png");
     this.load.image("desert-end", "assets/desert/desert_end.png");
@@ -152,6 +163,7 @@ export default class BootScene extends Phaser.Scene {
   }
 
   create() {
+    registerIntroTextures(this);
     this.createHammerTextures();
     this.createBatTextures();
     this.createJungleTextures();
@@ -189,10 +201,13 @@ export default class BootScene extends Phaser.Scene {
       saveProgress(nextSave);
     });
     const junglePreview = unlockAll && new URLSearchParams(window.location.search).get("world") === "jungle";
-    this.scene.start(junglePreview ? "JungleMapScene" : unlockAll ? "UndergroundMapScene" : "MainMenuScene");
+    const returnScene = junglePreview ? "JungleMapScene" : unlockAll ? "UndergroundMapScene" : "MainMenuScene";
+    if (new URLSearchParams(window.location.search).get('skipIntro') === '1') this.scene.start(returnScene);
+    else this.scene.start('IntroScene', { returnScene });
   }
 
   createJungleTextures() {
+    registerWorldMapAnimationTextures(this);
     const crop = (sourceKey, key, x, y, width, height, grounded = false, outWidth = 150, outHeight = 150) => {
       if (this.textures.exists(key)) return;
       const source = this.textures.get(sourceKey).getSourceImage();
@@ -226,6 +241,37 @@ export default class BootScene extends Phaser.Scene {
     const half = Math.floor(bowAtlas.width / 2);
     crop("jungle-bow-atlas", "item-bow", 0, 0, half, bowAtlas.height);
     crop("jungle-bow-atlas", "bow-arrow", half, 0, bowAtlas.width - half, bowAtlas.height, false, 96, 24);
+    const characters = this.textures.get("bow-characters-atlas").getSourceImage();
+    ["knight-bow-", "knight-female-bow-"].forEach((prefix, row) => {
+      ["standing", "hitting", "up", "crouching"].forEach((pose, column) => {
+        const left = Math.round(column * characters.width / 4), top = Math.round(row * characters.height / 2);
+        crop("bow-characters-atlas", prefix + pose, left, top,
+          Math.round((column + 1) * characters.width / 4) - left,
+          Math.round((row + 1) * characters.height / 2) - top, true);
+      });
+    });
+    const climbing = this.textures.get("climbing-atlas").getSourceImage();
+    ["knight-climb-", "knight-female-climb-"].forEach((prefix, row) => {
+      for (let column = 0; column < 2; column++) {
+        const x = Math.round(column * climbing.width / 2), y = Math.round(row * climbing.height / 2);
+        crop("climbing-atlas", prefix + column, x, y, Math.round((column + 1) * climbing.width / 2) - x,
+          Math.round((row + 1) * climbing.height / 2) - y, true);
+      }
+    });
+    crop("professor-atlas", "professor-desert", 0, 0, 620, 619, true, 300, 340);
+    crop("professor-atlas", "professor-underground", 630, 0, 624, 619, true, 300, 340);
+    crop("professor-atlas", "professor-jungle", 0, 620, 620, 634, true, 300, 340);
+    crop("professor-atlas", "professor-portrait", 630, 625, 624, 629, false, 200, 200);
+    const equipment = this.textures.get("jungle-equipment-atlas").getSourceImage();
+    const w = Math.floor(equipment.width / 2), h = Math.floor(equipment.height / 2);
+    crop("jungle-equipment-atlas", "item-jungle-shield", 20, 0, 610, 550);
+    crop("jungle-equipment-atlas", "jungle-foliage", w, 0, equipment.width - w, h, false, 180, 120);
+    crop("jungle-equipment-atlas", "jungle-vine", 240, 550, 220, 595, false, 160, 512);
+    crop("jungle-equipment-atlas", "item-belt", 645, 650, equipment.width - 645, 400);
+    // The helmet slot uses the knight's own helmet, so it matches the portrait.
+    const helmet = this.textures.createCanvas("item-helmet", 150, 150);
+    helmet.getContext().drawImage(this.textures.get("knight-standing").getSourceImage(), 51, 18, 63, 45, 5, 25, 140, 100);
+    helmet.refresh();
   }
 
   createBatTextures() {

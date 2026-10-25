@@ -69,6 +69,8 @@ export default class CharacterSelectScene extends Phaser.Scene {
         .setOrigin(0.5)
         .setStroke("#433320", 2);
       entry.labelText = label;
+      entry.box.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.setIndex(index));
+      label.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.setIndex(index));
       if (index === this.selectedIndex) {
         this.playSwing(entry);
       }
@@ -77,7 +79,7 @@ export default class CharacterSelectScene extends Phaser.Scene {
 
   addHints() {
     this.add
-      .text(480, 520, "Links/Rechts wählen, Enter bestätigen", {
+      .text(480, 520, "←/→ wählen · {confirm} bestätigen", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "16px",
         color: "#ffffff",
@@ -94,6 +96,7 @@ export default class CharacterSelectScene extends Phaser.Scene {
     this.input.keyboard.on("keydown-A", () => this.setIndex(0));
     this.input.keyboard.on("keydown-D", () => this.setIndex(1));
     this.input.keyboard.on("keydown-ENTER", () => this.confirmSelection());
+    this.input.keyboard.on("keydown-ESC", () => this.scene.start("MainMenuScene"));
     this.input.keyboard.on("keydown-F", () => this.toggleFullscreen());
   }
 

@@ -1,3 +1,4 @@
+import { showConfirmation } from "../ui/ConfirmationDialog.js";
 import { clearSave, defaultSave, saveProgress, normalizeWorldProgress } from "../saveManager.js";
 import { playMusic } from "../soundManager.js";
 
@@ -21,7 +22,6 @@ export default class MainMenuScene extends Phaser.Scene {
     this.addBackground();
     this.addTitle();
     this.addMenu();
-    this.createConfirmDialog();
     this.createSettingsDialog();
     this.updateSelection();
     playMusic(this, "music-menu");
@@ -65,6 +65,11 @@ export default class MainMenuScene extends Phaser.Scene {
       {
         label: "Einstellungen",
         action: () => this.openSettingsDialog(),
+        enabled: true,
+      },
+      {
+        label: 'Intro ansehen',
+        action: () => this.scene.start('IntroScene', { returnScene: 'MainMenuScene' }),
         enabled: true,
       },
     ];
@@ -131,8 +136,9 @@ export default class MainMenuScene extends Phaser.Scene {
   }
 
   startNewGame() {
+    const controlProfile = this.registry.get("saveData")?.settings?.controlProfile || defaultSave.settings.controlProfile;
     clearSave();
-    const saveData = { ...defaultSave };
+    const saveData = { ...defaultSave, settings: { ...defaultSave.settings, controlProfile } };
     this.registry.set("saveData", saveData);
     saveProgress(saveData);
     this.scene.start("CharacterSelectScene");
@@ -166,123 +172,52 @@ export default class MainMenuScene extends Phaser.Scene {
       return;
     }
     this.openConfirmDialog(
-      "Alten Spielstand überschreiben?\n[J]a oder [N]ein",
+      "Alten Spielstand überschreiben?",
       () => this.startNewGame()
     );
   }
 
-  createConfirmDialog() {
-    this.confirmBox = this.add.container(0, 0).setDepth(20).setVisible(false);
-    const shade = this.add.rectangle(480, 300, 960, 600, 0x000000, 0.45);
-    const panel = this.add.rectangle(480, 300, 520, 160, 0xe2c18b).setStrokeStyle(3, 0x8a6b44);
-    this.confirmText = this.add
-      .text(480, 300, "", {
-        fontFamily: "Georgia, serif",
-        fontSize: "22px",
-        color: "#3b2a17",
-        align: "center",
-      })
-      .setOrigin(0.5);
-    this.confirmBox.add([shade, panel, this.confirmText]);
-  }
-
-  openConfirmDialog(message, onYes) {
-    this.isDialogOpen = true;
-    this.confirmText.setText(message);
-    this.confirmBox.setVisible(true);
-    const close = () => {
-      this.confirmBox.setVisible(false);
-      this.input.keyboard.off("keydown-J", yesHandler);
-      this.input.keyboard.off("keydown-N", noHandler);
-      this.isDialogOpen = false;
-    };
-    const yesHandler = () => {
-      close();
-      onYes();
-    };
-    const noHandler = () => close();
-    this.input.keyboard.once("keydown-J", yesHandler);
-    this.input.keyboard.once("keydown-N", noHandler);
-  }
+  openConfirmDialog(message, onYes) { return showConfirmation(this, message, onYes, { pause: false }); }
 
   createSettingsDialog() {
-    this.settingsBox = this.add.container(0, 0).setDepth(20).setVisible(false);
-    const shade = this.add.rectangle(480, 300, 960, 600, 0x000000, 0.45);
-    const panel = this.add.rectangle(480, 300, 520, 190, 0xe2c18b).setStrokeStyle(3, 0x8a6b44);
-    this.settingsText = this.add
-      .text(480, 290, "", {
-        fontFamily: "Georgia, serif",
-        fontSize: "22px",
-        color: "#3b2a17",
-        align: "center",
-      })
-      .setOrigin(0.5);
-    this.settingsHint = this.add
-      .text(480, 350, "Enter = Umschalten, S = Speichern und zurück, Esc = Abbrechen", {
-        fontFamily: "Trebuchet MS, sans-serif",
-        fontSize: "14px",
-        color: "#4b3824",
-      })
-      .setOrigin(0.5);
-    this.settingsBox.add([shade, panel, this.settingsText, this.settingsHint]);
+    this.settingsBox = this.add.container(0, 0).setDepth(800).setVisible(false);
+    const shade = this.add.rectangle(480, 300, 960, 600, 0x08140e, .75).setInteractive();
+    const panel = this.add.rectangle(480, 300, 580, 290, 0x253f2e).setStrokeStyle(3, 0xc6ab6c);
+    this.settingsText = this.add.text(480, 260, '', { fontFamily: 'Georgia, serif', fontSize: '25px', color: '#fff1c5' })
+      .setOrigin(.5).setInteractive({ useHandCursor: true }).on('pointerdown', () => { this.settingsIndex = 0; this.settingsActions.confirm(); });
+    this.settingsSave = this.add.text(480, 330, 'Speichern', { fontFamily: 'Trebuchet MS, sans-serif', fontSize: '23px', color: '#fff1c5', backgroundColor: '#526445', padding: { x: 30, y: 12 } })
+      .setOrigin(.5).setInteractive({ useHandCursor: true }).on('pointerdown', () => { this.settingsIndex = 1; this.settingsActions.confirm(); });
+    this.settingsHint = this.add.text(480, 405, 'Auswählen: ↑/↓ · Bestätigen · {confirm} · Abbrechen · {back}', {
+      fontFamily: 'Trebuchet MS, sans-serif', fontSize: '15px', color: '#cfddb6',
+    }).setOrigin(.5);
+    this.settingsBox.add([shade, panel, this.settingsText, this.settingsSave, this.settingsHint]);
   }
 
   openSettingsDialog() {
     if (this.isDialogOpen) return;
-    this.isDialogOpen = true;
-    this.settingsIndex = 0;
-    const saveData = this.registry.get("saveData") || {};
-    this.pendingSettings = {
-      autoAim: Boolean(saveData.settings?.autoAim),
+    this.isDialogOpen = true; this.settingsIndex = 0;
+    const save = this.registry.get('saveData') || {};
+    this.pendingSettings = { autoAim: Boolean(save.settings?.autoAim) };
+    const close = saveChanges => {
+      if (saveChanges) this.applySettings();
+      this.settingsBox.setVisible(false); this.settingsActions = null; this.isDialogOpen = false; this.pendingSettings = null;
     };
-    this.updateSettingsText();
-    this.settingsBox.setVisible(true);
-
-    const close = (saveChanges) => {
-      this.settingsBox.setVisible(false);
-      this.input.keyboard.off("keydown-ENTER", toggleHandler);
-      this.input.keyboard.off("keydown-SPACE", toggleHandler);
-      this.input.keyboard.off("keydown-UP", upHandler);
-      this.input.keyboard.off("keydown-DOWN", downHandler);
-      this.input.keyboard.off("keydown-S", saveHandler);
-      this.input.keyboard.off("keydown-ESC", cancelHandler);
-      this.isDialogOpen = false;
-      if (saveChanges) {
-        this.applySettings();
-      }
-      this.pendingSettings = null;
+    this.settingsActions = {
+      up: () => { this.settingsIndex = 0; this.updateSettingsText(); },
+      down: () => { this.settingsIndex = 1; this.updateSettingsText(); },
+      confirm: () => {
+        if (this.settingsIndex === 1) { close(true); return; }
+        this.pendingSettings.autoAim = !this.pendingSettings.autoAim; this.updateSettingsText();
+      },
+      back: () => close(false),
     };
-
-    const toggleHandler = () => {
-      this.pendingSettings.autoAim = !this.pendingSettings.autoAim;
-      this.updateSettingsText();
-    };
-
-    const saveHandler = () => close(true);
-    const cancelHandler = () => close(false);
-    const upHandler = () => {
-      this.settingsIndex = 0;
-      this.updateSettingsText();
-    };
-    const downHandler = () => {
-      this.settingsIndex = 0;
-      this.updateSettingsText();
-    };
-
-    this.input.keyboard.on("keydown-ENTER", toggleHandler);
-    this.input.keyboard.on("keydown-SPACE", toggleHandler);
-    this.input.keyboard.on("keydown-UP", upHandler);
-    this.input.keyboard.on("keydown-DOWN", downHandler);
-    this.input.keyboard.on("keydown-S", saveHandler);
-    this.input.keyboard.on("keydown-ESC", cancelHandler);
+    this.updateSettingsText(); this.settingsBox.setVisible(true);
   }
 
   updateSettingsText() {
-    const autoAim = Boolean(this.pendingSettings?.autoAim);
-    const line1 = `${this.settingsIndex === 0 ? ">" : " "} Auto-Anvisieren: ${
-      autoAim ? "An" : "Aus"
-    }`;
-    this.settingsText.setText(line1);
+    this.settingsText.setText('Auto-Anvisieren: ' + (this.pendingSettings?.autoAim ? 'An' : 'Aus'));
+    this.settingsText.setColor(this.settingsIndex === 0 ? '#ffe0a0' : '#bdd0b0');
+    this.settingsSave.setColor(this.settingsIndex === 1 ? '#ffe0a0' : '#bdd0b0');
   }
 
   applySettings() {

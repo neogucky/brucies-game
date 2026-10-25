@@ -18,6 +18,7 @@ export default class ShieldManager {
 
   initFromSave(saveData, { resetCooldown = true } = {}) {
     this.owned = Boolean(saveData?.equipment?.shield);
+    this.kind = saveData?.equipment?.shieldType || "shield";
     if (resetCooldown || this.scene.time.now >= this.cooldownUntil) {
       this.cooldownUntil = 0;
       this.cooldownStartedAt = 0;
@@ -61,7 +62,7 @@ export default class ShieldManager {
       this.bubble.setVisible(false);
     }
     if (this.hud?.flashItem) {
-      this.hud.flashItem("passive");
+      this.hud.flashItem(this.hud.items?.shield ? "shield" : "passive");
     }
     this.syncHud();
     return true;
@@ -106,12 +107,13 @@ export default class ShieldManager {
 
   syncHud() {
     if (!this.hud) return;
-    this.hud.setPassiveOwned(this.owned);
+    if (this.hud.setShieldOwned) this.hud.setShieldOwned(this.owned); else this.hud.setPassiveOwned(this.owned);
     const now = this.scene.time.now;
     const progress = this.cooldownStartedAt
       ? Math.min(1, Math.max(0, (now - this.cooldownStartedAt) / this.cooldownMs))
       : 0;
-    this.hud.setPassiveCooldown({
+    const update = this.hud.setShieldCooldown || this.hud.setPassiveCooldown;
+    update.call(this.hud, {
       owned: this.owned,
       active: this.active,
       ratio: this.cooldownUntil ? progress : 0,

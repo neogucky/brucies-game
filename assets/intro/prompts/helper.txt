@@ -1,0 +1,6 @@
+Use case: illustration-story. Asset type: transparent game sprite atlas, strict 2x2 grid of FOUR equal cells. Input 1 is the STYLE and CHARACTER IDENTITY reference; input 2 is the tiny in-game yellow helper identity reference. Make the same adorable small round bright yellow helper with two thin antennae with dark round tips, two little feet, stubby arms, orange blush cheeks and big shiny black eyes. NO sword, NO shield, no clothing. Bold clean silhouettes, warm dark outlines, simple smooth cel shading in the title image style, not pixel art. Each cell has the same character at comparable scale, generous transparent gutter; no labels, no borders, no background.
+TOP LEFT: curled up asleep, eyes closed, peacefully smiling, antennae relaxed, feet tucked in.
+TOP RIGHT: awake, curious, facing RIGHT, eyes wide looking up toward a window.
+BOTTOM LEFT: excited peek pose, leaning forward on its two little hands as if looking over a windowsill, delighted face, three-quarter view facing RIGHT.
+BOTTOM RIGHT: joyful midair hop, feet lifted, tiny arms raised, delighted excited face, facing RIGHT.
+Keep anatomy and proportions consistent. All four complete sprites fully within separate cells, genuinely transparent alpha.

@@ -1,3 +1,5 @@
+import ExpertScene from "./scenes/ExpertScene.js";
+import IntroScene from "./scenes/IntroScene.js";
 import BootScene from "./scenes/BootScene.js";
 import MainMenuScene from "./scenes/MainMenuScene.js";
 import CharacterSelectScene from "./scenes/CharacterSelectScene.js";
@@ -42,6 +44,7 @@ const config = {
   },
   scene: [
     BootScene,
+    IntroScene,
     MainMenuScene,
     CharacterSelectScene,
     DessertMapScene,
@@ -55,6 +58,7 @@ const config = {
     JungleMapScene,
     JungleScene,
     JungleShopScene,
+    ExpertScene,
   ],
 };
 

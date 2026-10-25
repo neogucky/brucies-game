@@ -17,7 +17,7 @@ export function getBowTargets(scene) {
   if (Array.isArray(scene.monkeys)) {
     [...scene.monkeys, ...(scene.boss ? [scene.boss] : [])].forEach(m =>
       add(m, () => scene.enemyBounds(m), () => scene.damageMonkey(m, BOW_STATS.damage),
-        !m.isBoss || (m.awake && scene.worldTime < m.vulnerableUntil && m.hitsLeft > 0)));
+        !m.hidden && (!m.isBoss || (m.awake && scene.worldTime < m.vulnerableUntil && m.hitsLeft > 0))));
     scene.hazards?.projectiles.filter(p => p.kind === "stone").forEach(p =>
       add(p, () => ({ x: p.x - p.radius, y: p.y - p.radius, width: p.radius * 2, height: p.radius * 2 }),
         () => scene.hazards.damageStone(p, BOW_STATS.damage)));
@@ -44,10 +44,16 @@ export default class BowManager {
     scene.input.keyboard.on("keydown", this.keyHandler);
   }
   isFinished() { return this.scene.isGameOver || this.scene.levelCompleted || this.scene.isComplete; }
-  isBlocked() { return this.scene.isPaused || this.scene.isEditorMode || this.scene.isHitboxEditMode || this.isFinished(); }
-  equipped() { return this.scene.equipped?.passive === "bow" && Boolean(this.scene.inventory?.passives?.bow); }
+  isBlocked(forAttack = true) { return (forAttack && this.scene.climbingVine) || this.scene.isPaused || this.scene.inventoryOpen || this.scene.confirmation?.isOpen || this.scene.isEditorMode || this.scene.isHitboxEditMode || this.isFinished(); }
+  equipped() { return (this.scene.equipped?.secondary === "bow" || this.scene.equipped?.passive === "bow") && Boolean(this.scene.inventory?.passives?.bow); }
 
   tryShoot() {
+    if (!this.equipped() || this.isBlocked() || !this.scene.player?.active || this.now < this.nextShotAt) return false;
+    if (this.scene.weaponSwitch) return this.scene.weaponSwitch.request('bow', () => this.fire());
+    return this.fire();
+  }
+
+  fire() {
     const s = this.scene;
     if (!this.equipped() || this.isBlocked() || !s.player?.active || this.now < this.nextShotAt) return false;
     const jump = s.gameMode === "jump";
@@ -55,10 +61,12 @@ export default class BowManager {
     const origin = { x: body.x + body.width / 2, y: body.y + body.height / 2 };
     let dx = jump ? (s.facingX || (s.player.flipX ? 1 : -1)) : (s.facing?.x ?? 1);
     let dy = jump ? 0 : (s.facing?.y ?? 0);
+    const aimUp = jump && Boolean(s.cursors?.up?.isDown || s.wasd?.W?.isDown);
     let launchY = BOW_STATS.launchY;
+    if (aimUp) { dx = 0; dy = -1; launchY = -BOW_STATS.speed; }
     const range = (s.tileSize || BOW_STATS.tileSize) * BOW_STATS.rangeTiles;
     const autoAim = s.autoAimEnabled ?? s.registry?.get("saveData")?.settings?.autoAim;
-    if (autoAim) {
+    if (autoAim && !aimUp) {
       const target = getBowTargets(s).filter(t => t.aimable).map(t => {
         const b = t.bounds(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
       }).filter(p => Math.hypot(p.x - origin.x, p.y - origin.y) <= range &&
@@ -83,19 +91,22 @@ export default class BowManager {
     const x = origin.x + dx * 23, y = origin.y + dy * 23;
     const sprite = s.add.image(x, y, "bow-arrow").setDisplaySize(46, 12).setDepth(24);
     this.arrows.push({ sprite, x, y, vx: dx * BOW_STATS.speed,
-      vy: jump ? launchY : dy * BOW_STATS.speed, jump, age: 0, distance: 0, range });
+      vy: jump ? launchY : dy * BOW_STATS.speed, jump, aimUp, age: 0, distance: 0, range });
     this.nextShotAt = this.now + BOW_STATS.cooldownMs;
+    if (s.weaponSwitch) { s.weaponSwitch.aimUp = aimUp; s.weaponSwitch.shotUntil = s.weaponSwitch.now + 300; }
     s.hud?.flashItem("passive");
+    if (!s.weaponSwitch) {
     const bow = s.add.image(origin.x + dx * 19, origin.y, "item-bow").setDisplaySize(45, 45).setDepth(25);
     bow.setFlipX(dx < 0); this.effects.add(bow);
     s.tweens.add({ targets: bow, alpha: 0, duration: 220,
       onComplete: () => { this.effects.delete(bow); bow.destroy(); } });
+    }
     return true;
   }
 
   update(deltaSec) {
     if (this.isFinished()) { [...this.arrows].forEach(a => this.remove(a)); return; }
-    if (this.isBlocked()) return;
+    if (this.isBlocked(false)) return;
     const dt = Math.max(0, Math.min(.05, deltaSec)); this.now += dt * 1000;
     [...this.arrows].forEach(a => this.updateArrow(a, dt));
     if (this.equipped()) {
@@ -112,7 +123,7 @@ export default class BowManager {
     const steps = Math.max(1, Math.ceil(Math.hypot(a.vx, a.vy) * dt / 5));
     for (let i = 0; i < steps; i++) {
       const oldY = a.y;
-      const distance = (a.jump ? Math.abs(a.vx) : Math.hypot(a.vx, a.vy)) * dt / steps;
+      const distance = (a.jump && !a.aimUp ? Math.abs(a.vx) : Math.hypot(a.vx, a.vy)) * dt / steps;
       const travel = Math.min(distance, Math.max(0, a.range - a.distance));
       const fraction = distance ? travel / distance : 0;
       a.x += a.vx * dt / steps * fraction; a.y += a.vy * dt / steps * fraction;
@@ -133,7 +144,7 @@ export default class BowManager {
       const block = s.blockMap.get(Math.floor(a.x / tile) + "," + Math.floor(a.y / tile));
       if (block && block.active !== false) return true;
     }
-    if (Array.isArray(s.monkeys) && a.vy >= 0) return JUNGLE_BRANCHES.some(p =>
+    if (Array.isArray(s.monkeys) && a.vy >= 0) return (s.branches || JUNGLE_BRANCHES).some(p =>
       oldY + 3 <= p.y && a.y + 3 >= p.y && a.x >= p.x && a.x <= p.x + p.width);
     return false;
   }

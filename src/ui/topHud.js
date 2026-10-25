@@ -90,7 +90,8 @@ export default class TopHud {
         item.overlay,
         item.barBg,
         item.barFill,
-        item.bootsIcon
+        item.bootsIcon,
+        item.heart
       );
     });
     items.forEach((item) => {
@@ -119,7 +120,8 @@ export default class TopHud {
         item.overlay,
         item.barBg,
         item.barFill,
-        item.bootsIcon
+        item.bootsIcon,
+        item.heart
       );
     });
     items.forEach((item) => {
@@ -133,14 +135,17 @@ export default class TopHud {
     this.ensureBootsTexture();
     const frameWidth = 52;
     const frameHeight = 52;
-    const spacing = 80;
-    const startX = 360;
+    const spacing = 66;
+    const startX = 210;
     const y = 36;
 
     const items = [
-      { key: "active", hint: "Leertaste", icon: "item-sword" },
-      { key: "passive", hint: "Passiv", icon: "item-shield" },
-      { key: "consumable", hint: "T", icon: "item-honey" },
+      { key: "active", hint: "{attack}", icon: "item-sword" },
+      { key: "passive", hint: "{shoot}", icon: "item-bow" },
+      { key: "shield", hint: "Schild", icon: "item-shield" },
+      { key: "shoes", hint: "Schuhe", icon: "item-winged-shoes" },
+      { key: "consumable", hint: "{potion1}", icon: "item-honey" },
+      { key: "consumable2", hint: "{potion2}", icon: "item-honey" },
     ];
 
     items.forEach((item, index) => {
@@ -308,7 +313,7 @@ export default class TopHud {
     const item = this.items.passive;
     if (!item) return;
     this.passiveEquipped = equippedId || null;
-    item.hint.setText(this.passiveEquipped === "bow" ? "Shift" : "Passiv");
+    item.hint.setText(this.passiveEquipped === "bow" ? "{shoot}" : "Passiv");
     const showIcon = Boolean(this.passiveEquipped);
     item.icon.setVisible(showIcon);
     item.bootsIcon?.setVisible(false);
@@ -327,6 +332,37 @@ export default class TopHud {
     if (this.passiveEquipped === "shoes") {
       item.icon.setTexture(this.bootsTextureKey);
     }
+  }
+
+  syncEquipment(e = {}, inventory = {}) {
+    const secondary = Object.prototype.hasOwnProperty.call(e, 'secondary') ? e.secondary : e.passive === 'bow' ? 'bow' : null;
+    const shield = Object.prototype.hasOwnProperty.call(e, 'shield') ? e.shield : e.passive === 'shield' ? 'shield' : null;
+    const shoes = e.shoes || e.passive === 'shoes';
+    const key = JSON.stringify([e.weapon, secondary, shield, shoes, e.consumable, e.consumable2, inventory.consumables?.honey]);
+    if (key === this.gearKey) return; this.gearKey = key;
+    this.setActiveEquipped(e.weapon); this.setPassiveEquipped(secondary);
+    const set = (slot, id, texture) => {
+      const item = this.items[slot]; if (!item) return;
+      item.icon.setVisible(Boolean(id)); if (id) item.icon.setTexture(texture).setAlpha(1);
+      item.frame.setAlpha(id ? 1 : .3); if (item.hint) this.applyHintStyle(item.hint, Boolean(id));
+    };
+    set('shield', shield, shield === 'jungleShield' ? 'item-jungle-shield' : 'item-shield');
+    set('shoes', shoes, 'item-winged-shoes'); set('consumable2', e.consumable2, 'item-honey');
+    this.setConsumableEquipped(e.consumable === 'honey');
+    this.setConsumableCount(inventory.consumables?.honey ?? this.consumableCount);
+    this.items.consumable2?.count?.setText(e.consumable2 ? '×' + this.consumableCount : '');
+    if (e.consumable2 && !this.consumableCount) {
+      this.items.consumable2?.icon.setAlpha(.25);
+      this.applyHintStyle(this.items.consumable2?.hint, false);
+    }
+  }
+
+  setShieldOwned(owned) { this.shieldOwned = owned; this.items.shield?.icon.setVisible(Boolean(owned)); }
+  setShieldCooldown({ owned, active, ratio }) {
+    const item = this.items.shield; if (!item) return;
+    item.barBg.setVisible(Boolean(owned && !active)); item.barFill.setVisible(Boolean(owned && !active));
+    item.barFill.displayWidth = item.barWidth * Math.max(0, Math.min(1, ratio));
+    item.icon.setAlpha(active ? 1 : .4);
   }
 
   setItemDisabled(key, disabled) {
@@ -431,7 +467,7 @@ export default class TopHud {
   setShoesActive(active) {
     const item = this.items.passive;
     if (!item) return;
-    const target = this.passiveOwned ? item.bootsIcon : item.icon;
+    const target = this.items.shoes?.icon || (this.passiveOwned ? item.bootsIcon : item.icon);
     if (!target) return;
     if (active) {
       if (this.shoesBlinkTween) return;

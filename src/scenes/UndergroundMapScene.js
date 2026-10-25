@@ -1,3 +1,5 @@
+import WorldMapTravel from "../utils/WorldMapTravel.js";
+import { drawWorldMapPaths, mapFoot, WORLD_MAP_EXITS } from "../utils/worldMapRoutes.js";
 import { applyWeaponAppearance } from "../utils/weapons.js";
 import { saveProgress, normalizeWorldProgress } from "../saveManager.js";
 import { playMusic } from "../soundManager.js";
@@ -14,7 +16,7 @@ const NODES = [
     label: "Händlerin",
     x: 445,
     y: 210,
-    neighbors: { left: "UnderDig", downLeft: "Schluesseltor" },
+    neighbors: { left: "UnderDig", downLeft: "Schluesseltor", right: "Unterweltexperte" },
   },
   {
     id: "UnderDig",
@@ -44,6 +46,7 @@ const NODES = [
     y: 450,
     neighbors: { upLeft: "Schluesseltor" },
   },
+  { id: "Unterweltexperte", label: "Unterweltexperte", x: 685, y: 220, neighbors: { left: "UnderShop" } },
 ];
 
 export default class UndergroundMapScene extends Phaser.Scene {
@@ -70,6 +73,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
     this.gameMode = GAME_MODES.ISOMETRIC;
     this.addBackground();
     this.ensureUnlocks();
+    this.equipped = normalizeInventory(this.registry.get("saveData") || {}).equipped;
     this.createNodes();
     this.drawPaths();
     this.createPlayerMarker();
@@ -93,8 +97,8 @@ export default class UndergroundMapScene extends Phaser.Scene {
       health: this.health,
       maxHealth: this.maxHealth,
       consumables: this.consumables,
-      passiveOwned: this.equipped.passive === "shield",
-      passiveShoes: this.equipped.passive === "shoes",
+      passiveOwned: Boolean(this.equipped?.shield || this.equipped?.passive === "shield"),
+      passiveShoes: Boolean(this.equipped?.shoes || this.equipped?.passive === "shoes"),
       activeEquipped: this.equipped.weapon,
       passiveEquipped: this.equipped.passive,
       consumableEquipped: this.equipped.consumable === "honey",
@@ -155,7 +159,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
   ensureUnlocks() {
     const saveData = normalizeWorldProgress(this.registry.get("saveData") || {});
     const unlocked = new Set(saveData.unlockedLevels || []);
-    unlocked.add("UnderShop"); unlocked.add("UnderDig"); unlocked.add("Schluesseltor");
+    unlocked.add("UnderShop"); unlocked.add("Unterweltexperte"); unlocked.add("UnderDig"); unlocked.add("Schluesseltor");
     if (saveData.completedLevels?.includes("Schluesselweg")) unlocked.add("Kristalltiefen");
     const worlds = new Set(saveData.unlockedWorlds); worlds.add("underground");
     const nextSave = { ...saveData, unlockedLevels: [...unlocked], unlockedWorlds: [...worlds] };
@@ -180,7 +184,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
     NODES.forEach((node) => {
       const isUnlocked = this.unlocked.has(node.id);
       const iconKey =
-        node.id === "UnderShop"
+        node.id === "Unterweltexperte" ? "professor-underground" : node.id === "UnderShop"
           ? "underground-shop-map"
           : node.id === "Schluesseltor"
           ? isUnlocked && saveData.unlockedLevels?.includes("Schluesselweg")
@@ -194,6 +198,12 @@ export default class UndergroundMapScene extends Phaser.Scene {
       const iconScale =
         node.id === "UnderShop" ? 0.3 : node.id === "Schluesseltor" ? 0.5 : 0.26;
       const icon = this.add.image(node.x, node.y, iconKey).setScale(iconScale);
+      if (node.id === "Unterweltexperte") {
+        icon.setDisplaySize(90, 105);
+        this.add.text(node.x, node.y + 65, node.label, { fontFamily: "Trebuchet MS, sans-serif", fontSize: "19px", color: "#fff0bf", stroke: "#3b2a17", strokeThickness: 4 })
+          .setOrigin(.5).setDepth(4).setInteractive({ useHandCursor: true }).on("pointerdown", () => this.chooseNode(node));
+      }
+      icon.setInteractive({ useHandCursor: true }).on("pointerdown", () => this.chooseNode(node));
       if (node.id === "Kristalltiefen") {
         icon.setTint(0xa9dcff);
         this.add.text(node.x, node.y + 44, "Kristalltiefen", {
@@ -243,25 +253,11 @@ export default class UndergroundMapScene extends Phaser.Scene {
   }
 
   drawPaths() {
-    if (!this.unlocked) return;
-    const graphics = this.add.graphics();
-    graphics.setDepth(-1);
-    graphics.lineStyle(4, 0x9a7c56, 1);
-    NODES.forEach((node) => {
-      Object.values(node.neighbors || {}).forEach((neighborId) => {
-        const neighbor = NODES.find((item) => item.id === neighborId);
-        if (!neighbor) return;
-        if (!this.unlocked.has(node.id) || !this.unlocked.has(neighbor.id)) return;
-        graphics.strokeLineShape(
-          new Phaser.Geom.Line(
-            node.x,
-            node.y + 18,
-            neighbor.x,
-            neighbor.y + 18
-          )
-        );
-      });
-    });
+    const exits = [[NODES[0], WORLD_MAP_EXITS.underground.desert]];
+    if (normalizeWorldProgress(this.registry.get("saveData") || {}).unlockedWorlds.includes("jungle")) {
+      exits.push([NODES.find(n => n.id === "Kristalltiefen"), WORLD_MAP_EXITS.underground.jungle]);
+    }
+    this.pathGraphics = drawWorldMapPaths(this, "underground", NODES, exits);
   }
 
   travelToJungle() {
@@ -276,69 +272,38 @@ export default class UndergroundMapScene extends Phaser.Scene {
     const nextSave = { ...save, currentWorld: "jungle", currentLevel: "UrwaldShop",
       mapState: { ...save.mapState, undergroundNode: "Kristalltiefen", jungleNode: "UrwaldShop" } };
     this.registry.set("saveData", nextSave); saveProgress(nextSave);
-    const node = this.currentNode, duration = Math.max(220, (950 - node.x) / this.travelSpeed * 1000);
-    this.tweens.add({ targets: this.playerMarker, x: 950, y: node.y + 6, duration,
-      onComplete: () => this.scene.start("JungleMapScene", { fromUnderworld: true }) });
-    if (this.companionMarker?.visible) this.tweens.add({ targets: this.companionMarker,
-      x: 932, y: node.y + 12, duration });
+    this.mapTravel.travel(this.currentNode, WORLD_MAP_EXITS.underground.jungle, () => {
+      this.scene.start("JungleMapScene", { fromUnderworld: true });
+    });
   }
 
   createPlayerMarker() {
     const saveData = this.registry.get("saveData") || {};
-    const currentId =
-      saveData.mapState?.undergroundNode || saveData.currentLevel || "UnderShop";
-    const startNode = NODES.find((node) => node.id === currentId) || NODES[0];
+    const currentId = saveData.mapState?.undergroundNode || saveData.currentLevel || "UnderShop";
+    let startNode = NODES.find(node => node.id === currentId) || NODES[0];
+    if (this.entryFromDesert) startNode = NODES.find(n => n.id === "UnderShop");
+    if (this.entryFromJungle) startNode = NODES.find(n => n.id === "Kristalltiefen");
     this.currentNode = startNode;
-    const isFemale = saveData.playerGender === "female";
-    const standingTexture = isFemale ? "knight-female-standing" : "knight-standing";
-    this.playerMarker = this.add.image(startNode.x, startNode.y + 6, standingTexture);
-    this.playerMarker.setScale(0.46);
+    const foot = mapFoot(startNode);
+    const standingTexture = saveData.playerGender === "female" ? "knight-female-standing" : "knight-standing";
+    this.playerMarker = this.add.image(foot.x, foot.y, standingTexture).setOrigin(.5, 1).setScale(.46).setDepth(5);
     applyWeaponAppearance(this, this.playerMarker);
-    this.playerMarker.setDepth(5);
-    this.companionMarker = this.add.image(
-      startNode.x - 18,
-      startNode.y + 12,
-      "companion-running"
-    );
-    this.companionMarker.setScale(0.46);
-    this.companionMarker.setDepth(5);
-    const showCompanion = this.equipped?.companion !== null;
-    this.companionMarker.setVisible(showCompanion);
-
+    this.companionMarker = this.add.image(foot.x - 28, foot.y, "companion-running")
+      .setOrigin(.5, 1).setScale(.46).setDepth(5).setVisible(Boolean(this.equipped?.companion));
+    this.mapTravel = new WorldMapTravel(this, "underground");
     if (this.entryFromDesert || this.entryFromJungle) {
-      const fromJungle = this.entryFromJungle;
+      const exit = this.entryFromJungle ? WORLD_MAP_EXITS.underground.jungle : WORLD_MAP_EXITS.underground.desert;
       this.entryFromDesert = false; this.entryFromJungle = false;
-      const shop = NODES.find((node) => node.id === (fromJungle ? "Kristalltiefen" : "UnderShop"));
-      if (!shop) return;
-      this.currentNode = shop;
-      const edgeX = fromJungle ? 950 : shop.x, edgeY = fromJungle ? shop.y + 6 : 40;
-      const duration = Math.max(220, Math.hypot(shop.x - edgeX, shop.y + 6 - edgeY) / this.travelSpeed * 1000);
-      this.playerMarker.setPosition(edgeX, edgeY);
-      this.companionMarker.setPosition(edgeX - 18, edgeY + 12);
-      this.isMoving = true;
-      this.tweens.add({
-        targets: this.playerMarker,
-        x: shop.x,
-        y: shop.y + 6,
-        duration,
-        onComplete: () => {
-          this.isMoving = false;
-        },
-      });
-      if (this.companionMarker.visible) {
-        this.tweens.add({
-          targets: this.companionMarker,
-          x: shop.x - 18,
-          y: shop.y + 12,
-          duration: duration + 40,
-        });
-      }
+      const edge = mapFoot(exit);
+      this.playerMarker.setPosition(edge.x, edge.y);
+      this.companionMarker.setPosition(edge.x - 28, edge.y);
+      this.mapTravel.travel(exit, startNode);
     }
   }
 
   createUI() {
     this.hintText = this.add
-      .text(14, 585, "Enter = Betreten, Pfeile/WASD = Bewegen, Esc = Menü", {
+      .text(14, 585, "{confirm} = Betreten · {move} = Bewegen · {back} = Menü", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "14px",
         color: "#ffffff",
@@ -413,7 +378,9 @@ export default class UndergroundMapScene extends Phaser.Scene {
     };
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);
-    if (this.currentNode.id === "UnderShop") {
+    if (this.currentNode.id === "Unterweltexperte") {
+      this.scene.start("ExpertScene", { world: "underground" });
+    } else if (this.currentNode.id === "UnderShop") {
       this.scene.start("UndergroundShopScene");
     } else if (this.currentNode.id === "UnderDig") {
       this.scene.start("UndergroundDigScene", {
@@ -449,24 +416,9 @@ export default class UndergroundMapScene extends Phaser.Scene {
     };
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);
-    const duration = this.getTravelDuration(this.currentNode.y + 6, 40);
-    this.tweens.add({
-      targets: this.playerMarker,
-      x: this.currentNode.x,
-      y: 40,
-      duration,
-      onComplete: () => {
-        this.scene.start("DessertMapScene", { fromUnderground: true });
-      },
+    this.mapTravel.travel(this.currentNode, WORLD_MAP_EXITS.underground.desert, () => {
+      this.scene.start("DessertMapScene", { fromUnderground: true });
     });
-    if (this.companionMarker?.visible) {
-      this.tweens.add({
-        targets: this.companionMarker,
-        x: this.currentNode.x - 18,
-        y: 52,
-        duration: duration + 40,
-      });
-    }
   }
 
   useConsumable() {
@@ -542,8 +494,8 @@ export default class UndergroundMapScene extends Phaser.Scene {
         this.companionMarker.setVisible(showCompanion);
         if (showCompanion) {
           this.companionMarker.setPosition(
-            this.playerMarker.x - 18,
-            this.playerMarker.y + 12
+            this.playerMarker.x - 28,
+            this.playerMarker.y
           );
         }
       }
@@ -563,10 +515,6 @@ export default class UndergroundMapScene extends Phaser.Scene {
     }
   }
 
-  getTravelDuration(fromY, toY) {
-    const distance = Math.abs(toY - fromY);
-    return Math.max(220, Math.round((distance / this.travelSpeed) * 1000));
-  }
 
   update() {
     if (this.isMoving || this.isDialogOpen || this.inventoryOpen || this.inventoryOverlay?.isOpen) return;
@@ -592,13 +540,6 @@ export default class UndergroundMapScene extends Phaser.Scene {
     else if (up) this.tryMove({ x: 0, y: -1 });
     else if (down) this.tryMove({ x: 0, y: 1 });
 
-    if (this.companionMarker?.visible) {
-      const side = this.companionMarker.x >= this.playerMarker.x ? 1 : -1;
-      const targetX = this.playerMarker.x + side * 18;
-      const targetY = this.playerMarker.y + 17;
-      this.companionMarker.x = Phaser.Math.Linear(this.companionMarker.x, targetX, 0.12);
-      this.companionMarker.y = Phaser.Math.Linear(this.companionMarker.y, targetY, 0.12);
-    }
   }
 
   showDialog(text, onClose) {
@@ -620,25 +561,17 @@ export default class UndergroundMapScene extends Phaser.Scene {
     }
     const nextNode = NODES.find((node) => node.id === nextId);
     if (!nextNode) return;
-    this.isMoving = true;
-    this.tweens.add({
-      targets: this.playerMarker,
-      x: nextNode.x,
-      y: nextNode.y + 6,
-      duration: 400,
-      onComplete: () => {
-        this.currentNode = nextNode;
-        this.isMoving = false;
-      },
+    this.mapTravel.travel(this.currentNode, nextNode, () => {
+      this.currentNode = nextNode;
     });
-    if (this.companionMarker?.visible) {
-      this.tweens.add({
-        targets: this.companionMarker,
-        x: nextNode.x - 18,
-        y: nextNode.y - 6,
-        duration: 460,
-      });
-    }
+  }
+
+  chooseNode(node) {
+    if (this.isMoving || this.inventoryOpen || this.isDialogOpen) return;
+    if (this.currentNode.id === node.id) { this.startCurrentLevel(); return; }
+    if (!Object.values(this.currentNode.neighbors || {}).includes(node.id)) return;
+    const dx = node.x - this.currentNode.x, dy = node.y - this.currentNode.y, length = Math.hypot(dx, dy);
+    this.tryMove({ x: dx / length, y: dy / length });
   }
 
   getNeighborForDirection(direction) {
