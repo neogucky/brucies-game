@@ -21,7 +21,7 @@ test('scene cuts occur under black and the dragon crosses above the castle from 
  assert.ok(ctx.getIntroFrame(11000).dragon.y<350);
 });
 test('helper actually reaches the windowsill, bounces on the bed, and ends beside the ready knight',()=>{
- const sill=ctx.getIntroFrame(8500);assert.equal(sill.helper.x,764);assert.equal(sill.helper.y,363);assert.equal(sill.helper.pose,'peek');
+ const sill=ctx.getIntroFrame(8500);assert.equal(sill.helper.x,764);assert.equal(sill.helper.y,370);assert.equal(sill.helper.pose,'peek');
  const bounce=ctx.getIntroFrame(18500);assert.equal(bounce.helper.x,280);assert.ok(bounce.helper.y<405);
  const end=ctx.getIntroFrame(28000);assert.equal(end.helper.x,695);assert.equal(end.knight.x,510);assert.equal(end.helper.y,end.knight.y);
 });
@@ -36,14 +36,13 @@ test('audio cues cannot be replayed or skipped at a normal frame boundary',()=>{
  const cues=[];for(let t=0;t<30500;t+=17)cues.push(...ctx.introCuesBetween(t,Math.min(30500,t+17)));
  assert.equal(cues.length,18);assert.equal(new Set(cues.map(c=>c[0])).size,cues.length);
 });
-test('return destinations are limited to menus and maps',()=>{
- for(const key of ['MainMenuScene','DessertMapScene','UndergroundMapScene','JungleMapScene'])assert.equal(ctx.introReturnScene(key),key);
- assert.equal(ctx.introReturnScene('JungleScene'),'MainMenuScene');assert.equal(ctx.introReturnScene(), 'MainMenuScene');
+test('intro always returns to the main menu, including developer world URLs',()=>{
+ for(const key of ['MainMenuScene','DessertMapScene','UndergroundMapScene','JungleMapScene',undefined])assert.equal(ctx.introReturnScene(key),'MainMenuScene');
 });
 test('skip is safe before playback, during playback and after completion, and never writes a save',()=>{
- for(const started of [false,true]){let destinations=[],stops=0;const s=Object.create(ctx.IntroScene.prototype);Object.assign(s,{started,returnScene:'JungleMapScene',audio:{destroy(){stops++}},scene:{start(key){destinations.push(key)}},registry:{set(){throw new Error('must not alter save')}}});s.finish();s.finish();assert.deepEqual(destinations,['JungleMapScene']);assert.equal(stops,1)}
+ for(const started of [false,true]){let destinations=[],stops=0;const s=Object.create(ctx.IntroScene.prototype);Object.assign(s,{started,returnScene:'JungleMapScene',audio:{destroy(){stops++}},scene:{start(key){destinations.push(key)}},registry:{set(){throw new Error('must not alter save')}}});s.finish();s.finish();assert.deepEqual(destinations,['MainMenuScene']);assert.equal(stops,1)}
 });
-test('tab switching freezes the story and the same Confirm action resumes it',()=>{
+test('tab switching freezes the story and returning resumes without a start panel',()=>{
  let paused=0,resumed=0;const panel={setVisible(){}},text={setText(){return this},setFontSize(){return this}};
  const s=Object.create(ctx.IntroScene.prototype);Object.assign(s,{started:true,elapsed:11900,returnScene:'MainMenuScene',audio:{pause(){paused++},resume(){resumed++}},startPanel:panel,startTitle:text,startButton:text});
  s.suspendIntro();s.update(0,5000);assert.equal(s.elapsed,11900);assert.equal(paused,1);s.startIntro();assert.equal(s.suspended,false);assert.equal(resumed,1);
@@ -51,15 +50,20 @@ test('tab switching freezes the story and the same Confirm action resumes it',()
 test('credits use real elapsed time rather than an accelerated game-loop delta',()=>{
  const original=ctx.performance.now;let now=1000;ctx.performance.now=()=>now;
  try{
-  const s=Object.create(ctx.IntroScene.prototype);Object.assign(s,{started:true,elapsed:0,lastFrameAt:1000,audio:{play(){},setMusicVolume(){}},drawFrame(){}});
+  const s=Object.create(ctx.IntroScene.prototype);Object.assign(s,{started:true,elapsed:0,lastFrameAt:1000,audio:{play(){},setMusicVolume(){},setTime(){}},drawFrame(){}});
   now=1050;s.update(0,5000);assert.equal(s.elapsed,50);now=1070;s.update(0,5000);assert.equal(s.elapsed,70);
  }finally{ctx.performance.now=original}
 });
-for(const profile of ['ipadKeyboard','pc','ipadTouch'])test(`${profile}: only the selected Start and Skip actions control the intro`,()=>{
- let starts=0,skips=0;const s={isIntro:true,startIntro(){starts++},finish(){skips++}};const c=Object.create(ctx.PortableControls.prototype);c.activeScene=()=>s;c.getProfile=()=>profile;c.held=new Set();
- if(profile==='ipadTouch'){for(const code of ['KeyE','KeyQ','Enter','Escape'])c.onKey({code,preventDefault(){},stopImmediatePropagation(){}},true);assert.equal(starts+skips,0);c.dispatch('confirm');c.dispatch('back')}
- else{c.onKey({code:profile==='pc'?'Enter':'KeyE',preventDefault(){},stopImmediatePropagation(){}},true);c.onKey({code:profile==='pc'?'Escape':'KeyQ',preventDefault(){},stopImmediatePropagation(){}},true)}
- c.dispatch('attack');c.dispatch('shoot');assert.equal(starts,1);assert.equal(skips,1);
+for(const profile of ['ipadKeyboard','pc','ipadTouch'])test(profile+': Space alone skips the intro; confirm/back do not start or skip it',()=>{
+ let starts=0,skips=0;const s={isIntro:true,startIntro(){starts++},finish(){skips++}};
+ const c=Object.create(ctx.PortableControls.prototype);c.activeScene=()=>s;c.getProfile=()=>profile;c.held=new Set();
+ for(const code of ['KeyE','KeyQ','Enter','Escape'])c.onKey({code,preventDefault(){},stopImmediatePropagation(){}},true);
+ c.dispatch('confirm');c.dispatch('back');assert.equal(starts+skips,0);
+ c.onKey({code:'Space',preventDefault(){},stopImmediatePropagation(){}},true);
+ c.onKey({code:'Space',repeat:true,preventDefault(){},stopImmediatePropagation(){}},true);
+ c.onKey({code:'Space',preventDefault(){},stopImmediatePropagation(){}},false);
+ assert.equal(starts,0);assert.equal(skips,1);
+ assert.equal(ctx.introSkipLabel(profile),profile==='ipadTouch'?'Überspringen':'Überspringen · Leertaste');
 });
 
 function audioFixture(){
@@ -73,14 +77,14 @@ function audioFixture(){
  }
  const audio=new ctx.IntroAudio(Context,()=>Promise.resolve({ok:true,arrayBuffer:()=>Promise.resolve(new ArrayBuffer(1))}));return {audio,voices,instances:()=>instances};
 }
-test('one user gesture unlocks all sound cues; pause/resume keeps the same context and music voice',async()=>{
- const {audio,voices,instances}=audioFixture();await audio.ready;audio.start();await Promise.resolve();audio.play('whoosh');assert.equal(instances(),1);assert.equal(voices.length,2);
- audio.pause();assert.equal(audio.context.state,'suspended');audio.resume();await Promise.resolve();assert.equal(audio.context.state,'running');assert.equal(voices.length,2);
+test('automatic audio start and pause/resume keep the same context and music voice',async()=>{
+ const {audio,voices,instances}=audioFixture();await audio.ready;await audio.start();audio.play('whoosh');assert.equal(instances(),1);assert.equal(voices.length,2);
+ audio.pause();assert.equal(audio.context.state,'suspended');await audio.resume();assert.equal(audio.context.state,'running');assert.equal(voices.length,2);
  audio.mute(true);assert.equal(audio.master.gain.value,0);audio.mute(false);assert.equal(audio.master.gain.value,1);audio.destroy();
 });
 test('leaving disposes every voice and context; late loading cannot restart the intro music',async()=>{
  const {audio,voices}=audioFixture();audio.start();audio.destroy();await audio.ready;await Promise.resolve();assert.equal(voices.length,0);assert.equal(audio.context.state,'closed');assert.equal(audio.buffers.size,0);assert.doesNotThrow(()=>audio.destroy());
- const b=audioFixture();await b.audio.ready;b.audio.start();await Promise.resolve();b.audio.play('boing');b.audio.destroy();assert.ok(b.voices.every(v=>!v.playing));
+ const b=audioFixture();await b.audio.ready;await b.audio.start();b.audio.play('boing');b.audio.destroy();assert.ok(b.voices.every(v=>!v.playing));
 });
 test('missing audio remains silent without blocking Start, Skip or cleanup',async()=>{
  const a=new ctx.IntroAudio(undefined,undefined);await a.ready;assert.doesNotThrow(()=>{a.start();a.pause();a.resume();a.mute(true);a.destroy()});
@@ -89,4 +93,68 @@ test('every generated audio file is valid, audible PCM with safe peak headroom',
  for(const name of ['music','snore','whoosh','hop','boing','yawn','chime']){
   const wav=fs.readFileSync(path.join(root,'assets/intro/sounds',name+'.wav'));assert.equal(wav.toString('ascii',0,4),'RIFF');assert.equal(wav.toString('ascii',8,12),'WAVE');assert.equal(wav.readUInt32LE(24),22050);let peak=0;for(let i=44;i<wav.length;i+=2)peak=Math.max(peak,Math.abs(wav.readInt16LE(i)));assert.ok(peak>1000&&peak<30000,name);
  }
+});
+
+test('every 60-Hz frame keeps the dragon outside and above the helper, with shadow projection restricted to the floor',()=>{
+ const floor=vm.runInContext('INTRO_FLOOR_LIGHT',ctx);
+ assert.ok(floor.every(p=>p.y>=440&&p.y<=600));
+ let outsideFrames=0,shadowFrames=0;
+ for(let n=0;n<=1830;n++){
+  const f=ctx.getIntroFrame(n*1000/60);
+  if(f.shadow.alpha>0){shadowFrames++;assert.ok(f.shadow.height<f.shadow.width/3);assert.ok(f.shadow.y>450);}
+  if(f.stage==='exterior'){
+   outsideFrames++;assert.equal(f.helper.x,112);assert.equal(f.helper.groundY,494);
+   assert.ok(f.dragon.y+f.dragon.height/2 < f.helper.y-92,'dragon never reaches the nearby sill/helper');
+  }
+ }
+ assert.ok(outsideFrames>390);assert.ok(shadowFrames>100);
+});
+
+function introSceneFixture(){
+ const texts=[],objects=[];
+ function art(x=0,y=0,texture=''){
+  const o={x,y,texture,text:'',alpha:1,visible:true,list:[],active:true,
+   setDisplaySize(w,h){this.displayWidth=w;this.displayHeight=h;return this},setOrigin(){return this},
+   setTint(){return this},setAlpha(a){this.alpha=a;return this},setAngle(a){this.angle=a;return this},
+   setVisible(v){this.visible=v;return this},setPosition(x,y){this.x=x;this.y=y;return this},
+   setTexture(k){this.texture=k;return this},setText(t){this.text=t;return this},setInteractive(){return this},on(){return this},
+   setMask(mask){this.mask=mask;return this},setDepth(){return this},destroy(){this.active=false},
+   add(items){this.list.push(...(Array.isArray(items)?items:[items]));return this}};
+  objects.push(o);return o;
+ }
+ const s=new ctx.IntroScene();
+ s.add={container:art,image:art,ellipse:art,rectangle:art,text(x,y,t){const o=art(x,y);o.text=t;texts.push(o);return o}};
+ s.make={graphics(){return {fillStyle(){return this},fillPoints(points){this.points=points;return this},createGeometryMask(){return {geometryMask:this,destroy(){}}},destroy(){}}}};
+ s.input={on(){},off(){},keyboard:{on(){}}};s.events={once(){}};s.scene={start(){}};ctx.stopMusic=()=>{};
+ s.create();return {s,texts,objects};
+}
+test('creating the intro immediately starts playback, with just a discreet Skip overlay',()=>{
+ const {s,texts}=introSceneFixture();
+ assert.equal(s.started,true);assert.equal(s.suspended,false);assert.equal(s.elapsed,0);
+ assert.equal(s.startPanel,undefined);assert.equal(s.soundButton,undefined);assert.equal(s.caption,undefined);
+ assert.equal(s.skipButton.text,'Überspringen · Leertaste');assert.ok(s.skipButton.alpha<1);
+ assert.ok(!texts.some(o=>/Eine kleine Geschichte|Ton:|Intro starten|iPad|Tastatur/.test(o.text)));
+});
+test('floor shadow renders behind the bed; outdoor dragon and sparkle layers render behind near masonry',()=>{
+ const {s}=introSceneFixture();
+ assert.ok(s.bedroom.list.indexOf(s.dragonShadow)<s.bedroom.list.indexOf(s.bed));
+ const floor=vm.runInContext('INTRO_FLOOR_LIGHT',ctx);
+ assert.deepEqual(s.dragonShadow.mask.geometryMask.points,floor);
+ for(const layer of s.foreground)assert.ok(s.exterior.list.indexOf(layer)>s.exterior.list.indexOf(s.dragon));
+ for(const sparkle of s.sparkles)assert.ok(s.exterior.list.indexOf(sparkle)<s.exterior.list.indexOf(s.foreground[0]));
+});
+test('blocked audio does not queue past effects or prevent playback; a later gesture joins the current music time',async()=>{
+ const voices=[];let allowed=false;
+ class Context{
+  constructor(){this.state='suspended';this.destination={}}
+  createGain(){return {gain:{value:1},connect(){}}}
+  decodeAudioData(){return Promise.resolve({duration:32})}
+  resume(){if(allowed)this.state='running';return Promise.resolve()}
+  createBufferSource(){const voice={connect(){},disconnect(){},start(at,offset){this.offset=offset},stop(){}};voices.push(voice);return voice}
+  close(){return Promise.resolve()}
+ }
+ const a=new ctx.IntroAudio(Context,()=>Promise.resolve({ok:true,arrayBuffer:()=>Promise.resolve(new ArrayBuffer(1))}));
+ await a.ready;await a.start();a.play('whoosh');a.play('hop');assert.equal(voices.length,0);
+ allowed=true;await a.unlock(12000);assert.equal(voices.length,1);assert.equal(voices[0].offset,12);
+ a.play('boing');assert.equal(voices.length,2);a.destroy();
 });

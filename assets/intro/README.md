@@ -8,14 +8,14 @@ Posen im Browser auf Leinwänden mit festen Größen und gemeinsamer Bodenlinie.
 
 | Grafik | Verwendung | Vollständiger Prompt |
 | --- | --- | --- |
-| [bedroom.png](bedroom.png) | Burgzimmer, freier Platz für Bett und Helfer, offenes Fenster für den Drachenschatten | [bedroom.txt](prompts/bedroom.txt) |
+| [bedroom.png](bedroom.png) | Burgzimmer, freier Platz für Bett und Helfer, offenes Fenster; die Drachenprojektion liegt auf dem Holzboden | [bedroom.txt](prompts/bedroom.txt) |
 | [exterior.png](exterior.png) | Blick über die Burg mit freiem Himmel für den Drachen | [exterior.txt](prompts/exterior.txt) |
 | [bed.png](bed.png) | Schlafender Ritter, Gähnen, leeres Bett und kampfbereiter Ritter | [bed.txt](prompts/bed.txt) |
 | [bed-awake.png](bed-awake.png) | Aufgewachter Ritter schaut zum Helfer | [bed-awake.txt](prompts/bed-awake.txt) |
 | [helper.png](helper.png) | Schlafen, neugieriges Schauen, am Fenster spähen und Hüpfen | [helper.txt](prompts/helper.txt) |
 | [dragon.png](dragon.png) | Zwei Flugphasen des freundlichen Drachen mit Münzen, Truhe, Edelsteinen und Krone | [dragon.txt](prompts/dragon.txt) |
 
-Die Animation ist keine Videodatei: Bewegungen, Schatten am Fenster, Sprünge,
+Die Animation ist keine Videodatei: Bewegungen, Schatten auf dem Boden, Sprünge,
 Funkeln, Überblendungen und Credits werden direkt im Spiel zusammengesetzt.
 Die vorgegebene Einstellung für reduzierte Bewegung verkleinert die Sprünge.
 
@@ -33,16 +33,29 @@ Aufnahmen. Keine heruntergeladenen Musikstücke oder Sprachaufnahmen.
 - [Aufbruch-Klang](sounds/chime.wav)
 
 Mit [generate_intro_audio.py](../../tools/generate_intro_audio.py) lassen sich die
-WAV-Dateien ohne zusätzliche Pakete neu erstellen. Der Startknopf gibt den Ton
-über einen eigenen Web-Audio-Kontext frei. Tabwechsel pausieren Bild und Ton;
+WAV-Dateien ohne zusätzliche Pakete neu erstellen. Der Film startet ohne Startknopf und versucht auch den Ton automatisch zu starten.
+Ein gesperrter Web-Audio-Kontext wird bei einer normalen Berührung/Taste freigegeben,
+ohne Geräusche aus vergangenen Szenen nachzuholen. Tabwechsel pausieren Bild und Ton;
 beim Verlassen werden sämtliche Stimmen und der Kontext geschlossen.
 
 ## Abfolge
 
 1. Ritter und Helfer schlafen. „Spielidee von Brucy“ wird eingeblendet.
-2. Ein Wusch und ein Drachenschatten am Fenster wecken den Helfer.
+2. Ein Wusch und ein durch das Fenster auf den Holzboden geworfener Drachenschatten wecken den Helfer.
 3. Der Helfer hüpft ans Fenster. Schnitt zum Drachen mit seiner Schatzladung.
 4. „Entwickelt mit Onkel Tim“ erscheint im freien Himmel.
 5. Zurück im Zimmer: Der Helfer hüpft zum Bett und weckt den Ritter durch Hüpfen.
 6. Der Ritter gähnt, schaut neugierig zum Helfer und springt kampfbereit heraus.
-7. Der Titel erscheint; danach öffnet sich das Menü bzw. die gewählte Testwelt.
+7. Der Titel erscheint; danach öffnet sich immer das Hauptmenü.
+
+## Perspektive und Bedienung
+
+Die Drachenprojektion ist flach auf dem Boden verzerrt und auf die beleuchtete
+Bodenfläche begrenzt. Bett und Figuren liegen vor ihr. Im Außenbild werden
+Fensterrahmen, Fensterbank und nahe Burgtürme aus derselben Kulisse über der
+Flugebene gezeichnet. Der Helfer bleibt im Vordergrund auf der Fensterbank;
+der Drache fliegt im Außenraum hinter der nahen Architektur vorbei.
+
+Das einzige Bedienelement des Films ist ein dezentes „Überspringen“-Overlay
+unten rechts. Die zugehörige Taste ist Leertaste in beiden Tastaturprofilen.
+Es gibt keinen Startknopf, Ton-Schalter, Erklärungstext oder Gerätenamen.

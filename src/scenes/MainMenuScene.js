@@ -1,3 +1,4 @@
+import { CONTROL_PROFILES, controlProfileId } from "../utils/controlProfiles.js";
 import { showConfirmation } from "../ui/ConfirmationDialog.js";
 import { clearSave, defaultSave, saveProgress, normalizeWorldProgress } from "../saveManager.js";
 import { playMusic } from "../soundManager.js";
@@ -69,7 +70,7 @@ export default class MainMenuScene extends Phaser.Scene {
       },
       {
         label: 'Intro ansehen',
-        action: () => this.scene.start('IntroScene', { returnScene: 'MainMenuScene' }),
+        action: () => this.scene.start('IntroScene'),
         enabled: true,
       },
     ];
@@ -180,33 +181,57 @@ export default class MainMenuScene extends Phaser.Scene {
   openConfirmDialog(message, onYes) { return showConfirmation(this, message, onYes, { pause: false }); }
 
   createSettingsDialog() {
+    const textStyle = { fontFamily: 'Trebuchet MS, sans-serif', fontSize: '20px', color: '#fff1c5' };
     this.settingsBox = this.add.container(0, 0).setDepth(800).setVisible(false);
     const shade = this.add.rectangle(480, 300, 960, 600, 0x08140e, .75).setInteractive();
-    const panel = this.add.rectangle(480, 300, 580, 290, 0x253f2e).setStrokeStyle(3, 0xc6ab6c);
-    this.settingsText = this.add.text(480, 260, '', { fontFamily: 'Georgia, serif', fontSize: '25px', color: '#fff1c5' })
-      .setOrigin(.5).setInteractive({ useHandCursor: true }).on('pointerdown', () => { this.settingsIndex = 0; this.settingsActions.confirm(); });
-    this.settingsSave = this.add.text(480, 330, 'Speichern', { fontFamily: 'Trebuchet MS, sans-serif', fontSize: '23px', color: '#fff1c5', backgroundColor: '#526445', padding: { x: 30, y: 12 } })
-      .setOrigin(.5).setInteractive({ useHandCursor: true }).on('pointerdown', () => { this.settingsIndex = 1; this.settingsActions.confirm(); });
-    this.settingsHint = this.add.text(480, 405, 'Auswählen: ↑/↓ · Bestätigen · {confirm} · Abbrechen · {back}', {
-      fontFamily: 'Trebuchet MS, sans-serif', fontSize: '15px', color: '#cfddb6',
+    const panel = this.add.rectangle(480, 300, 680, 410, 0x253f2e).setStrokeStyle(3, 0xc6ab6c);
+    const title = this.add.text(480, 138, 'Einstellungen', { ...textStyle, fontFamily: 'Georgia, serif', fontSize: '30px' }).setOrigin(.5);
+    this.settingsText = this.add.text(480, 205, '', textStyle).setOrigin(.5).setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => { this.settingsIndex = 0; this.settingsActions.confirm(); });
+    const profileTitle = this.add.text(480, 259, 'Steuerung', { ...textStyle, fontSize: '18px' }).setOrigin(.5);
+    this.profileChoices = Object.entries(CONTROL_PROFILES).map(([id, profile], index) => {
+      const button = this.add.text(280 + index * 200, 310, profile.name.replace(' Tastatur', '\nTastatur'), {
+        ...textStyle, fontSize: '17px', align: 'center', fixedWidth: 180, fixedHeight: 56,
+        backgroundColor: '#344f3b', padding: { top: 8 },
+      }).setOrigin(.5).setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+        this.settingsIndex = 1; this.pendingSettings.controlProfile = id; this.updateSettingsText();
+      });
+      return { id, button };
+    });
+    const profileHint = this.add.text(480, 354, 'Das Profil wird beim Speichern übernommen.', { ...textStyle, fontSize: '13px', color: '#bdd0b0' }).setOrigin(.5);
+    this.settingsSave = this.add.text(620, 410, 'Speichern · {confirm}', { ...textStyle, backgroundColor: '#526445', padding: { x: 18, y: 12 } })
+      .setOrigin(.5).setInteractive({ useHandCursor: true }).on('pointerdown', () => { this.settingsIndex = 2; this.settingsActions.confirm(); });
+    this.settingsCancel = this.add.text(330, 410, 'Abbrechen · {back}', { ...textStyle, backgroundColor: '#344f3b', padding: { x: 18, y: 12 } })
+      .setOrigin(.5).setInteractive({ useHandCursor: true }).on('pointerdown', () => this.settingsActions.back());
+    this.settingsHint = this.add.text(480, 470, '↑/↓: Auswahl · ←/→: Profil · Wählen · {confirm}', {
+      ...textStyle, fontSize: '14px', color: '#cfddb6',
     }).setOrigin(.5);
-    this.settingsBox.add([shade, panel, this.settingsText, this.settingsSave, this.settingsHint]);
+    this.settingsBox.add([shade, panel, title, this.settingsText, profileTitle, ...this.profileChoices.map(p => p.button),
+      profileHint, this.settingsSave, this.settingsCancel, this.settingsHint]);
   }
 
   openSettingsDialog() {
     if (this.isDialogOpen) return;
     this.isDialogOpen = true; this.settingsIndex = 0;
     const save = this.registry.get('saveData') || {};
-    this.pendingSettings = { autoAim: Boolean(save.settings?.autoAim) };
+    this.pendingSettings = { autoAim: Boolean(save.settings?.autoAim), controlProfile: controlProfileId(save.settings?.controlProfile) };
     const close = saveChanges => {
       if (saveChanges) this.applySettings();
       this.settingsBox.setVisible(false); this.settingsActions = null; this.isDialogOpen = false; this.pendingSettings = null;
     };
+    const cycleProfile = delta => {
+      const ids = Object.keys(CONTROL_PROFILES), index = ids.indexOf(this.pendingSettings.controlProfile);
+      this.pendingSettings.controlProfile = ids[(index + delta + ids.length) % ids.length];
+      this.updateSettingsText();
+    };
     this.settingsActions = {
-      up: () => { this.settingsIndex = 0; this.updateSettingsText(); },
-      down: () => { this.settingsIndex = 1; this.updateSettingsText(); },
+      up: () => { this.settingsIndex = (this.settingsIndex + 2) % 3; this.updateSettingsText(); },
+      down: () => { this.settingsIndex = (this.settingsIndex + 1) % 3; this.updateSettingsText(); },
+      left: () => { if (this.settingsIndex === 1) cycleProfile(-1); },
+      right: () => { if (this.settingsIndex === 1) cycleProfile(1); },
       confirm: () => {
-        if (this.settingsIndex === 1) { close(true); return; }
+        if (this.settingsIndex === 2) { close(true); return; }
+        if (this.settingsIndex === 1) { cycleProfile(1); return; }
         this.pendingSettings.autoAim = !this.pendingSettings.autoAim; this.updateSettingsText();
       },
       back: () => close(false),
@@ -217,7 +242,13 @@ export default class MainMenuScene extends Phaser.Scene {
   updateSettingsText() {
     this.settingsText.setText('Auto-Anvisieren: ' + (this.pendingSettings?.autoAim ? 'An' : 'Aus'));
     this.settingsText.setColor(this.settingsIndex === 0 ? '#ffe0a0' : '#bdd0b0');
-    this.settingsSave.setColor(this.settingsIndex === 1 ? '#ffe0a0' : '#bdd0b0');
+    this.settingsSave.setColor(this.settingsIndex === 2 ? '#ffe0a0' : '#fff1c5');
+    this.profileChoices.forEach(({ id, button }) => {
+      const selected = id === this.pendingSettings?.controlProfile;
+      button.setBackgroundColor(selected ? '#77613a' : '#344f3b');
+      button.setColor(selected ? '#ffe6a8' : '#bdd0b0');
+      button.setText((selected ? '✓ ' : '') + CONTROL_PROFILES[id].name.replace(' Tastatur', '\nTastatur'));
+    });
   }
 
   applySettings() {
@@ -231,6 +262,7 @@ export default class MainMenuScene extends Phaser.Scene {
     };
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);
+    this.game?.portableControls?.setProfile(nextSave.settings.controlProfile);
   }
 
   toggleFullscreen() {

@@ -1,5 +1,21 @@
 import { getWeaponStats } from "../utils/weapons.js";
 
+function visibleHudSlots(equipped = {}, inventory = {}, { overview = false, showCompanion = true } = {}) {
+  if (overview) return [];
+  const slots = [];
+  const secondary = Object.hasOwn(equipped, 'secondary') ? equipped.secondary : equipped.passive === 'bow' ? 'bow' : null;
+  const shield = Object.hasOwn(equipped, 'shield') ? equipped.shield : equipped.passive === 'shield' ? 'shield' : null;
+  if (equipped.weapon) slots.push('active');
+  if (secondary === 'bow') slots.push('passive');
+  if (shield) slots.push('shield');
+  if (inventory.consumables?.honey > 0) {
+    if (equipped.consumable === 'honey') slots.push('consumable');
+    if (equipped.consumable2 === 'honey') slots.push('consumable2');
+  }
+  if (showCompanion && equipped.companion) slots.push('companion');
+  return slots;
+}
+
 export default class TopHud {
   constructor(scene, options = {}) {
     this.scene = scene;
@@ -35,6 +51,7 @@ export default class TopHud {
     if (options.activeDisabled) {
       this.setItemDisabled("active", true);
     }
+    this.refreshLayout();
   }
 
   create() {
@@ -49,15 +66,15 @@ export default class TopHud {
       .setOrigin(0, 0.5)
       .setStroke("#433320", 3);
 
-    this.keyIcon = this.scene.add.image(28, 44, "ui-key").setOrigin(0.5);
+    this.keyIcon = this.scene.add.image(185, 20, "ui-key").setOrigin(0.5);
     this.keyIcon.setScale(0.38);
     this.keyIcon.setVisible(false);
 
     if (this.options.showStones) {
-      this.stoneIcon = this.scene.add.image(28, 44, "ui-stone").setOrigin(0.5);
+      this.stoneIcon = this.scene.add.image(120, 20, "ui-stone").setOrigin(0.5);
       this.stoneIcon.setScale(0.78);
       this.stoneText = this.scene.add
-        .text(45, 44, "0", {
+        .text(138, 20, "0", {
           fontFamily: "Trebuchet MS, sans-serif",
           fontSize: "16px",
           color: "#f7e3c0",
@@ -133,11 +150,11 @@ export default class TopHud {
 
   createItems() {
     this.ensureBootsTexture();
-    const frameWidth = 52;
-    const frameHeight = 52;
-    const spacing = 66;
+    const frameWidth = 36;
+    const frameHeight = 36;
+    const spacing = 54;
     const startX = 210;
-    const y = 36;
+    const y = 24;
 
     const items = [
       { key: "active", hint: "{attack}", icon: "item-sword" },
@@ -150,13 +167,13 @@ export default class TopHud {
 
     items.forEach((item, index) => {
       const x = startX + index * spacing;
-      const frame = this.scene.add.rectangle(x, y, frameWidth, frameHeight, 0xf2e3c5, 0.8);
-      frame.setStrokeStyle(3, 0xdbc1a0);
-      const icon = this.scene.add.image(x, y, item.icon).setScale(0.266);
+      const frame = this.scene.add.rectangle(x, y, frameWidth, frameHeight, 0x203c2c, 0.72);
+      frame.setStrokeStyle(1, 0xbda778);
+      const icon = this.scene.add.image(x, y, item.icon).setDisplaySize(29, 29);
       const hint = this.scene.add
-        .text(x, y + 36, item.hint, {
+        .text(x, y + 25, item.hint, {
           fontFamily: "Trebuchet MS, sans-serif",
-          fontSize: "12px",
+          fontSize: "10px",
           color: "#ffffff",
         })
         .setOrigin(0.5);
@@ -175,13 +192,13 @@ export default class TopHud {
         bootsIcon = this.scene.add.image(x + 16, y + 16, this.bootsTextureKey).setScale(0.22);
         bootsIcon.setVisible(false);
       }
-      const barWidth = 46;
-      const barHeight = 6;
+      const barWidth = 30;
+      const barHeight = 4;
       const barBg = this.scene.add
-        .rectangle(x, y + 44, barWidth, barHeight, 0x3a2a1a, 0.7)
+        .rectangle(x, y + 20, barWidth, barHeight, 0x3a2a1a, 0.7)
         .setVisible(false);
       const barFill = this.scene.add
-        .rectangle(x - barWidth / 2, y + 44, 2, barHeight - 2, 0xf2e3c5, 0.9)
+        .rectangle(x - barWidth / 2, y + 20, 2, barHeight - 2, 0xf2e3c5, 0.9)
         .setOrigin(0, 0.5)
         .setVisible(false);
 
@@ -195,19 +212,19 @@ export default class TopHud {
         y,
         frameWidth,
         frameHeight,
-        0xf2e3c5,
-        0.8
+        0x203c2c,
+        0.72
       );
-      frame.setStrokeStyle(3, 0xdbc1a0);
-      const icon = this.scene.add.image(companionX, y, "item-companion").setScale(0.26);
-      const heart = this.scene.add.image(companionX, y + 37, "ui-heart").setScale(0.42);
-      const barWidth = 46;
-      const barHeight = 6;
+      frame.setStrokeStyle(1, 0xbda778);
+      const icon = this.scene.add.image(companionX, y, "item-companion").setDisplaySize(29, 29);
+      const heart = this.scene.add.image(companionX + 13, y + 12, "ui-heart").setScale(0.3);
+      const barWidth = 30;
+      const barHeight = 4;
       const barBg = this.scene.add
-        .rectangle(companionX, y + 40, barWidth, barHeight, 0x3a2a1a, 0.7)
+        .rectangle(companionX, y + 20, barWidth, barHeight, 0x3a2a1a, 0.7)
         .setVisible(false);
       const barFill = this.scene.add
-        .rectangle(companionX - barWidth / 2, y + 40, 2, barHeight - 2, 0xf2e3c5, 0.9)
+        .rectangle(companionX - barWidth / 2, y + 20, 2, barHeight - 2, 0xf2e3c5, 0.9)
         .setOrigin(0, 0.5)
         .setVisible(false);
 
@@ -335,11 +352,13 @@ export default class TopHud {
   }
 
   syncEquipment(e = {}, inventory = {}) {
+    this.lastEquipment = e;
+    this.lastInventory = inventory;
     const secondary = Object.prototype.hasOwnProperty.call(e, 'secondary') ? e.secondary : e.passive === 'bow' ? 'bow' : null;
     const shield = Object.prototype.hasOwnProperty.call(e, 'shield') ? e.shield : e.passive === 'shield' ? 'shield' : null;
     const shoes = e.shoes || e.passive === 'shoes';
-    const key = JSON.stringify([e.weapon, secondary, shield, shoes, e.consumable, e.consumable2, inventory.consumables?.honey]);
-    if (key === this.gearKey) return; this.gearKey = key;
+    const key = JSON.stringify([e.weapon, secondary, shield, shoes, e.consumable, e.consumable2, e.companion, inventory.consumables?.honey]);
+    if (key === this.gearKey) { this.refreshLayout(); return; } this.gearKey = key;
     this.setActiveEquipped(e.weapon); this.setPassiveEquipped(secondary);
     const set = (slot, id, texture) => {
       const item = this.items[slot]; if (!item) return;
@@ -355,10 +374,39 @@ export default class TopHud {
       this.items.consumable2?.icon.setAlpha(.25);
       this.applyHintStyle(this.items.consumable2?.hint, false);
     }
+    this.refreshLayout();
+  }
+
+  refreshLayout() {
+    const equipped = this.lastEquipment || this.scene.equipped || {
+      weapon: this.activeWeapon, secondary: this.passiveEquipped,
+      shield: this.shieldOwned || this.options.passiveOwned ? 'shield' : null,
+      consumable: this.consumableEquipped ? 'honey' : null,
+      companion: this.options.showCompanion ? 'default' : null,
+    };
+    const slots = visibleHudSlots(equipped, this.lastInventory || this.scene.inventory || { consumables: { honey: this.consumableCount } }, {
+      overview: this.options.activeDisabled, showCompanion: this.options.showCompanion,
+    });
+    const startX = 480 - (slots.length - 1) * 27;
+    Object.entries(this.items).forEach(([key, item]) => {
+      const index = slots.indexOf(key), visible = index >= 0;
+      const x = startX + index * 54, previousX = item.frame.x;
+      Object.values(item).forEach(object => {
+        if (object?.setPosition) object.setPosition(object.x + x - previousX, object.y);
+      });
+      item.frame.setVisible(visible); item.icon.setVisible(visible);
+      item.hint?.setVisible(visible && !['shield', 'shoes'].includes(key));
+      item.count?.setVisible(visible); item.overlay?.setVisible(false); item.bootsIcon?.setVisible(false);
+      const cooldown = key === 'shield' ? this.shieldCooldown : key === 'companion' ? this.companionStatus : null;
+      const showBar = visible && (key === 'shield' ? cooldown?.owned && !cooldown.active : key === 'companion' ? cooldown?.health <= 0 : false);
+      item.barBg?.setVisible(Boolean(showBar)); item.barFill?.setVisible(Boolean(showBar));
+      item.heart?.setVisible(visible && this.companionStatus?.health > 0);
+    });
   }
 
   setShieldOwned(owned) { this.shieldOwned = owned; this.items.shield?.icon.setVisible(Boolean(owned)); }
   setShieldCooldown({ owned, active, ratio }) {
+    this.shieldCooldown = { owned, active, ratio };
     const item = this.items.shield; if (!item) return;
     item.barBg.setVisible(Boolean(owned && !active)); item.barFill.setVisible(Boolean(owned && !active));
     item.barFill.displayWidth = item.barWidth * Math.max(0, Math.min(1, ratio));
@@ -524,6 +572,7 @@ export default class TopHud {
   }
 
   setCompanionStatus({ health, respawnRatio }) {
+    this.companionStatus = { health, respawnRatio };
     const companion = this.items.companion;
     if (!companion) return;
     const hasHealth = health > 0;

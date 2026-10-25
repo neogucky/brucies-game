@@ -1,5 +1,5 @@
 import { saveProgress } from '../saveManager.js';
-import { CONTROL_PROFILES, DEFAULT_CONTROL_PROFILE, controlProfileId, canonicalCode, actionForKey, keyLabel, actionLabel } from './controlProfiles.js';
+import { controlProfileId, canonicalCode, actionForKey, actionLabel } from './controlProfiles.js';
 
 const INTERNAL_CODES = { confirm: 'Enter', back: 'Escape', inventory: 'Tab', attack: 'Space',
   left: 'ArrowLeft', right: 'ArrowRight', up: 'ArrowUp', down: 'ArrowDown', jump: 'KeyW',
@@ -19,15 +19,40 @@ export function resetSceneKeys(scene) {
   keys.forEach(key => key?.reset?.()); scene?.player?.body?.setVelocity?.(0, 0);
 }
 
+export function controlBarActions(scene, paused = false) {
+  if (!scene || paused || scene.isIntro || scene.confirmation?.isOpen || scene.settingsBox?.visible || scene.inventoryOverlay?.isOpen) return [];
+  if (scene.dialog?.container?.visible) return ['back'];
+  if (scene.isGameOver) return ['confirm', 'back'];
+  if (scene.levelCompleted || scene.isComplete) return ['confirm'];
+  if (scene.sys.settings.key === 'MainMenuScene') return [];
+  const actions = [];
+  if (scene.toggleInventory) actions.push('inventory');
+  if (scene.player) actions.push('pause');
+  if (!scene.player && !scene.currentNode && !scene.toggleInventory) actions.push('confirm');
+  actions.push('back');
+  return actions;
+}
+
+export function mapControlHint(profile) {
+  return profile === 'ipadTouch' ? 'Ort antippen: hingehen · Erneut antippen: betreten'
+    : 'Pfeile: Bewegen · ' + actionLabel(profile, 'confirm', 'Betreten');
+}
+
+export function introSkipLabel(profile) {
+  return profile === 'ipadTouch' ? 'Überspringen' : 'Überspringen · Leertaste';
+}
+
 export default class PortableControls {
   constructor(game) {
     this.game = game; this.pausedScene = null; this.buttons = {}; this.touchButtons = {}; this.held = new Set();
     this.toolbar = document.getElementById('game-controls'); this.canvas = game.canvas;
     this.buildToolbar();
     this.down = event => this.onKey(event, true); this.up = event => this.onKey(event, false);
-    this.blur = () => this.autoPause(); this.visibility = () => { if (document.hidden) this.autoPause(); };
+    this.blur = () => this.autoPause();
+    this.focusIn = () => { const scene = this.activeScene(); if (scene?.isIntro && scene.suspended) scene.startIntro(); };
+    this.visibility = () => { if (document.hidden) this.autoPause(); else this.focusIn(); };
     document.addEventListener('keydown', this.down, true); document.addEventListener('keyup', this.up, true);
-    window.addEventListener('blur', this.blur); document.addEventListener('visibilitychange', this.visibility);
+    window.addEventListener('blur', this.blur); window.addEventListener('focus', this.focusIn); document.addEventListener('visibilitychange', this.visibility);
     this.focusPointer = () => this.focus(); this.canvas?.addEventListener('pointerdown', this.focusPointer);
     if (this.canvas) this.canvas.tabIndex = 0;
   }
@@ -45,29 +70,25 @@ export default class PortableControls {
   focus() { this.canvas?.focus({ preventScroll: true }); }
   buildToolbar() {
     if (!this.toolbar) return;
-    const label = document.createElement('label'); label.className = 'control-profile'; label.textContent = 'Steuerung ';
-    this.profileSelect = document.createElement('select'); this.profileSelect.setAttribute('aria-label', 'Steuerungsprofil');
-    Object.entries(CONTROL_PROFILES).forEach(([id, profile]) => {
-      const option = document.createElement('option'); option.value = id; option.textContent = profile.name; this.profileSelect.appendChild(option);
-    });
-    this.profileSelect.value = DEFAULT_CONTROL_PROFILE; this.profileSelect.addEventListener('change', () => this.setProfile(this.profileSelect.value));
-    label.appendChild(this.profileSelect); this.toolbar.appendChild(label);
-    const titles = { confirm: 'Bestätigen', back: 'Zurück', inventory: 'Inventar', shoot: 'Schießen', pause: 'Pause' };
+    const titles = { confirm: 'Bestätigen', inventory: 'Inventar', pause: 'Pause', back: 'Zurück' };
     Object.entries(titles).forEach(([action, title]) => {
       const button = document.createElement('button'); button.type = 'button'; button.textContent = title; button.dataset.action = action;
       button.addEventListener('click', () => { this.dispatch(action); this.focus(); });
       this.toolbar.appendChild(button); this.buttons[action] = button;
     });
     this.touchPad = document.createElement('nav'); this.touchPad.id = 'touch-controls'; this.touchPad.hidden = true; this.touchPad.setAttribute('aria-label', 'Touchsteuerung');
-    const touchButtons = [['left','←'],['up','↑'],['down','↓'],['right','→'],['jump','Springen'],['attack','Angriff'],['potion1','Trank 1'],['potion2','Trank 2']];
+    const movement = document.createElement('div'); movement.className = 'touch-move';
+    const actions = document.createElement('div'); actions.className = 'touch-actions';
+    this.touchPad.append(movement, actions);
+    const touchButtons = [['left','←'],['up','↑'],['down','↓'],['right','→'],['jump','Springen'],['attack','Angriff'],['shoot','Bogen'],['potion1','Trank 1'],['potion2','Trank 2']];
     touchButtons.forEach(([action, title]) => {
-      const button = document.createElement('button'); button.type = 'button'; button.textContent = title; button.setAttribute('aria-label', title);
+      const button = document.createElement('button'); button.type = 'button'; button.textContent = title; button.setAttribute('aria-label', title); button.dataset.action = action;
       if (HELD_ACTIONS.has(action)) {
         button.addEventListener('pointerdown', event => { event.preventDefault(); button.setPointerCapture(event.pointerId); this.focus(); this.setHeld(action, true); });
         const release = () => this.setHeld(action, false);
         button.addEventListener('pointerup', release); button.addEventListener('pointercancel', release); button.addEventListener('lostpointercapture', release);
       } else button.addEventListener('click', () => { this.dispatch(action); this.focus(); });
-      this.touchPad.appendChild(button); this.touchButtons[action] = button;
+      (['left','up','down','right'].includes(action) ? movement : actions).appendChild(button); this.touchButtons[action] = button;
     });
     this.toolbar.after(this.touchPad);
     this.overlay = document.createElement('div'); this.overlay.id = 'game-pause'; this.overlay.hidden = true;
@@ -85,36 +106,45 @@ export default class PortableControls {
     if (scene !== this.lastScene) { resetSceneKeys(this.lastScene); this.held?.clear(); this.lastScene = scene; }
     if (!this.toolbar) return;
     const profile = this.getProfile(), touch = profile === 'ipadTouch', intro = Boolean(scene.isIntro);
-    this.profileSelect.disabled = !this.game.registry.get('saveData'); this.profileSelect.value = profile;
-    this.touchPad.hidden = !touch || intro; document.body.classList.toggle('touch-profile', touch && !intro);
+    const modal = scene.confirmation?.isOpen || scene.inventoryOverlay?.isOpen || scene.dialog?.container?.visible || scene.settingsBox?.visible;
+    const finished = scene.isGameOver || scene.levelCompleted || scene.isComplete;
+    const showTouch = Boolean(touch && scene.player && !modal && !finished && !this.pausedScene);
+    this.touchPad.hidden = !showTouch; document.body.classList.toggle('touch-profile', showTouch);
     document.body.classList.toggle('cinematic-mode', intro);
-    ['inventory', 'shoot', 'pause'].forEach(action => { this.buttons[action].hidden = intro; });
+    if (scene.currentNode && scene.hintText) {
+      const hint = mapControlHint(profile);
+      if (scene.hintText.text !== hint) scene.hintText.setText(hint);
+    }
+    const actions = new Set(controlBarActions(scene, Boolean(this.pausedScene)));
+    Object.entries(this.buttons).forEach(([action, button]) => { button.hidden = !actions.has(action); });
+    this.toolbar.hidden = actions.size === 0;
+    document.body.classList.toggle('has-action-bar', actions.size > 0);
     const disabled = (button, value) => { button.disabled = Boolean(value); };
     disabled(this.buttons.inventory, this.pausedScene || scene.confirmation?.isOpen || scene.inventoryOverlay?.isOpen || scene.dialog?.container?.visible || !scene.toggleInventory || scene.isGameOver || scene.levelCompleted || scene.isComplete);
-    disabled(this.buttons.shoot, this.pausedScene || !scene.bow?.equipped() || scene.bow?.isBlocked());
     disabled(this.buttons.pause, !this.pausedScene && (!scene.player || scene.isPaused || scene.isGameOver || scene.levelCompleted || scene.isComplete));
     const asking = scene.confirmation?.isOpen;
     const won = !scene.isGameOver && (scene.levelCompleted || scene.isComplete);
     disabled(this.buttons.back, won || (scene.sys.settings.key === 'MainMenuScene' && !asking && !scene.settingsBox?.visible));
     disabled(this.buttons.confirm, Boolean(this.pausedScene || (intro && scene.started && !scene.suspended)));
     Object.entries(this.touchButtons).forEach(([action, button]) => {
-      button.hidden = ['jump','attack','potion1','potion2'].includes(action) && !scene.player;
+      const potion = action === 'potion1' ? scene.equipped?.consumable : scene.equipped?.consumable2;
+      button.hidden = action === 'shoot' ? !scene.bow?.equipped()
+        : action.startsWith('potion') ? !potion || !scene.inventory?.consumables?.honey : false;
       button.disabled = Boolean(this.pausedScene || scene.confirmation?.isOpen || scene.isGameOver || scene.levelCompleted || scene.isComplete
-        || (action === 'attack' && scene.climbingVine));
+        || (['attack','shoot'].includes(action) && scene.climbingVine));
     });
-    this.buttons.confirm.textContent = intro && scene.started && !scene.suspended ? 'Intro läuft …'
-      : actionLabel(profile, 'confirm', intro ? scene.suspended ? 'Fortsetzen' : 'Intro starten' : asking ? 'Ja' : 'Bestätigen');
-    this.buttons.back.textContent = actionLabel(profile, 'back', intro ? 'Überspringen' : asking ? 'Nein' : 'Zurück');
+    this.buttons.confirm.textContent = actionLabel(profile, 'confirm', asking ? 'Ja' : 'Bestätigen');
+    this.buttons.back.textContent = actionLabel(profile, 'back', asking ? 'Nein'
+      : scene.dialog?.container?.visible ? 'Schließen' : scene.currentNode ? 'Menü' : scene.player && !finished ? 'Verlassen' : 'Zurück');
     this.buttons.inventory.textContent = actionLabel(profile, 'inventory', 'Inventar');
-    this.buttons.shoot.textContent = actionLabel(profile, 'shoot', 'Schießen');
     this.buttons.pause.textContent = actionLabel(profile, 'pause', this.pausedScene ? 'Fortsetzen' : 'Pause');
     this.resumeButton.textContent = actionLabel(profile, 'pause', 'Weiterspielen');
     this.exitButton.textContent = actionLabel(profile, 'back', 'Level verlassen');
-    const hint = document.querySelector('.controls-hint');
-    if (hint) hint.textContent = touch ? 'Bewegen und klettern: Richtungsknöpfe · Zweimal ↓: durch Plattform · Springen / Angriff: antippen'
-      : 'Bewegen: Pfeile · Angriff: ' + keyLabel(profile, 'attack') + ' · Bestätigen: ' + keyLabel(profile, 'confirm') + ' · Zurück: ' + keyLabel(profile, 'back') + ' · Inventar: ' + keyLabel(profile, 'inventory');
-    if (hint && intro) hint.textContent = 'Eine kleine Geschichte vor dem Abenteuer · ' + actionLabel(profile, 'back', 'Überspringen');
-    this.canvas?.setAttribute('aria-label', 'Brucies Spiel. ' + CONTROL_PROFILES[profile].name + '. ' + this.buttons.confirm.textContent + '. ' + this.buttons.back.textContent + '.');
+    if (intro) {
+      const label = introSkipLabel(profile);
+      if (scene.skipButton?.text !== label) scene.skipButton?.setText(label);
+      this.canvas?.setAttribute('aria-label', 'Spielintro. ' + label + '.');
+    } else this.canvas?.setAttribute('aria-label', 'Brucies Spiel. ' + this.buttons.confirm.textContent + '. ' + this.buttons.back.textContent + '.');
   }
   emitKey(scene, code) {
     const keyboard = scene?.input?.keyboard; if (!keyboard) return;
@@ -131,8 +161,7 @@ export default class PortableControls {
     }
     const s = targetScene; if (!s) return;
     if (s.isIntro) {
-      if (action === 'confirm') s.startIntro();
-      else if (action === 'back') s.finish();
+      if (action === 'attack') s.finish();
       else if (action === 'fullscreen') this.emitKey(s, 'KeyF');
       return;
     }
@@ -181,7 +210,16 @@ export default class PortableControls {
     const target = event.target;
     if (target?.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target?.tagName || '') || event.isComposing || event.metaKey || event.ctrlKey || event.altKey) return;
     const scene = this.activeScene(); if (!scene) return;
-    const code = canonicalCode(event), profile = this.getProfile(), action = actionForKey(event, profile);
+    const code = canonicalCode(event);
+    if (scene.isIntro) {
+      if (down && !event.repeat) scene.audio?.unlock?.(scene.elapsed);
+      if (!GAME_KEYS.has(code)) return;
+      event.preventDefault(); event.stopImmediatePropagation();
+      if (down && !event.repeat && code === 'Space') this.dispatch('attack', scene);
+      else if (down && !event.repeat && code === 'KeyF') this.dispatch('fullscreen', scene);
+      return;
+    }
+    const profile = this.getProfile(), action = actionForKey(event, profile);
     if (!action && !GAME_KEYS.has(code)) return;
     event.preventDefault(); event.stopImmediatePropagation();
     if (!action) {
@@ -210,7 +248,7 @@ export default class PortableControls {
   }
   destroy() {
     document.removeEventListener('keydown', this.down, true); document.removeEventListener('keyup', this.up, true);
-    window.removeEventListener('blur', this.blur); document.removeEventListener('visibilitychange', this.visibility);
+    window.removeEventListener('blur', this.blur); window.removeEventListener('focus', this.focusIn); document.removeEventListener('visibilitychange', this.visibility);
     this.canvas?.removeEventListener('pointerdown', this.focusPointer);
     this.overlay?.remove(); this.touchPad?.remove(); this.toolbar?.replaceChildren();
   }

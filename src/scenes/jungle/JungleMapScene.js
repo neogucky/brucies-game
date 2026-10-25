@@ -127,7 +127,7 @@ export default class JungleMapScene extends Phaser.Scene {
     this.lockText = this.add.text(480, 518, "", { ...style, fontSize: "18px", align: "center",
       wordWrap: { width: 860 } }).setOrigin(.5).setDepth(8);
     this.locationText = this.add.text(940, 585, "Urwaldwelt", { ...style, fontSize: "16px" }).setOrigin(1, 1).setDepth(6);
-    this.add.text(14, 585, "{move}: Bewegen · {confirm}: Betreten · {inventory}: Inventar · {back}: Menü", {
+    this.hintText = this.add.text(14, 585, "{move}: Bewegen · {confirm}: Betreten", {
       ...style, fontSize: "14px" }).setOrigin(0, 1).setDepth(6);
   }
 

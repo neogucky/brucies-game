@@ -18,14 +18,16 @@ http://localhost:8000
 
 ## Steuerung
 
-Beim Start erscheint ein animiertes Burgzimmer-Intro. „Intro starten“ gibt Bild
-und Ton gemeinsam frei. Es zeigt Ritter und Helfer, einen freundlichen Drachen
-mit Schätzen und die Credits „Spielidee von Brucy“ / „Entwickelt mit Onkel Tim“.
-Nach 30,5 Sekunden geht es zum Menü bzw. zur gewählten Testwelt. Im Hauptmenü
-lässt sich die Geschichte mit **Intro ansehen** erneut abspielen.
-Überspringen nutzt ausschließlich die Zurück-Taste des aktiven Profils (Q bzw.
-Esc) oder den gleichnamigen Knopf. Beim Tabwechsel pausieren Bild und Ton.
-Zum direkten Entwicklertest ohne Intro kann `&skipIntro=1` angehängt werden.
+Das Burgzimmer-Intro startet automatisch und zeigt Ritter und Helfer, einen
+freundlichen Drachen mit Schätzen und die Credits „Spielidee von Brucy“ /
+„Entwickelt mit Onkel Tim“. Nach 30,5 Sekunden öffnet sich immer das Hauptmenü.
+Dort lässt sich die Geschichte mit **Intro ansehen** erneut abspielen.
+Überspringen funktioniert ausschließlich mit **Leertaste** oder dem dezenten
+Overlay unten rechts. Im Touch-Profil trägt das Overlay keinen Tastaturhinweis.
+Beim Tabwechsel pausiert die Geschichte und läuft bei der Rückkehr automatisch
+weiter. Der Ton versucht automatisch zu starten und wird, falls nötig, bei einer
+normalen Berührung oder Taste freigegeben; verpasste Geräusche werden nicht nachgeholt.
+Zum direkten Entwicklertest ohne Intro kann weiterhin `&skipIntro=1` angehängt werden.
 Die Grafiken, vollständigen Prompts und eigenen Töne liegen in
 [assets/intro](assets/intro/README.md).
 
@@ -40,9 +42,17 @@ vollständigen Prompts liegen in
 Zum Testen mit allen freigeschalteten Leveln direkt die Untergrundkarte öffnen:
 `http://localhost:8000/?unlockAll=1`
 
-Das Profil lässt sich unter dem Spielfeld auswählen. Ohne verlässliche
+Das Profil lässt sich unter **Hauptmenü → Einstellungen → Steuerung** auswählen. Ohne verlässliche
 Tastaturerkennung startet das Spiel immer mit **iPad mit Tastatur**; eine bewusste
 Auswahl wird gespeichert und bleibt auch bei einem neuen Spiel erhalten.
+
+Die Hauptansicht enthält keine Profilauswahl und keine zusätzliche Hilfszeile.
+Unter dem Spielfeld stehen nur kleine, zur aktuellen Ansicht passende Aktionen.
+Auf Karten und in Shops zeigt die obere Leiste nur Ressourcen und Herzen; im
+Level erscheinen kompakte Symbole für ausgerüstete Waffen, Schild, verfügbare
+Tränke und den Helfer. Die vollständige Ausrüstung steht im Inventar.
+Touch-Richtungstasten erscheinen ausschließlich beim Spielen im Touch-Profil;
+Weltkarten und Menüs werden dort direkt angetippt.
 
 | Aktion | iPad mit Tastatur (Standard) | PC | iPad ohne Tastatur |
 | --- | --- | --- | --- |

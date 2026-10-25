@@ -203,7 +203,7 @@ export default class BootScene extends Phaser.Scene {
     const junglePreview = unlockAll && new URLSearchParams(window.location.search).get("world") === "jungle";
     const returnScene = junglePreview ? "JungleMapScene" : unlockAll ? "UndergroundMapScene" : "MainMenuScene";
     if (new URLSearchParams(window.location.search).get('skipIntro') === '1') this.scene.start(returnScene);
-    else this.scene.start('IntroScene', { returnScene });
+    else this.scene.start('IntroScene');
   }
 
   createJungleTextures() {

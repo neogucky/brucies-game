@@ -1,11 +1,12 @@
 const CLIPS = ['music', 'snore', 'whoosh', 'hop', 'boing', 'yawn', 'chime'];
 
-// A single context unlocks every cue with the Start gesture, including on iPad.
-// It belongs only to the intro and is closed when the scene ends.
+// Autoplay never holds up the film. If the browser suspends audio, a later
+// natural gesture unlocks it at the current story time, without queued cues.
 export default class IntroAudio {
   constructor(Context = globalThis.AudioContext || globalThis.webkitAudioContext, fetcher = globalThis.fetch) {
     this.buffers = new Map(); this.sources = new Set(); this.muted = false;
     this.destroyed = false; this.started = false; this.paused = false; this.loadErrors = [];
+    this.elapsedMs = 0;
     this.ready = Promise.resolve(); if (!Context || !fetcher) return;
     try { this.context = new Context(); } catch { return; }
     this.master = this.context.createGain(); this.master.connect(this.context.destination);
@@ -23,23 +24,33 @@ export default class IntroAudio {
   start() {
     if (this.destroyed || !this.context) return;
     this.started = true; this.paused = false;
-    this.context.resume()?.catch?.(() => {});
-    this.ready.then(() => { if (!this.destroyed && !this.paused) this.play('music'); });
+    return this.unlock(0);
+  }
+  setTime(milliseconds) { this.elapsedMs = Math.max(0, milliseconds || 0); }
+  unlock(milliseconds = this.elapsedMs) {
+    this.setTime(milliseconds);
+    if (this.destroyed || !this.context || this.paused) return Promise.resolve();
+    try {
+      return Promise.resolve(this.context.resume()).then(() => this.ready).then(() => {
+        if (!this.destroyed && !this.paused && this.started) this.play('music');
+      }).catch(() => {});
+    } catch { return Promise.resolve(); }
   }
   play(name) {
-    if (!this.context || this.destroyed || this.paused || !this.buffers.has(name) || (name === 'music' && this.musicSource)) return;
+    if (!this.context || this.context.state !== 'running' || this.destroyed || this.paused || !this.buffers.has(name) || (name === 'music' && this.musicSource)) return;
     const source = this.context.createBufferSource(); source.buffer = this.buffers.get(name); source.loop = name === 'music';
     source.connect(name === 'music' ? this.musicGain : this.effectsGain); this.sources.add(source);
     source.onended = () => { this.sources.delete(source); source.disconnect(); };
     if (name === 'music') this.musicSource = source;
-    source.start();
+    if (name === 'music') source.start(0, this.elapsedMs / 1000 % source.buffer.duration);
+    else source.start();
   }
   setMusicVolume(volume) { if (this.musicGain) this.musicGain.gain.value = Math.max(0, Math.min(1, volume)); }
   mute(value) { this.muted = Boolean(value); if (this.master) this.master.gain.value = this.muted ? 0 : 1; }
   pause() { this.paused = true; this.context?.suspend()?.catch?.(() => {}); }
-  resume() {
-    if (this.destroyed) return; this.paused = false; this.context?.resume()?.catch?.(() => {});
-    this.ready.then(() => { if (!this.destroyed && !this.paused && this.started) this.play('music'); });
+  resume(milliseconds = this.elapsedMs) {
+    if (this.destroyed) return; this.paused = false;
+    return this.unlock(milliseconds);
   }
   destroy() {
     if (this.destroyed) return; this.destroyed = true;
