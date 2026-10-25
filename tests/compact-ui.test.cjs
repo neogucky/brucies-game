@@ -33,7 +33,7 @@ test('victory and defeat retain their usable continue/return actions', () => {
 test('map hints describe tapping in touch mode and the active confirmation key with a keyboard', () => {
   assert.ok(ctx.mapControlHint('ipadTouch').includes('antippen'));
   assert.ok(!ctx.mapControlHint('ipadTouch').includes('Richtungsknöpfe'));
-  assert.ok(ctx.mapControlHint('ipadKeyboard').endsWith('Betreten · E'));
+  assert.ok(ctx.mapControlHint('ipadKeyboard').endsWith('Betreten · Enter'));
   assert.ok(ctx.mapControlHint('pc').endsWith('Betreten · Enter'));
 });
 

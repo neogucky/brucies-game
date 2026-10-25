@@ -117,8 +117,9 @@ export default class DialogManager {
     this.clearHandlers();
     const page = this.pages[this.index];
     if (!page) return;
+    const hasPortrait = Boolean(this.portraitKey && this.scene.textures.exists(this.portraitKey));
     if (this.portraitImage && this.portraitFrame) {
-      if (this.portraitKey && this.scene.textures.exists(this.portraitKey)) {
+      if (hasPortrait) {
         this.portraitImage.setTexture(this.portraitKey);
         this.applyPortraitScale();
         this.portraitImage.setVisible(true);
@@ -128,6 +129,11 @@ export default class DialogManager {
         this.portraitFrame.setVisible(false);
       }
     }
+    // Reserve the portrait's full diameter plus a gap, including on reused
+    // dialogs that switch between portrait and text-only pages.
+    this.text.setStyle({ wordWrap: { width: hasPortrait ? 600 : 700 }, align: hasPortrait ? 'left' : 'center' })
+      .setOrigin(hasPortrait ? 0 : .5, .5).setX(hasPortrait ? 230 : 480);
+    this.hint.setX(hasPortrait ? 530 : 480);
     this.text.setText(page.text);
     if (page.options && page.options.length > 0) {
       this.optionsIndex = Math.min(this.optionsIndex, page.options.length - 1);

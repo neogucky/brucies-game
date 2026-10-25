@@ -20,7 +20,10 @@ http://localhost:8000
 
 Das Burgzimmer-Intro startet automatisch und zeigt Ritter und Helfer, einen
 freundlichen Drachen mit Schätzen und die Credits „Spielidee von Brucy“ /
-„Entwickelt mit Onkel Tim“. Nach 30,5 Sekunden öffnet sich immer das Hauptmenü.
+„Entwickelt mit Onkel Tim“. Nach 27,8 Sekunden öffnet sich immer das Hauptmenü.
+Der Drachenschatten erscheint bereits nach etwa zwei Sekunden. Schlaf-„z“ steigen
+vom Ritter auf; Bett und Ritter sind getrennt, sodass das Bett beim animierten
+Absprung und der Landung an seinem Platz bleibt.
 Dort lässt sich die Geschichte mit **Intro ansehen** erneut abspielen.
 Überspringen funktioniert ausschließlich mit **Leertaste** oder dem dezenten
 Overlay unten rechts. Im Touch-Profil trägt das Overlay keinen Tastaturhinweis.
@@ -56,7 +59,7 @@ Weltkarten und Menüs werden dort direkt angetippt.
 
 | Aktion | iPad mit Tastatur (Standard) | PC | iPad ohne Tastatur |
 | --- | --- | --- | --- |
-| Bestätigen / Ja / Gespräch weiter | E | Enter | Bestätigen / Ja antippen |
+| Bestätigen / Ja / Gespräch weiter | Enter | Enter | Bestätigen / Ja antippen |
 | Zurück / Nein / Inventar schließen | Q | Esc | Zurück / Nein antippen |
 | Inventar öffnen | I | Tab | Inventar antippen |
 | Bewegen / Auswahl | Pfeile | Pfeile | Richtungsknöpfe |
@@ -67,7 +70,7 @@ Weltkarten und Menüs werden dort direkt angetippt.
 | Trankslots 1 und 2 | T und G | T und G | Trank 1 / Trank 2 antippen |
 
 Jede Aktion hat pro Tastaturprofil genau eine logische Taste. Andere Profile und
-frühere Alternativen (J/N, WASD, Rückschritt, Enter/Esc beim iPad-Profil) lösen
+frühere Alternativen (E, J/N, WASD, Rückschritt, Esc beim iPad-Profil) lösen
 keine Spielaktionen aus. Offene Dialoge und Inventarhinweise wechseln sofort mit
 dem Profil. Im Touchprofil stehen an den Knöpfen keine Tastaturkürzel.
 
@@ -234,6 +237,11 @@ Fliege wiederzuerkennen. Die drei kostenlosen Orte sind mit ihrer Welt verfügba
 - **Wüstenexperte:** von der Wüstenruine nach oben.
 - **Unterweltexperte:** vom Unterwelt-Shop nach rechts.
 - **Urwaldexperte:** vom Urwald-Shop nach unten.
+
+Zuerst begrüßt der Professor den Ritter mit einer Geschichte aus der jeweiligen
+Welt. Erst nach dem Gespräch erscheint seine Tafel. Die Tipps beschreiben
+Gefahren und Hilfen ohne genaue Schadens- oder Zeitwerte; wichtige Begriffe
+werden fett hervorgehoben.
 
 Die Forschungsstube bietet die Rubriken Gegner, Ausrüstung und Level. Rubriken
 und einzelne Tipps sind anklickbar; mit ←/→ wechselt die Rubrik, mit ↑/↓ der Tipp.

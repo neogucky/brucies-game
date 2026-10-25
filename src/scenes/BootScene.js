@@ -13,7 +13,7 @@ export default class BootScene extends Phaser.Scene {
     this.load.image('intro-bedroom', 'assets/intro/bedroom.png');
     this.load.image('intro-exterior', 'assets/intro/exterior.png');
     this.load.image('intro-bed-atlas', 'assets/intro/bed.png');
-    this.load.image('intro-bed-awake-source', 'assets/intro/bed-awake.png');
+    this.load.image('intro-knight-poses', 'assets/intro/knight-poses.png');
     this.load.image('intro-helper-atlas', 'assets/intro/helper.png');
     this.load.image('intro-dragon-atlas', 'assets/intro/dragon.png');
     this.load.image("worldmap-jungle-bg", "assets/jungle/jungle-worldmap.png");

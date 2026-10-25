@@ -1,5 +1,5 @@
-// The bed frames share a scale and floor line, keeping the furniture in place
-// when the knight sits up. The cutout rectangles include transparent gutters.
+// Furniture is one fixed texture. Knight poses are separate cutouts, aligned by
+// face size and a shared waist/foot baseline instead of resizing every pose.
 export function registerIntroTextures(scene) {
   const textures = scene.textures;
   const cutout = (sourceKey, rect) => {
@@ -24,12 +24,17 @@ export function registerIntroTextures(scene) {
   // The next cell's sword tip enters this gutter; the bed's feet lie to its right.
   beds[1].canvas.getContext('2d').clearRect(0, 537, 400, 3);
   const scale = Math.min(620 / Math.max(...beds.map(c => c.width)), 490 / Math.max(...beds.map(c => c.height)));
-  ['sleep', 'yawn', 'empty'].forEach((name, i) => register('intro-bed-' + name, beds[i], 640, 500, scale));
-  const awakeSource = textures.get('intro-bed-awake-source').getSourceImage();
-  const awake = cutout('intro-bed-awake-source', [0, 0, awakeSource.width, awakeSource.height]);
-  register('intro-bed-awake', awake, 640, 500, Math.min(620 / awake.width, 490 / awake.height));
-  const knight = cutout('intro-bed-atlas', [940, 540, 480, 484]);
-  register('intro-knight-ready', knight, 220, 260, Math.min(210 / knight.width, 250 / knight.height));
+  register('intro-bed-fixed', beds[2], 640, 500, scale);
+  const poses = textures.get('intro-knight-poses').getSourceImage(), cellW = poses.width / 4, cellH = poses.height / 2;
+  const faces = [[272, 125], [268.5, 124], [265, 121], [257.5, 116], [295, 93], [283, 95], [269.5, 96], [266, 95]];
+  ['sleep', 'yawn', 'awake', 'prepare', 'push', 'air', 'land', 'ready'].forEach((name, i) => {
+    const key = 'intro-hero-' + name; if (textures.exists(key)) return;
+    const c = cutout('intro-knight-poses', [(i % 4) * cellW, Math.floor(i / 4) * cellH, cellW, cellH]);
+    const poseScale = 76 / faces[i][1], texture = textures.createCanvas(key, 440, 360);
+    texture.getContext().drawImage(c.canvas, 260 - faces[i][0] * poseScale,
+      355 - (c.top + c.height) * poseScale, cellW * poseScale, cellH * poseScale);
+    texture.refresh();
+  });
   ['sleep', 'awake', 'peek', 'hop'].forEach((name, i) => {
     const c = cutout('intro-helper-atlas', [(i % 2) * 768, Math.floor(i / 2) * 512, 768, 512]);
     register('intro-helper-' + name, c, 160, 160, Math.min(148 / c.width, 148 / c.height));

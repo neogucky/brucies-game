@@ -22,8 +22,14 @@ export default class IntroScene extends Phaser.Scene {
     this.dragonShadow.setMask(maskFor(INTRO_FLOOR_LIGHT));
     this.bedroom.add(this.dragonShadow);
     this.bedroom.add(this.add.ellipse(316, 537, 490, 31, 0x1c1523, .25));
-    this.bed = this.add.image(315, 542, 'intro-bed-sleep').setOrigin(.5, 1).setDisplaySize(535, 418);
+    this.bed = this.add.image(315, 542, 'intro-bed-fixed').setOrigin(.5, 1).setDisplaySize(535, 418);
     this.bedroom.add(this.bed);
+    this.occupant = this.add.image(220, 365, 'intro-hero-sleep').setOrigin(260 / 440, 1);
+    this.bedHero = this.add.image(245, 430, 'intro-hero-push').setOrigin(260 / 440, 1).setVisible(false);
+    this.bedroom.add([this.occupant, this.bedHero]);
+    this.bedFront = this.add.image(315, 542, 'intro-bed-fixed').setOrigin(.5, 1).setDisplaySize(535, 418);
+    this.bedFront.setMask(maskFor([{ x: 0, y: 360 }, { x: 960, y: 360 }, { x: 960, y: 600 }, { x: 0, y: 600 }]));
+    this.bedroom.add(this.bedFront);
     this.exterior = this.add.container(0, 0).setVisible(false);
     this.exterior.add(this.add.image(480, 300, 'intro-exterior').setDisplaySize(960, 600));
     this.dragon = this.add.image(-260, 183, 'intro-dragon-0').setDisplaySize(430, 320);
@@ -35,10 +41,12 @@ export default class IntroScene extends Phaser.Scene {
       this.exterior.add(image); return image;
     });
     this.helperShadow = this.add.ellipse(448, 518, 70, 13, 0x1c1523, .25);
-    this.heroShadow = this.add.ellipse(510, 540, 122, 19, 0x1c1523, .2).setVisible(false);
-    this.hero = this.add.image(510, 535, 'intro-knight-ready').setOrigin(.5, 1).setDisplaySize(280, 335).setVisible(false);
+    this.heroShadow = this.add.ellipse(565, 540, 122, 19, 0x1c1523, .2).setVisible(false);
+    this.hero = this.add.image(565, 535, 'intro-hero-ready').setOrigin(260 / 440, 1).setVisible(false);
     this.helper = this.add.image(448, 515, 'intro-helper-sleep').setOrigin(.5, 1).setDisplaySize(89, 92);
-    this.sleepZ = [0, 1, 2].map(i => this.add.text(193, 291, i === 2 ? 'Z' : 'z', { ...type, fontFamily: 'Georgia, serif', fontSize: (17 + i * 5) + 'px', color: '#b5d9ed' }).setOrigin(.5));
+    this.sleepZ = [0, 1, 2].map(i => this.add.text(245, 290, i === 2 ? 'Z' : 'z', { ...type,
+      fontFamily: 'Georgia, serif', fontStyle: 'bold', fontSize: (23 + i * 4) + 'px', color: '#d5efff',
+      stroke: '#23405c', strokeThickness: 3 }).setOrigin(.5));
     this.surprise = this.add.text(0, 0, '!', { ...type, fontSize: '34px', color: '#ffde83', stroke: '#5b3925', strokeThickness: 3 }).setOrigin(.5).setVisible(false);
     this.credit = this.add.text(60, 54, '', { ...type, fontFamily: 'Georgia, serif', fontSize: '27px', stroke: '#252539', strokeThickness: 4 });
     this.finalShade = this.add.rectangle(480, 300, 960, 600, 0x102235, 0);
@@ -82,7 +90,9 @@ export default class IntroScene extends Phaser.Scene {
   }
   drawFrame(f) {
     const outside = f.stage === 'exterior'; this.bedroom.setVisible(!outside); this.exterior.setVisible(outside);
-    this.bed.setTexture('intro-bed-' + f.bedPose);
+    const occupant = f.occupant;
+    this.occupant.setVisible(occupant.visible).setTexture('intro-hero-' + occupant.pose)
+      .setPosition(occupant.x, occupant.y).setAngle(occupant.angle).setScale(occupant.scaleX, occupant.scaleY);
     this.dragonShadow.setPosition(f.shadow.x, f.shadow.y).setTexture('intro-dragon-' + f.shadow.frame)
       .setDisplaySize(f.shadow.width, f.shadow.height).setAngle(f.shadow.angle).setAlpha(outside ? 0 : f.shadow.alpha);
     this.dragon.setPosition(f.dragon.x, f.dragon.y).setTexture('intro-dragon-' + f.dragon.frame).setDisplaySize(f.dragon.width, f.dragon.height);
@@ -93,12 +103,15 @@ export default class IntroScene extends Phaser.Scene {
     const h = f.helper;
     this.helper.setTexture('intro-helper-' + h.pose).setPosition(h.x, h.y).setDisplaySize(89 / (h.stretch || 1), 92 * (h.stretch || 1));
     this.helperShadow.setPosition(h.x, h.groundY + 1).setAlpha(outside ? 0 : .23);
-    this.hero.setVisible(f.knight.visible).setPosition(f.knight.x, f.knight.y);
+    const k = f.knight;
+    [this.hero, this.bedHero].forEach(image => image.setTexture('intro-hero-' + k.pose)
+      .setPosition(k.x, k.y).setAngle(k.angle).setScale(k.scaleX, k.scaleY));
+    this.hero.setVisible(k.visible && !k.behindBed); this.bedHero.setVisible(k.visible && k.behindBed);
     this.heroShadow.setVisible(f.knight.visible).setPosition(f.knight.x, (f.knight.groundY || 535) + 3);
     this.sleepZ.forEach((z, i) => {
-      const p = ((f.time / 2200 + i / 3) % 1); z.setPosition(193 + p * 24, 300 - p * 63).setAlpha(!outside && f.time < 5200 ? (1 - p) * .8 : 0);
+      const sleep = f.sleepSymbols[i]; z.setPosition(sleep.x, sleep.y).setScale(sleep.scale).setAlpha(sleep.alpha);
     });
-    this.surprise.setVisible(f.time >= 5200 && f.time < 5800).setPosition(h.x, h.y - 116);
+    this.surprise.setVisible(f.helperSurprised).setPosition(h.x, h.y - 116);
     this.credit.setText(f.credit).setAlpha(f.creditAlpha);
     this.finalShade.setAlpha(f.titleAlpha * .35); this.title.setAlpha(f.titleAlpha);
     this.transition.setAlpha(f.transition);

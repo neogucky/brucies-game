@@ -14,7 +14,7 @@ test('uncertain hardware always defaults to iPad with keyboard; profile choices 
 });
 for(const profile of ['ipadKeyboard','pc'])test(`${profile}: exactly one key for each action, with no ambiguous assignments`,()=>{
  const keys=Object.values(profiles[profile].keys);assert.equal(new Set(keys).size,keys.length);assert.equal(Array.isArray(profiles[profile].keys.confirm),false);assert.equal(Array.isArray(profiles[profile].keys.back),false);
- assert.equal(ctx.actionForKey({code:profile==='pc'?'KeyE':'Enter'},profile),null);assert.equal(ctx.actionForKey({code:profile==='pc'?'KeyQ':'Escape'},profile),null);
+ assert.equal(ctx.actionForKey({code:'KeyE'},profile),null);assert.equal(ctx.actionForKey({code:profile==='pc'?'KeyQ':'Escape'},profile),null);
  for(const code of ['KeyJ','KeyN','Backspace','KeyW','KeyA','KeyS','KeyD'])assert.equal(ctx.actionForKey({code},profile),null);
 });
 for(const profile of Object.keys(profiles))test(`${profile}: displayed confirmation keys and real input agree`,()=>{
@@ -34,7 +34,7 @@ for(const profile of Object.keys(profiles))test(`${profile}: displayed confirmat
 test('profile change refreshes open UI text and later text changes keep their templates',()=>{
  const text={scene:{},active:true,text:'Ja · {confirm}',setText(v){this.text=v;return this}};
  const s={children:{list:[text]},add:{text:()=>({})}},formatter=new ctx.ControlLabels(s);
- formatter.update('ipadKeyboard');assert.equal(text.text,'Ja · E');formatter.update('pc');assert.equal(text.text,'Ja · Enter');formatter.update('ipadTouch');assert.equal(text.text,'Ja');
+ formatter.update('ipadKeyboard');assert.equal(text.text,'Ja · Enter');formatter.update('pc');assert.equal(text.text,'Ja · Enter');formatter.update('ipadTouch');assert.equal(text.text,'Ja');
  text.setText('Nein · {back}');formatter.update('ipadKeyboard');assert.equal(text.text,'Nein · Q');formatter.destroy();
 });
 test('touch map hints keep the named action instead of leaving empty colons',()=>{
@@ -45,7 +45,7 @@ test('only Back closes an inventory; its open key does not act as a second close
  let close=0,confirm=0;const s={inventoryOverlay:{isOpen:true,close(){close++},onClose(){},confirm(){confirm++}}},c=controls(s);c.dispatch('inventory');assert.equal(close,0);c.dispatch('confirm');assert.equal(confirm,1);c.dispatch('back');assert.equal(close,1);
 });
 test('Space never doubles as dialog confirmation',()=>{
- let pages=0;const s={dialog:{container:{visible:true},pages:[{}],index:0,nextPage(){pages++}}},c=controls(s);c.onKey(event('Space'),true);assert.equal(pages,0);c.onKey(event('KeyE'),true);assert.equal(pages,1);
+ let pages=0;const s={dialog:{container:{visible:true},pages:[{}],index:0,nextPage(){pages++}}},c=controls(s);c.onKey(event('Space'),true);assert.equal(pages,0);c.onKey(event('Enter'),true);assert.equal(pages,1);
 });
 test('Back from pause opens the exit prompt even while Phaser is still queuing scene resume',()=>{
  const keyboard=new EventEmitter();let prompts=0;keyboard.on('keydown-ESC',()=>prompts++);

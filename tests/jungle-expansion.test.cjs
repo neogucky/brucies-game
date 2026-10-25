@@ -67,7 +67,7 @@ for(const [kind,damage] of [['brown',1],['red',2],['blue',3]])test(`jungle shiel
 });
 test('active-profile keys and toolbar choose the same confirmation exactly once',()=>{
  const s={input:{keyboard:new EventEmitter()},events:new EventEmitter(),time:{},physics:{world:{pause(){},resume(){}}},add:{container:art,rectangle:art,text:art}};let yes=0;ctx.showConfirmation(s,'Verlassen?',()=>yes++);const c=Object.create(ctx.PortableControls.prototype);c.activeScene=()=>s;
- const ev=code=>({code,preventDefault(){},stopImmediatePropagation(){}});c.onKey(ev('KeyQ'),true);assert.equal(yes,0);assert.equal(s.confirmation,null);ctx.showConfirmation(s,'Verlassen?',()=>yes++);c.onKey(ev('KeyE'),true);c.onKey(ev('KeyE'),false);assert.equal(yes,1);
+ const ev=code=>({code,preventDefault(){},stopImmediatePropagation(){}});c.onKey(ev('KeyQ'),true);assert.equal(yes,0);assert.equal(s.confirmation,null);ctx.showConfirmation(s,'Verlassen?',()=>yes++);c.onKey(ev('Enter'),true);c.onKey(ev('Enter'),false);assert.equal(yes,1);
 });
 test('buying the jungle shield costs 200, equips independently, and duplicate purchases are disabled',()=>{
  const s=Object.create(ctx.ShopSceneBase.prototype);Object.assign(s,{coins:600,...ctx.normalizeInventory({inventory:{passives:{bow:true,shoes:true}},equipped:{passive:'bow'}}),updateHudAfterPurchase(){},saveInventory(){},showPurchaseMessage(){}});const item=ctx.JungleShopScene.prototype.getShopConfig().items.find(i=>i.id==='jungleShield');s.buyItem(item);assert.equal(s.coins,400);assert.equal(s.equipped.shield,'jungleShield');assert.equal(s.equipped.secondary,'bow');assert.equal(s.equipped.shoes,'shoes');assert.equal(s.canShowItem(item),false);s.buyItem(item);assert.equal(s.coins,400);

@@ -139,15 +139,16 @@ test('bow ownership and selection survive save normalization without enabling sh
 
 for (const [event, profile, action] of [
   [{ key: 'Return', keyCode: 0 }, 'pc', 'confirm'], [{ code: 'NumpadEnter' }, 'pc', 'confirm'],
-  [{ key: 'e' }, 'ipadKeyboard', 'confirm'], [{ key: 'E' }, 'ipadKeyboard', 'confirm'],
+  [{ key: 'Return', keyCode: 0 }, 'ipadKeyboard', 'confirm'], [{ code: 'NumpadEnter' }, 'ipadKeyboard', 'confirm'],
+  [{ code: 'Unidentified', key: 'UIKeyInputReturn', keyCode: 0 }, 'ipadKeyboard', 'confirm'],
   [{ key: 'UIKeyInputEscape' }, 'pc', 'back'], [{ code: 'KeyQ' }, 'ipadKeyboard', 'back'],
   [{ code: 'KeyI' }, 'ipadKeyboard', 'inventory'], [{ code: 'Tab' }, 'pc', 'inventory'],
   [{ key: 'Shift' }, 'ipadKeyboard', 'shoot'], [{ code: 'ShiftRight' }, 'pc', 'shoot'],
   [{ code: 'KeyP' }, 'pc', 'pause'], [{ code: 'ArrowUp' }, 'ipadKeyboard', 'up'],
 ]) test(JSON.stringify(event) + ' maps to ' + profile + ' action ' + action, () => assert.equal(context.actionForKey(event, profile), action));
 test('legacy aliases, shortcuts and composing text do not activate the default iPad profile', () => {
-  for (const event of [{ code: 'KeyE', ctrlKey: true }, { code: 'KeyQ', metaKey: true }, { key: 'e', isComposing: true },
-    { code: 'KeyW' }, { code: 'Enter' }, { code: 'Escape' }, { code: 'Tab' }, { code: 'Backspace' }, { code: 'KeyJ' }, { code: 'KeyN' }, { metaKey: true, key: '.' }])
+  for (const event of [{ code: 'Enter', ctrlKey: true }, { code: 'KeyQ', metaKey: true }, { key: 'Enter', isComposing: true },
+    { code: 'KeyW' }, { code: 'KeyE' }, { code: 'Escape' }, { code: 'Tab' }, { code: 'Backspace' }, { code: 'KeyJ' }, { code: 'KeyN' }, { metaKey: true, key: '.' }])
     assert.equal(context.actionForKey(event), null);
 });
 function controls(scene) {

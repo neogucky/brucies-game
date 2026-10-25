@@ -5,7 +5,7 @@ const common = { left: 'ArrowLeft', right: 'ArrowRight', up: 'ArrowUp', down: 'A
   attack: 'Space', shoot: 'ShiftLeft', pause: 'KeyP', potion1: 'KeyT', potion2: 'KeyG', fullscreen: 'KeyF' };
 export const CONTROL_PROFILES = {
   ipadTouch: { name: 'iPad ohne Tastatur', keys: {} },
-  ipadKeyboard: { name: 'iPad mit Tastatur', keys: { ...common, confirm: 'KeyE', back: 'KeyQ', inventory: 'KeyI' } },
+  ipadKeyboard: { name: 'iPad mit Tastatur', keys: { ...common, confirm: 'Enter', back: 'KeyQ', inventory: 'KeyI' } },
   pc: { name: 'PC', keys: { ...common, confirm: 'Enter', back: 'Escape', inventory: 'Tab' } },
 };
 export function controlProfileId(value) { return Object.hasOwn(CONTROL_PROFILES, value) ? value : DEFAULT_CONTROL_PROFILE; }

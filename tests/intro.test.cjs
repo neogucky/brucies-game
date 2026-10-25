@@ -6,34 +6,34 @@ function load(file,name){let code=fs.readFileSync(path.join(root,file),'utf8').r
 load('src/utils/introTimeline.js');load('src/utils/IntroAudio.js','IntroAudio');load('src/scenes/IntroScene.js','IntroScene');load('src/utils/controlProfiles.js');load('src/utils/PortableControls.js','PortableControls');
 
 test('the story follows sleep, shadow, window, treasure dragon, bouncing, yawn and ready beats',()=>{
- for(const [time,beat] of [[0,'sleep'],[5400,'shadow'],[7900,'window'],[11200,'dragon'],[16400,'return'],[19000,'wake'],[21600,'yawn'],[24600,'ready']])assert.equal(ctx.getIntroFrame(time).beat,beat);
- assert.equal(ctx.getIntroFrame(0).helper.pose,'sleep');assert.equal(ctx.getIntroFrame(19000).bedPose,'sleep');assert.equal(ctx.getIntroFrame(21600).bedPose,'yawn');assert.equal(ctx.getIntroFrame(24600).bedPose,'empty');assert.equal(ctx.getIntroFrame(24600).knight.visible,true);
- assert.equal(ctx.getIntroFrame(22500).bedPose,'awake');
+ for(const [time,beat] of [[0,'sleep'],[2700,'shadow'],[5200,'window'],[8500,'dragon'],[13700,'return'],[16300,'wake'],[18900,'yawn'],[22000,'ready']])assert.equal(ctx.getIntroFrame(time).beat,beat);
+ assert.equal(ctx.getIntroFrame(0).helper.pose,'sleep');assert.equal(ctx.getIntroFrame(16300).occupant.pose,'sleep');assert.equal(ctx.getIntroFrame(18900).occupant.pose,'yawn');assert.equal(ctx.getIntroFrame(22000).occupant.visible,false);assert.equal(ctx.getIntroFrame(22000).knight.visible,true);
+ assert.equal(ctx.getIntroFrame(19800).occupant.pose,'awake');
 });
 test('both requested credit lines appear in order, one at a time, and remain readable for several seconds',()=>{
- assert.equal(ctx.getIntroFrame(2000).credit,'Spielidee von Brucy');assert.equal(ctx.getIntroFrame(11000).credit,'Entwickelt mit Onkel Tim');
- assert.equal(ctx.getIntroFrame(2000).creditAlpha,1);assert.equal(ctx.getIntroFrame(11000).creditAlpha,1);assert.equal(ctx.getIntroFrame(6000).credit,'');
+ assert.equal(ctx.getIntroFrame(2000).credit,'Spielidee von Brucy');assert.equal(ctx.getIntroFrame(8300).credit,'Entwickelt mit Onkel Tim');
+ assert.equal(ctx.getIntroFrame(2000).creditAlpha,1);assert.equal(ctx.getIntroFrame(8300).creditAlpha,1);assert.equal(ctx.getIntroFrame(4000).credit,'');
 });
 test('scene cuts occur under black and the dragon crosses above the castle from left to right',()=>{
- assert.equal(ctx.getIntroFrame(8900).transition,1);assert.equal(ctx.getIntroFrame(15500).transition,1);
- assert.equal(ctx.getIntroFrame(11200).stage,'exterior');assert.equal(ctx.getIntroFrame(16000).stage,'bedroom');
- assert.ok(ctx.getIntroFrame(10000).dragon.x<ctx.getIntroFrame(14000).dragon.x);
- assert.ok(ctx.getIntroFrame(11000).dragon.y<350);
+ assert.equal(ctx.getIntroFrame(6200).transition,1);assert.equal(ctx.getIntroFrame(12800).transition,1);
+ assert.equal(ctx.getIntroFrame(8500).stage,'exterior');assert.equal(ctx.getIntroFrame(13300).stage,'bedroom');
+ assert.ok(ctx.getIntroFrame(7300).dragon.x<ctx.getIntroFrame(11300).dragon.x);
+ assert.ok(ctx.getIntroFrame(8300).dragon.y<350);
 });
 test('helper actually reaches the windowsill, bounces on the bed, and ends beside the ready knight',()=>{
- const sill=ctx.getIntroFrame(8500);assert.equal(sill.helper.x,764);assert.equal(sill.helper.y,370);assert.equal(sill.helper.pose,'peek');
- const bounce=ctx.getIntroFrame(18500);assert.equal(bounce.helper.x,280);assert.ok(bounce.helper.y<405);
- const end=ctx.getIntroFrame(28000);assert.equal(end.helper.x,695);assert.equal(end.knight.x,510);assert.equal(end.helper.y,end.knight.y);
+ const sill=ctx.getIntroFrame(5800);assert.equal(sill.helper.x,764);assert.equal(sill.helper.y,370);assert.equal(sill.helper.pose,'peek');
+ const bounce=ctx.getIntroFrame(15800);assert.equal(bounce.helper.x,280);assert.ok(bounce.helper.y<405);
+ const end=ctx.getIntroFrame(25000);assert.equal(end.helper.x,695);assert.equal(end.knight.x,565);assert.equal(end.helper.y,end.knight.y);
 });
 test('reduced motion keeps the whole story but reduces jump height',()=>{
- const normal=ctx.getIntroFrame(18500),reduced=ctx.getIntroFrame(18500,true);assert.equal(normal.beat,reduced.beat);assert.ok(reduced.helper.y>normal.helper.y);
+ const normal=ctx.getIntroFrame(15800),reduced=ctx.getIntroFrame(15800,true);assert.equal(normal.beat,reduced.beat);assert.ok(reduced.helper.y>normal.helper.y);
 });
 test('intro clock clamps invalid/end times and only completes after the ending title',()=>{
- assert.equal(ctx.getIntroFrame(-30).time,0);assert.equal(ctx.getIntroFrame(NaN).time,0);assert.equal(ctx.getIntroFrame(29000).done,false);assert.equal(ctx.getIntroFrame(30500).done,true);assert.equal(ctx.getIntroFrame(99999).time,30500);
+ assert.equal(ctx.getIntroFrame(-30).time,0);assert.equal(ctx.getIntroFrame(NaN).time,0);assert.equal(ctx.getIntroFrame(27000).done,false);assert.equal(ctx.getIntroFrame(27800).done,true);assert.equal(ctx.getIntroFrame(99999).time,27800);
 });
 test('audio cues cannot be replayed or skipped at a normal frame boundary',()=>{
- assert.equal(ctx.introCuesBetween(4690,4710)[0][1],'whoosh');assert.equal(ctx.introCuesBetween(4700,4710).length,0);
- const cues=[];for(let t=0;t<30500;t+=17)cues.push(...ctx.introCuesBetween(t,Math.min(30500,t+17)));
+ assert.equal(ctx.introCuesBetween(1990,2010)[0][1],'whoosh');assert.equal(ctx.introCuesBetween(2000,2010).length,0);
+ const cues=[];for(let t=0;t<27800;t+=17)cues.push(...ctx.introCuesBetween(t,Math.min(27800,t+17)));
  assert.equal(cues.length,18);assert.equal(new Set(cues.map(c=>c[0])).size,cues.length);
 });
 test('intro always returns to the main menu, including developer world URLs',()=>{
@@ -99,7 +99,7 @@ test('every 60-Hz frame keeps the dragon outside and above the helper, with shad
  const floor=vm.runInContext('INTRO_FLOOR_LIGHT',ctx);
  assert.ok(floor.every(p=>p.y>=440&&p.y<=600));
  let outsideFrames=0,shadowFrames=0;
- for(let n=0;n<=1830;n++){
+ for(let n=0;n<=1668;n++){
   const f=ctx.getIntroFrame(n*1000/60);
   if(f.shadow.alpha>0){shadowFrames++;assert.ok(f.shadow.height<f.shadow.width/3);assert.ok(f.shadow.y>450);}
   if(f.stage==='exterior'){
@@ -115,7 +115,7 @@ function introSceneFixture(){
  function art(x=0,y=0,texture=''){
   const o={x,y,texture,text:'',alpha:1,visible:true,list:[],active:true,
    setDisplaySize(w,h){this.displayWidth=w;this.displayHeight=h;return this},setOrigin(){return this},
-   setTint(){return this},setAlpha(a){this.alpha=a;return this},setAngle(a){this.angle=a;return this},
+   setScale(x,y=x){this.scaleX=x;this.scaleY=y;return this},setTint(){return this},setAlpha(a){this.alpha=a;return this},setAngle(a){this.angle=a;return this},
    setVisible(v){this.visible=v;return this},setPosition(x,y){this.x=x;this.y=y;return this},
    setTexture(k){this.texture=k;return this},setText(t){this.text=t;return this},setInteractive(){return this},on(){return this},
    setMask(mask){this.mask=mask;return this},setDepth(){return this},destroy(){this.active=false},
@@ -157,4 +157,46 @@ test('blocked audio does not queue past effects or prevent playback; a later ges
  await a.ready;await a.start();a.play('whoosh');a.play('hop');assert.equal(voices.length,0);
  allowed=true;await a.unlock(12000);assert.equal(voices.length,1);assert.equal(voices[0].offset,12);
  a.play('boing');assert.equal(voices.length,2);a.destroy();
+});
+
+test('the shadow arrives after a short opening while the idea credit stays readable',()=>{
+ assert.equal(ctx.getIntroFrame(1900).shadow.alpha,0);
+ assert.ok(ctx.getIntroFrame(2250).shadow.alpha>0);
+ assert.equal(ctx.getIntroFrame(1500).creditAlpha,1);assert.equal(ctx.getIntroFrame(3000).creditAlpha,1);
+});
+test('sleep letters visibly rise from the knight until waking, and disappear in the outside shot',()=>{
+ assert.ok(ctx.getIntroFrame(0).sleepSymbols.some(z=>z.alpha>.6));
+ const a=ctx.getIntroFrame(300).sleepSymbols[0],b=ctx.getIntroFrame(900).sleepSymbols[0];
+ assert.ok(b.y<a.y);assert.ok(b.x>a.x);assert.ok(b.scale>a.scale);
+ assert.ok(ctx.getIntroFrame(14000).sleepSymbols.some(z=>z.alpha>.6));
+ assert.ok(ctx.getIntroFrame(8000).sleepSymbols.every(z=>z.alpha===0));
+ assert.ok(ctx.getIntroFrame(18000).sleepSymbols.every(z=>z.alpha===0));
+});
+test('jump preparation, push-off, tucked flight and landing use distinct poses before settling',()=>{
+ assert.equal(ctx.getIntroFrame(20200).occupant.pose,'prepare');
+ assert.ok(ctx.getIntroFrame(20200).occupant.scaleY<1);
+ for(const [time,pose] of [[20500,'push'],[20900,'air'],[21600,'ready'],[21800,'land'],[22400,'ready']])assert.equal(ctx.getIntroFrame(time).knight.pose,pose);
+ const landing=ctx.getIntroFrame(21800).knight;assert.ok(landing.scaleX>1);assert.ok(landing.scaleY<1);
+ assert.equal(landing.y,535);assert.equal(ctx.getIntroFrame(22400).knight.x,565);
+});
+test('all frames keep one fixed bed and furniture foreground while only the knight changes',()=>{
+ const {s}=introSceneFixture(),bed={...s.bed},front={...s.bedFront};
+ for(let t=0;t<=27800;t+=1000/60){
+  s.drawFrame(ctx.getIntroFrame(t));
+  for(const key of ['x','y','texture','displayWidth','displayHeight','angle']){
+   assert.equal(s.bed[key],bed[key],key);assert.equal(s.bedFront[key],front[key],key);
+  }
+ }
+ assert.equal(s.bed.texture,'intro-bed-fixed');
+ assert.ok(s.bedroom.list.indexOf(s.occupant)<s.bedroom.list.indexOf(s.bedFront));
+ assert.ok(s.bedroom.list.indexOf(s.bedHero)<s.bedroom.list.indexOf(s.bedFront));
+});
+for(const reduced of [false,true])test(`jump layer changes only once after clearing the bedding, reduced motion: ${reduced}`,()=>{
+ let previous=true,changes=0;
+ for(let t=20450;t<=22300;t+=10){
+  const k=ctx.getIntroFrame(t,reduced).knight;
+  if(k.behindBed!==previous){changes++;assert.ok(k.y<=365);}
+  previous=k.behindBed;
+ }
+ assert.equal(changes,1);
 });
