@@ -29,6 +29,8 @@ export default class MainMenuScene extends Phaser.Scene {
 
     this.input.keyboard.on("keydown-UP", () => this.moveSelection(-1));
     this.input.keyboard.on("keydown-DOWN", () => this.moveSelection(1));
+    this.input.keyboard.on("keydown-LEFT", () => this.moveSelection(-1));
+    this.input.keyboard.on("keydown-RIGHT", () => this.moveSelection(1));
     this.input.keyboard.on("keydown-ENTER", () => this.activateSelection());
     this.input.keyboard.on("keydown-F", () => this.toggleFullscreen());
   }
@@ -40,14 +42,21 @@ export default class MainMenuScene extends Phaser.Scene {
   }
 
   addTitle() {
+    const panel = this.add.graphics();
+    panel.fillStyle(0x091c24, .2).fillRoundedRect(67, 30, 836, 84, 18);
+    panel.fillStyle(0x17323d, .94).fillRoundedRect(62, 25, 836, 84, 18);
+    panel.lineStyle(2, 0xd0b27c, .9).strokeRoundedRect(62, 25, 836, 84, 18);
     this.add
-      .text(480, 90, "Ritter und sein gelber Begleiter", {
+      .text(480, 66, "Ritter und sein gelber Begleiter", {
         fontFamily: "Georgia, serif",
-        fontSize: "50px",
-        color: "#ffffff",
+        fontSize: "37px",
+        fontStyle: "bold",
+        lineSpacing: 5,
+        align: "center",
+        color: "#fff1c9",
       })
       .setOrigin(0.5)
-      .setStroke("#433320", 7);
+      .setStroke("#102732", 2);
     
   }
 
@@ -75,16 +84,20 @@ export default class MainMenuScene extends Phaser.Scene {
       },
     ];
 
+    const bar = this.add.graphics();
+    bar.fillStyle(0x17323d, .94).fillRoundedRect(24, 520, 912, 63, 14);
+    bar.lineStyle(1, 0xd0b27c, .8).strokeRoundedRect(24, 520, 912, 63, 14);
+    this.selectionMark = this.add.graphics();
     menuData.forEach((item, index) => {
       const text = this.add
-        .text(480, 280 + index * 50, item.label, {
+        .text(144 + index * 224, 551, item.label, {
           fontFamily: "Trebuchet MS, sans-serif",
-          fontSize: "28px",
-          color: "#ffffff",
+          fontSize: "22px",
+          color: "#fff8e7",
         })
         .setOrigin(0.5)
-        .setStroke("#433320", 3)
-        .setAlpha(item.enabled ? 1 : 0.4)
+        .setStroke("#102732", 1)
+        .setAlpha(item.enabled ? 1 : 0.35)
         .setInteractive({ useHandCursor: item.enabled })
         .on("pointerover", () => {
           if (!item.enabled) return;
@@ -119,10 +132,13 @@ export default class MainMenuScene extends Phaser.Scene {
   }
 
   updateSelection() {
+    this.selectionMark?.clear();
+    this.selectionMark?.fillStyle(0xe5bd6b, .19).fillRoundedRect(38 + this.selectedIndex * 224, 529, 212, 45, 9);
+    this.selectionMark?.lineStyle(1, 0xf4d28c, .85).strokeRoundedRect(38 + this.selectedIndex * 224, 529, 212, 45, 9);
     this.menuItems.forEach((item, index) => {
       const isSelected = index === this.selectedIndex;
-      item.text.setScale(isSelected && item.enabled ? 1.08 : 1);
-      item.text.setStroke("#433320", isSelected ? 5 : 3);
+      item.text.setScale(1);
+      item.text.setColor?.(isSelected && item.enabled ? "#ffe1a0" : "#fff8e7");
     });
   }
 
@@ -156,6 +172,7 @@ export default class MainMenuScene extends Phaser.Scene {
       this.registry.set("saveData", nextSave);
       saveProgress(nextSave);
     }
+    if (saveData?.currentWorld === 'water') { this.scene.start('WaterMapScene'); return; }
     if (saveData?.currentWorld === "jungle") {
       this.scene.start("JungleMapScene");
       return;

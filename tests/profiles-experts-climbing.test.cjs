@@ -12,10 +12,11 @@ function art(x=0,y=0){return {x,y,active:true,visible:true,texture:{key:''},setD
 test('uncertain hardware always defaults to iPad with keyboard; profile choices are explicit',()=>{
  assert.equal(ctx.controlProfileId(), 'ipadKeyboard');assert.equal(ctx.controlProfileId('unknown'),'ipadKeyboard');assert.equal(Object.keys(profiles).length,3);assert.equal(Object.keys(profiles.ipadTouch.keys).length,0);
 });
-for(const profile of ['ipadKeyboard','pc'])test(`${profile}: exactly one key for each action, with no ambiguous assignments`,()=>{
+for(const profile of ['ipadKeyboard','pc'])test(`${profile}: one key per menu action; WASD and arrows both control movement`,()=>{
  const keys=Object.values(profiles[profile].keys);assert.equal(new Set(keys).size,keys.length);assert.equal(Array.isArray(profiles[profile].keys.confirm),false);assert.equal(Array.isArray(profiles[profile].keys.back),false);
  assert.equal(ctx.actionForKey({code:'KeyE'},profile),null);assert.equal(ctx.actionForKey({code:profile==='pc'?'KeyQ':'Escape'},profile),null);
- for(const code of ['KeyJ','KeyN','Backspace','KeyW','KeyA','KeyS','KeyD'])assert.equal(ctx.actionForKey({code},profile),null);
+ for(const code of ['KeyJ','KeyN','Backspace'])assert.equal(ctx.actionForKey({code},profile),null);
+ for(const [letter,arrow,action] of [['KeyW','ArrowUp','up'],['KeyA','ArrowLeft','left'],['KeyS','ArrowDown','down'],['KeyD','ArrowRight','right']]) { assert.equal(ctx.actionForKey({code:letter},profile),action); assert.equal(ctx.actionForKey({code:arrow},profile),action); }
 });
 for(const profile of Object.keys(profiles))test(`${profile}: displayed confirmation keys and real input agree`,()=>{
  let yes=0,no=0;const s={confirmation:{isOpen:true,choose(answer){if(answer)yes++;else no++}}},c=controls(s,profile);
@@ -58,17 +59,17 @@ for(const [sceneKey,map] of [['DesertRuinScene','DessertMapScene'],['DesertEndle
 test('winning screens continue with Confirm only; Back cannot become a duplicate continue key',()=>{
  const keyboard=new EventEmitter();let continueCount=0;keyboard.on('keydown-ENTER',()=>continueCount++);const s={input:{keyboard},levelCompleted:true},c=controls(s);c.dispatch('back');assert.equal(continueCount,0);c.dispatch('confirm');assert.equal(continueCount,1);
 });
-for(const [world,expert] of Object.entries(experts))test(`${world}: free professor location is saved in the right world and has enemy, equipment and level tips`,()=>{
+for(const [world,expert] of Object.entries(experts))test(`${world}: free professor location is saved in the right world and has enemy and equipment picture cards`,()=>{
  const save=ctx.normalizeWorldProgress({currentWorld:world,currentLevel:expert.id,coins:43,unlockedWorlds:[world],unlockedLevels:[]});
  assert.equal(save.currentWorld,world);assert.equal(save.coins,43);assert.ok(save.unlockedLevels.includes(expert.id));assert.equal(ctx.worldForLevel(expert.id),world);
- for(const category of ['Gegner','Ausrüstung','Level']){assert.ok(expert.topics[category].length>=3);for(const [title,detail] of expert.topics[category]){assert.ok(title.length>3);assert.ok(detail.length>60)}}
+ const cards=vm.runInContext('EXPERT_CARDS',ctx);for(const kind of ['enemy','equipment'])assert.ok(expert.cards.filter(id=>cards[id].kind===kind).length>=2);assert.ok(expert.cards.every(id=>cards[id].tips.every(tip=>tip.length>30)));
 });
 test('experts unlock with their world, without opening later worlds or boss levels',()=>{
  const a=ctx.normalizeWorldProgress({currentLevel:'Wuestenruine'});assert.ok(a.unlockedLevels.includes('Wuestenexperte'));assert.ok(!a.unlockedLevels.includes('Unterweltexperte'));assert.ok(!a.unlockedWorlds.includes('underground'));
  const b=ctx.normalizeWorldProgress({currentLevel:'UnderShop'});assert.ok(b.unlockedLevels.includes('Unterweltexperte'));assert.ok(!b.unlockedLevels.includes('Kristalltiefen'));assert.ok(!b.unlockedWorlds.includes('jungle'));
  const c=ctx.normalizeWorldProgress({currentLevel:'UrwaldShop'});assert.ok(c.unlockedLevels.includes('Urwaldexperte'));assert.ok(!c.unlockedLevels.includes('Lianenpfad'));
 });
-for(const [world,file,start] of [['desert','src/scenes/DessertMapScene.js','Wuestenruine'],['underground','src/scenes/UndergroundMapScene.js','UnderShop'],['jungle','src/scenes/jungle/JungleMapScene.js','UrwaldShop']])test(`${world}: the expert is a real connected map node near the entry`,()=>{
+for(const [world,file,start] of [['desert','src/scenes/DessertMapScene.js','Wuestenruine'],['underground','src/scenes/UndergroundMapScene.js','UnderShop'],['jungle','src/scenes/jungle/JungleMapScene.js','Urwaldkronen']])test(`${world}: the expert is a real connected map node near the entry`,()=>{
  const source=fs.readFileSync(path.join(root,file),'utf8'),match=source.match(/const (?:JUNGLE_)?NODES = (\[[\s\S]*?\n\]);/);const nodes=vm.runInNewContext('('+match[1]+')');const first=nodes.find(n=>n.id===start),expert=nodes.find(n=>n.id===experts[world].id);assert.ok(expert);assert.ok(Object.values(first.neighbors).includes(expert.id));assert.ok(Object.values(expert.neighbors).includes(start));assert.ok(source.includes('"ExpertScene"'));
 });
 for(const level of Object.values(levels))test(`${level.name}: monkeys scurry to a real tree/vine before changing height`,()=>{
@@ -88,7 +89,8 @@ function climber(gender='male'){
 }
 for(const gender of ['male','female'])test(`${gender}: climbing uses a weapon-free asset and cancels pending attacks`,()=>{
  const s=climber(gender);assert.equal(s.updateClimbing(0,true,false,false,.016),true);assert.ok(s.player.texture.key.includes(gender==='female'?'knight-female-climb-':'knight-climb-'));assert.equal(s.isSwinging,false);assert.equal(s.hammerSlamActive,false);assert.equal(s.swordHitbox.visible,false);assert.equal(s.weaponSwitch.pending,null);assert.equal(s.startSwing(),false);assert.equal(s.activateHammerSlam(),false);
- s.updateClimbing(1,true,false,false,.016);assert.equal(s.climbingVine,null);assert.ok(s.player.body.velocity.y<0);assert.ok(s.player.texture.key.includes('hammer-standing'));
+ s.updateClimbing(1,true,false,false,.016);assert.ok(s.climbingVine);assert.equal(s.player.body.gravity,false);
+ s.player.x=366;s.updateClimbing(1,true,false,false,.016);assert.equal(s.climbingVine,null);assert.equal(s.player.body.gravity,true);assert.ok(s.player.texture.key.includes('hammer-standing'));
 });
 test('weapon switching cannot attack while climbing and hides the back weapon display',()=>{
  const s=climber();s.sys={settings:{key:'JungleScene'}};let hits=0;s.startSwing=()=>hits++;const weapon=new ctx.WeaponSwitch(s);s.climbingVine={};weapon.backShield=art();assert.equal(s.startSwing(),false);weapon.pending={kind:'bow',readyAt:0,action:()=>hits++};weapon.update(.05);assert.equal(hits,0);assert.equal(weapon.pending,null);assert.equal(weapon.backShield.visible,false);

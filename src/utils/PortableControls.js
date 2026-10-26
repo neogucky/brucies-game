@@ -11,7 +11,7 @@ const KEY_NAMES = { Enter: 'ENTER', Escape: 'ESC', Tab: 'TAB', Space: 'SPACE', A
   Digit1: 'ONE', Digit2: 'TWO', Digit3: 'THREE', Digit4: 'FOUR' };
 const GAME_KEYS = new Set(['Enter','Escape','Tab','Space','Backspace','ShiftLeft','KeyJ','KeyN','KeyE','KeyQ','KeyI',
   'KeyP','KeyT','KeyG','KeyF','KeyW','KeyA','KeyS','KeyD','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Digit1','Digit2','Digit3','Digit4']);
-const HELD_ACTIONS = new Set(['left','right','up','down','jump']);
+const HELD_ACTIONS = new Set(['left','right','up','down','jump','attack']);
 
 export function resetSceneKeys(scene) {
   const keyboard = scene?.input?.keyboard;
@@ -33,9 +33,11 @@ export function controlBarActions(scene, paused = false) {
   return actions;
 }
 
-export function mapControlHint(profile) {
+export function mapControlHint(profile, shore = false) {
+  if (shore) return profile === 'ipadTouch' ? 'Ufer antippen: hingehen · Schild antippen: Hinweis'
+    : 'WASD / Pfeile: Bewegen · ' + actionLabel(profile, 'confirm', 'Zum Wasser');
   return profile === 'ipadTouch' ? 'Ort antippen: hingehen · Erneut antippen: betreten'
-    : 'Pfeile: Bewegen · ' + actionLabel(profile, 'confirm', 'Betreten');
+    : 'WASD / Pfeile: Bewegen · ' + actionLabel(profile, 'confirm', 'Betreten');
 }
 
 export function introSkipLabel(profile) {
@@ -44,7 +46,7 @@ export function introSkipLabel(profile) {
 
 export default class PortableControls {
   constructor(game) {
-    this.game = game; this.pausedScene = null; this.buttons = {}; this.touchButtons = {}; this.held = new Set();
+    this.game = game; this.pausedScene = null; this.buttons = {}; this.touchButtons = {}; this.held = new Set(); this.heldKeys = new Map(); this.pressedKeys = new Set();
     this.toolbar = document.getElementById('game-controls'); this.canvas = game.canvas;
     this.buildToolbar();
     this.down = event => this.onKey(event, true); this.up = event => this.onKey(event, false);
@@ -59,7 +61,7 @@ export default class PortableControls {
   getProfile() { return controlProfileId(this.game?.registry?.get('saveData')?.settings?.controlProfile); }
   setProfile(value) {
     const profile = controlProfileId(value), save = this.game.registry.get('saveData'); if (!save) return;
-    this.held.clear(); this.game.scene.getScenes(false).forEach(resetSceneKeys);
+    this.clearHeld(); this.game.scene.getScenes(false).forEach(resetSceneKeys);
     const next = { ...save, settings: { ...save.settings, controlProfile: profile } };
     this.game.registry.set('saveData', next); saveProgress(next); this.update(); this.focus();
   }
@@ -86,7 +88,11 @@ export default class PortableControls {
       if (HELD_ACTIONS.has(action)) {
         button.addEventListener('pointerdown', event => { event.preventDefault(); button.setPointerCapture(event.pointerId); this.focus(); this.setHeld(action, true); });
         const release = () => this.setHeld(action, false);
-        button.addEventListener('pointerup', release); button.addEventListener('pointercancel', release); button.addEventListener('lostpointercapture', release);
+        const cancel = () => {
+          if (action !== 'attack') { release(); return; }
+          this.attackScene?.hammerCharge?.cancel(); this.attackScene = null; this.held.delete('attack');
+        };
+        button.addEventListener('pointerup', release); button.addEventListener('pointercancel', cancel); button.addEventListener('lostpointercapture', cancel);
       } else button.addEventListener('click', () => { this.dispatch(action); this.focus(); });
       (['left','up','down','right'].includes(action) ? movement : actions).appendChild(button); this.touchButtons[action] = button;
     });
@@ -103,7 +109,7 @@ export default class PortableControls {
   update() {
     if (!this.canvas && this.game.canvas) { this.canvas = this.game.canvas; this.canvas.tabIndex = 0; this.canvas.addEventListener('pointerdown', this.focusPointer); }
     const scene = this.activeScene(); if (!scene) return;
-    if (scene !== this.lastScene) { resetSceneKeys(this.lastScene); this.held?.clear(); this.lastScene = scene; }
+    if (scene !== this.lastScene) { resetSceneKeys(this.lastScene); this.clearHeld(); this.lastScene = scene; }
     if (!this.toolbar) return;
     const profile = this.getProfile(), touch = profile === 'ipadTouch', intro = Boolean(scene.isIntro);
     const modal = scene.confirmation?.isOpen || scene.inventoryOverlay?.isOpen || scene.dialog?.container?.visible || scene.settingsBox?.visible;
@@ -112,7 +118,7 @@ export default class PortableControls {
     this.touchPad.hidden = !showTouch; document.body.classList.toggle('touch-profile', showTouch);
     document.body.classList.toggle('cinematic-mode', intro);
     if (scene.currentNode && scene.hintText) {
-      const hint = mapControlHint(profile);
+      const hint = mapControlHint(profile, scene.sys.settings.key === 'WaterMapScene');
       if (scene.hintText.text !== hint) scene.hintText.setText(hint);
     }
     const actions = new Set(controlBarActions(scene, Boolean(this.pausedScene)));
@@ -128,6 +134,10 @@ export default class PortableControls {
     disabled(this.buttons.confirm, Boolean(this.pausedScene || (intro && scene.started && !scene.suspended)));
     Object.entries(this.touchButtons).forEach(([action, button]) => {
       const potion = action === 'potion1' ? scene.equipped?.consumable : scene.equipped?.consumable2;
+      if (action === 'attack') {
+        button.textContent = scene.equipped?.weapon === 'powerHammer' ? 'Hammer' : 'Angriff';
+        button.setAttribute('aria-label', scene.equipped?.weapon === 'powerHammer' ? 'Hammer, halten zum Aufladen' : 'Angriff');
+      }
       button.hidden = action === 'shoot' ? !scene.bow?.equipped()
         : action.startsWith('potion') ? !potion || !scene.inventory?.consumables?.honey : false;
       button.disabled = Boolean(this.pausedScene || scene.confirmation?.isOpen || scene.isGameOver || scene.levelCompleted || scene.isComplete
@@ -161,7 +171,7 @@ export default class PortableControls {
     }
     const s = targetScene; if (!s) return;
     if (s.isIntro) {
-      if (action === 'attack') s.finish();
+      if (action === 'attack' || action === 'confirm') s.finish();
       else if (action === 'fullscreen') this.emitKey(s, 'KeyF');
       return;
     }
@@ -180,6 +190,7 @@ export default class PortableControls {
     }
     if (action === 'inventory') { s.toggleInventory?.(); return; }
     if (action === 'shoot') { s.bow?.tryShoot(); return; }
+    if (action === 'attack' && s.hammerCharge) { s.hammerCharge.press(); return; }
     if (action === 'back' && s.isDialogOpen && s.isPaused && !s.isGameOver && !s.levelCompleted) { this.emitKey(s, 'Escape'); return; }
     if (action === 'back' && (s.isGameOver || s.levelCompleted || s.isComplete)) {
       if (!s.isGameOver) return;
@@ -195,6 +206,18 @@ export default class PortableControls {
   }
   setHeld(action, down) {
     const scene = this.activeScene(); if (!scene || this.pausedScene) return;
+    if (action === 'attack') {
+      this.held ||= new Set();
+      if (down) {
+        if (this.held.has(action)) return;
+        this.held.add(action); this.attackScene = scene; this.dispatch(action, scene);
+      } else {
+        this.held.delete(action);
+        const owner = this.attackScene; this.attackScene = null;
+        if (owner === scene) owner?.hammerCharge?.release(); else owner?.hammerCharge?.cancel();
+      }
+      return;
+    }
     const code = INTERNAL_CODES[action];
     const key = ({ left: scene.cursors?.left, right: scene.cursors?.right, up: scene.cursors?.up, down: scene.cursors?.down, jump: scene.wasd?.W })[action];
     const normalized = { keyCode: KEY_CODES[code], timeStamp: performance.now(), altKey: false, ctrlKey: false, metaKey: false, shiftKey: false, repeat: false };
@@ -206,43 +229,65 @@ export default class PortableControls {
       this.emitKey(scene, code);
     } else { this.held?.delete(action); key?.onUp?.(normalized); }
   }
+  clearHeld() { this.held?.clear(); this.heldKeys?.clear(); this.attackScene?.hammerCharge?.cancel(); this.attackScene = null; }
   onKey(event, down) {
+    const code = canonicalCode(event);
+    if (!down) this.pressedKeys?.delete(code);
     const target = event.target;
     if (target?.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target?.tagName || '') || event.isComposing || event.metaKey || event.ctrlKey || event.altKey) return;
     const scene = this.activeScene(); if (!scene) return;
-    const code = canonicalCode(event);
     if (scene.isIntro) {
-      if (down && !event.repeat) scene.audio?.unlock?.(scene.elapsed);
+      if (down && !event.repeat && !this.pressedKeys?.has(code)) scene.audio?.unlock?.(scene.elapsed);
       if (!GAME_KEYS.has(code)) return;
       event.preventDefault(); event.stopImmediatePropagation();
-      if (down && !event.repeat && code === 'Space') this.dispatch('attack', scene);
-      else if (down && !event.repeat && code === 'KeyF') this.dispatch('fullscreen', scene);
+      if (!down || event.repeat || this.pressedKeys?.has(code)) return;
+      this.pressedKeys ||= new Set(); this.pressedKeys.add(code);
+      if (code === 'Space') this.dispatch('attack', scene);
+      else if (code === 'Enter') this.dispatch('confirm', scene);
+      else if (code === 'KeyF') this.dispatch('fullscreen', scene);
       return;
     }
     const profile = this.getProfile(), action = actionForKey(event, profile);
     if (!action && !GAME_KEYS.has(code)) return;
     event.preventDefault(); event.stopImmediatePropagation();
+    if (down) {
+      // Keep this latch across scene changes: the key that skips the intro or
+      // opens a scene cannot also activate something in the next scene.
+      // Some keyboard covers send repeated keydowns without event.repeat.
+      if (event.repeat || this.pressedKeys?.has(code)) return;
+      this.pressedKeys ||= new Set(); this.pressedKeys.add(code);
+    }
     if (!action) {
       if (down && !event.repeat && profile === 'pc' && /^Digit[1-4]$/.test(code)) this.emitKey(scene, code);
       return;
     }
-    if (HELD_ACTIONS.has(action)) { if (!event.repeat || !down) this.setHeld(action, down); }
+    if (HELD_ACTIONS.has(action)) {
+      this.heldKeys ||= new Map();
+      if (down) {
+        if (!event.repeat) { this.heldKeys.set(code, action); this.setHeld(action, true); }
+      } else {
+        this.heldKeys.delete(code);
+        // Releasing W must not release Up if the arrow is still held, or vice versa.
+        if (![...this.heldKeys.values()].includes(action)) this.setHeld(action, false);
+      }
+    }
     else if (down && !event.repeat) this.dispatch(action);
   }
   pause(scene) {
     if (!scene?.player || scene.isPaused || scene.isGameOver || scene.levelCompleted || scene.isComplete) return;
-    resetSceneKeys(scene); this.held?.clear(); this.pausedScene = scene; scene.scene.pause();
+    resetSceneKeys(scene); this.clearHeld(); this.pausedScene = scene; scene.scene.pause();
     if (this.overlay) { this.overlay.hidden = false; this.resumeButton.focus({ preventScroll: true }); }
   }
   resume() {
     const s = this.pausedScene; if (!s) return;
-    resetSceneKeys(s); this.held?.clear(); s.scene.resume(); this.pausedScene = null;
+    resetSceneKeys(s); this.clearHeld(); s.scene.resume(); this.pausedScene = null;
     if (typeof s.worldTime === 'number') s.invulnerableUntil = Math.max(s.invulnerableUntil || 0, s.worldTime + 1000);
     s.player?.setData?.('invulnerableUntil', Math.max(s.player?.getData?.('invulnerableUntil') || 0, s.time.now + 1000));
     if (this.overlay) this.overlay.hidden = true; this.focus();
   }
   autoPause() {
-    const s = this.activeScene(); resetSceneKeys(s); this.held?.clear();
+    this.pressedKeys?.clear();
+    const s = this.activeScene(); resetSceneKeys(s); this.clearHeld();
     if (s?.isIntro) { s.suspendIntro(); return; }
     if (!this.pausedScene) this.pause(s);
   }

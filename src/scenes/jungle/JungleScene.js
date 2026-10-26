@@ -6,7 +6,7 @@ import TopHud from "../../ui/topHud.js";
 import InventoryOverlay from "../../ui/InventoryOverlay.js";
 import ShieldManager from "../../utils/ShieldManager.js";
 import { applyInventoryToSave, normalizeInventory } from "../../utils/inventory.js";
-import { getWeaponStats, getWeaponDamage, applyWeaponAppearance } from "../../utils/weapons.js";
+import { getWeaponStats, getWeaponDamage, applyWeaponAppearance, getAttackStats, getMeleeDamage } from "../../utils/weapons.js";
 import { applyItemModeSupport, GAME_MODES } from "../../utils/itemRegistry.js";
 import { JUNGLE_LEVELS, JUNGLE_BRANCHES, JUNGLE_PHYSICS, MONKEY_TYPES, MONKEY_KING_THROWS,
   canLandOnBranch, circleTouchesRect, secondsLeft, planMonkeyClimb, advanceMonkeyClimb } from "../../utils/jungleRules.js";
@@ -23,6 +23,7 @@ export default class JungleScene extends Phaser.Scene {
     this.config = JUNGLE_LEVELS[this.levelId];
     this.branches = this.config.branches; this.levelHeight = this.config.height;
     this.dropThroughY = null; this.dropUntil = 0; this.lastDownAt = -1000; this.climbingVine = null; this.climbCooldown = 0;
+    this.climbMantle = null;
     this.gameMode = GAME_MODES.JUMP;
     this.isPaused = false; this.isGameOver = false; this.levelCompleted = false;
     this.isDucking = false; this.facingX = 1; this.isSwinging = false;
@@ -96,7 +97,7 @@ export default class JungleScene extends Phaser.Scene {
         && canLandOnBranch(player.body, branch.body.top), this);
     this.cameras.main.startFollow(this.player, true, .1, .12).setDeadzone(320, 130);
     this.cameras.main.setScroll(0, this.levelHeight - 600);
-    this.swordHitbox = this.add.rectangle(-100, -100, 48, 38, 0xffeead, .25)
+    this.swordHitbox = this.add.rectangle(-100, -100, 48, 38, 0xffeead, 0)
       .setDepth(19).setVisible(false);
   }
 
@@ -162,7 +163,7 @@ export default class JungleScene extends Phaser.Scene {
   createControls() {
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys("W,A,S,D");
-    this.input.keyboard.on("keydown-SPACE", () => this.startSwing());
+    this.input.keyboard.on("keydown-SPACE", event => { if (this.hammerCharge) this.hammerCharge.press(event); else this.startSwing(); });
     this.input.keyboard.on("keydown-T", () => this.useHoney());
     this.input.keyboard.on("keydown", event => {
       if (event.code !== "Tab") return;
@@ -247,27 +248,36 @@ export default class JungleScene extends Phaser.Scene {
         else return;
       }
       const view = this.cameras?.main?.worldView;
-      if (view && (m.y < view.y - 90 || m.y > view.bottom + 90)) return;
-      if (Math.abs(m.y - this.player.body.bottom) > 480) return;
+      if ((view && (m.y < view.y - 90 || m.y > view.bottom + 90)) || Math.abs(m.y - this.player.body.bottom) > 480) {
+        this.cancelCharge(m); m.nextThrowAt = Math.max(m.nextThrowAt, now + 600); return;
+      }
       if (m.isBoss && !m.awake) {
         if (this.player.body.bottom > Math.max(...m.perches) + 150) return;
         m.awake = true; m.nextThrowAt = now + 800; m.nextClimbAt = now + 6000;
       }
       if (now < m.stunnedUntil) return;
       m.sprite.setTint(m.climbing || m.chargeUntil ? MONKEY_TYPES[m.kind].color : 0xffffff);
-      if (m.chargeUntil) {
-        m.throwPreview?.setPosition(m.x + (this.player.x < m.x ? -30 : 30), m.y - 58);
+      if (m.attackPhase === 'search') {
+        // Looking around may follow the hero. Raising the coconut commits to one spot.
+        m.sprite.setAngle?.(Math.sin((now - m.searchStartedAt) / 110) * 5);
+        if (now >= m.searchUntil) this.prepareMonkeyThrow(m);
+      } else if (m.chargeUntil) {
+        m.throwPreview?.setPosition(m.x + m.throwDirection * 30, m.y - 58);
         if (now >= m.chargeUntil) {
-          const from = { x: m.x + (this.player.x < m.x ? -28 : 28), y: m.y - 48 };
-          const target = { x: this.player.body.center.x, y: this.player.body.center.y };
+          const from = { x: m.x + m.throwDirection * 28, y: m.y - 48 };
+          const target = m.throwTarget;
+          const direction = m.throwDirection;
           this.playJungleSound("sfx-monster-attack");
           this.hazards.throw(m.throwKind || m.kind, from, target, m);
           m.throwCount = (m.throwCount || 0) + 1;
           this.cancelCharge(m);
           m.nextThrowAt = now + (m.isBoss ? Math.max(1500, 2400 - (18 - m.hp) * 35) : MONKEY_TYPES[m.kind].interval);
           if (m.isBoss) { m.vulnerableUntil = now + 1300; m.hitsLeft = 2; m.helperHit = false; }
-          this.setMonkeyPose(m, "standing");
+          m.attackPhase = 'release'; m.releaseUntil = now + 220; m.throwDirection = direction;
+          this.setMonkeyPose(m, 'throwing'); m.sprite.setAngle?.(-direction * 12);
         }
+      } else if (m.attackPhase === 'release') {
+        if (now >= m.releaseUntil) { this.cancelCharge(m); this.setMonkeyPose(m, 'standing'); }
       } else if (m.climbing) {
         const phase = advanceMonkeyClimb(m, dt, m.isBoss ? 210 : 180, m.isBoss ? 105 : 62);
         m.sprite.setPosition(m.x, m.y);
@@ -281,23 +291,15 @@ export default class JungleScene extends Phaser.Scene {
         this.cancelCharge(m); m.targetY = route.targetY; m.climbRoute = route; m.climbing = true;
         this.setMonkeyPose(m, 'standing');
       } else if (now >= m.nextThrowAt && !this.confirmation?.isOpen) {
-        m.chargeUntil = now + (m.isBoss ? 850 : 700);
-        this.playJungleSound("sfx-charging");
-        const attack = m.isBoss ? MONKEY_KING_THROWS[(m.throwCount || 0) % MONKEY_KING_THROWS.length] : null;
-        m.throwKind = attack?.kind || m.kind;
-        if (m.isBoss) {
-          m.throwPreview = this.add.image(m.x + (this.player.x < m.x ? -30 : 30), m.y - 58,
-            m.throwKind === "stone" ? "underground-stonemonster-rolledup" : "coconut-" + m.throwKind)
-            .setDisplaySize(28, 28).setDepth(24);
-        }
-        this.setMonkeyPose(m, "throwing");
-        m.warning = this.add.text(m.x, m.y - (m.isBoss ? 105 : 77),
-          attack?.warning || "!", { ...textStyle, color: attack?.color || "#ffe194", fontSize: "20px" })
-          .setOrigin(.5).setDepth(25);
+        m.attackPhase = 'search'; m.searchStartedAt = now; m.searchUntil = now + 550;
+        this.setMonkeyPose(m, 'standing');
+        m.warning = this.add.text(m.x, m.y - (m.isBoss ? 105 : 77), '?',
+          { ...textStyle, color: '#fff2bd', fontSize: '20px' }).setOrigin(.5).setDepth(25);
       }
       const route = m.climbRoute;
       const horizontalTarget = route?.phase === 'approach' ? route.anchorX : route?.phase === 'depart' ? route.targetX : null;
-      m.sprite.setFlipX(horizontalTarget === null ? this.player.x > m.x : horizontalTarget > m.x);
+      const lookX = m.attackPhase && m.attackPhase !== 'search' ? m.x + m.throwDirection : this.player.x;
+      m.sprite.setFlipX(horizontalTarget === null ? lookX > m.x : horizontalTarget > m.x);
     });
     if (this.boss?.active) {
       this.bossBar.width = 180 * this.boss.hp / this.boss.maxHp;
@@ -313,9 +315,25 @@ export default class JungleScene extends Phaser.Scene {
     m.sprite.setDisplaySize(70, 70);
     if (pose !== "standing") m.sprite.setTint(MONKEY_TYPES[m.kind].color);
   }
+  prepareMonkeyThrow(m) {
+    const target = this.player.body.center;
+    m.throwTarget = { x: target.x, y: target.y };
+    m.throwDirection = target.x < m.x ? -1 : 1;
+    m.attackPhase = 'windup'; m.chargeUntil = this.worldTime + (m.isBoss ? 950 : 800);
+    const attack = m.isBoss ? MONKEY_KING_THROWS[(m.throwCount || 0) % MONKEY_KING_THROWS.length] : null;
+    m.throwKind = attack?.kind || m.kind;
+    m.sprite.setAngle?.(0); this.setMonkeyPose(m, 'throwing');
+    m.warning?.setText(attack?.warning || '!').setColor?.(attack?.color || '#ffe194');
+    m.throwPreview = this.add.image(m.x + m.throwDirection * 30, m.y - 58,
+      m.throwKind === 'stone' ? 'underground-stonemonster-rolledup' : 'coconut-' + m.throwKind)
+      .setDisplaySize(m.isBoss ? 28 : 18, m.isBoss ? 28 : 18).setDepth(24);
+    this.playJungleSound('sfx-charging');
+  }
   cancelCharge(m) {
     m.warning?.destroy(); m.throwPreview?.destroy();
     m.warning = null; m.throwPreview = null; m.chargeUntil = 0;
+    m.attackPhase = null; m.throwTarget = null; m.throwDirection = null;
+    m.sprite?.setAngle?.(0);
   }
 
   damageMonkey(m, amount, helper = false) {
@@ -338,9 +356,10 @@ export default class JungleScene extends Phaser.Scene {
     return true;
   }
 
-  startSwing() {
+  startSwing(attack = null) {
     if (this.climbingVine || this.isPaused || this.isGameOver || this.levelCompleted || this.isSwinging || this.hammerSlamActive) return false;
-    const stats = getWeaponStats(this.equipped.weapon); if (!stats) return false;
+    const stats = getAttackStats(this.equipped.weapon, attack); if (!stats) return false;
+    this.hammerAttack = attack;
     if (this.autoAimEnabled) {
       const target = [...this.monkeys, ...(this.boss ? [this.boss] : [])]
         .filter(m => m.active && !m.hidden && Math.abs(m.x - this.player.x) <= stats.width + 30 && Math.abs(m.y - this.player.body.bottom) < 70)
@@ -348,6 +367,7 @@ export default class JungleScene extends Phaser.Scene {
       if (target) this.facingX = target.x >= this.player.x ? 1 : -1;
     }
     this.isSwinging = true; this.swingHits = new Set();
+    this.swingStartedAt = this.worldTime; this.swingVisualKind = 'swing';
     this.swingReadyAt = this.worldTime + stats.windupMs;
     this.swingUntil = this.worldTime + stats.swingMs;
     this.player.setFlipX(this.facingX > 0).setTexture(this.player.getData("hitTexture"));
@@ -363,24 +383,30 @@ export default class JungleScene extends Phaser.Scene {
     }
     const stats = getWeaponStats(this.equipped.weapon);
     if (!stats) { this.isSwinging = false; this.swordHitbox.setVisible(false); return; }
-    const hit = new Phaser.Geom.Rectangle(this.player.x + (this.facingX > 0 ? 0 : -stats.width),
-      this.player.body.bottom - 55, stats.width, 40);
+    const hit = this.getMeleeBounds();
     this.swordHitbox.setPosition(hit.x + hit.width / 2, hit.y + hit.height / 2)
-      .setSize(hit.width, hit.height).setVisible(this.worldTime >= this.swingReadyAt);
+      .setSize(hit.width, hit.height).setVisible(false);
     if (this.worldTime < this.swingReadyAt) return;
     [...this.monkeys, ...(this.boss ? [this.boss] : [])].forEach(m => {
       if (!m.active || m.hidden || this.swingHits.has(m) || !Phaser.Geom.Intersects.RectangleToRectangle(hit, this.enemyBounds(m))) return;
-      this.swingHits.add(m); this.damageMonkey(m, getWeaponDamage(this.equipped.weapon));
+      this.swingHits.add(m); this.damageMonkey(m, getMeleeDamage(this));
     });
     [...this.hazards.projectiles].forEach(p => {
       if (p.kind !== "stone" || this.swingHits.has(p) || !circleTouchesRect(p.x, p.y, p.radius, hit)) return;
-      this.swingHits.add(p); this.hazards.damageStone(p, getWeaponDamage(this.equipped.weapon, true));
+      this.swingHits.add(p); this.hazards.damageStone(p, getMeleeDamage(this, true));
     });
+  }
+
+  getMeleeBounds() {
+    const stats = getWeaponStats(this.equipped.weapon) || getWeaponStats('sword');
+    return new Phaser.Geom.Rectangle(this.player.x + (this.facingX > 0 ? 0 : -stats.width),
+      this.player.body.bottom - 55, stats.width, 40);
   }
 
   landSlam() {
     if (!this.hammerSlamActive) return;
     this.hammerSlamActive = false; this.isSwinging = false; this.startSwing();
+    this.swingVisualKind = 'landing';
     this.swingReadyAt = Infinity;
     const x = this.player.x, y = this.player.body.bottom, radius = 95;
     [...this.monkeys, ...(this.boss ? [this.boss] : [])].forEach(m => {
@@ -432,11 +458,12 @@ export default class JungleScene extends Phaser.Scene {
     this.physics.world.pause(); this.swordHitbox.setVisible(false);
     this.hazards.destroy();
     const save = this.registry.get("saveData") || {};
+    const reward = won && !save.completedLevels?.includes(this.levelId) ? this.config.reward : 0;
     if (won) {
       const completed = new Set(save.completedLevels || []); completed.add(this.levelId);
       const unlocked = new Set(save.unlockedLevels || []);
-      if (this.config.boss) unlocked.add("Lianenpfad");
-      this.coins += this.config.reward;
+      if (this.config.boss) { unlocked.add("UrwaldShop"); unlocked.add("Lianenpfad"); }
+      this.coins += reward;
       this.hud.setCoins(this.coins);
       this.saveState({ completedLevels: [...completed], unlockedLevels: [...unlocked] });
     } else { this.health = 5; this.saveState(); }
@@ -446,7 +473,7 @@ export default class JungleScene extends Phaser.Scene {
     panel.add(this.add.text(480, 205, won ? "URWALD-SIEG!" : "NOCH EIN VERSUCH!",
       { ...textStyle, fontSize: "40px", color: "#ffe19a" }).setOrigin(.5));
     panel.add(this.add.text(480, 285, won
-      ? (this.config.boss ? "Der Affenkönig ist besiegt!\nLianenpfad freigeschaltet." : "Die goldene Kokosnuss gehört dir!") + "\n+" + this.config.reward + " Gold"
+      ? (this.config.boss ? "Der Affenkönig ist besiegt!\nUrwald-Shop und Lianenpfad freigeschaltet." : "Die goldene Kokosnuss gehört dir!") + (reward ? "\n+" + reward + " Gold" : "")
       : "Deine Herzen sind wieder voll.",
       { ...textStyle, fontSize: "23px", align: "center", lineSpacing: 10 }).setOrigin(.5));
     const button = this.add.text(480, 398, won ? "Zur Urwaldkarte · {confirm}" : "Neustart · {confirm}     Urwaldkarte · {back}",
@@ -483,39 +510,73 @@ export default class JungleScene extends Phaser.Scene {
     const platform = this.branches.find(p => !p.ground && Math.abs(p.y - body.bottom) < 10 && body.right > p.x && body.x < p.x + p.width);
     if (!platform) return false;
     this.dropThroughY = platform.y; this.dropUntil = now + 450;
+    this.lastGroundedAt = -1000;
     this.player.y += 7; body.position.y += 7; body.updateCenter();
     body.blocked.down = false; body.touching.down = false; body.setVelocityY(110);
     return true;
   }
 
-  updateClimbing(direction, up, down, jump, dt = .016) {
+  updateClimbing(direction, up, down, _jump, dt = .016) {
     const body = this.player.body, now = this.worldTime;
-    if (!this.climbingVine && now >= this.climbCooldown && (up || down)) {
-      this.climbingVine = (this.config.vines || []).find(v => Math.abs(v.x - this.player.x) < 30 &&
-        body.bottom > v.top + 8 && body.y < v.bottom + 12) || null;
+    if (this.climbMantle) { this.updateClimbMantle(dt); return true; }
+    const grounded = body.blocked?.down || body.touching?.down;
+    // Down on a branch means crouch/drop. Only grab downward in free air
+    // after a deliberate drop has finished; Up can catch the vine at any time.
+    const wantsToGrab = up || (down && !grounded && now >= (this.dropUntil || 0));
+    const reachingUpWhileFalling = up && body.velocity?.y > 0;
+    if (!this.climbingVine && (now >= this.climbCooldown || reachingUpWhileFalling) && wantsToGrab) {
+      this.climbingVine = (this.config.vines || []).find(v => Math.abs(v.x - this.player.x) <= 15 &&
+        body.bottom > v.top + 8 && body.y <= v.bottom) || null;
       if (this.climbingVine) {
         this.isSwinging = false; this.hammerSlamActive = false; this.swordHitbox?.setVisible(false);
         this.climbDistance = 0;
-        if (this.weaponSwitch) { this.weaponSwitch.pending = null; this.weaponSwitch.hand = 'melee'; }
+        this.lastGroundedAt = -1000;
+        if (this.weaponSwitch) { this.weaponSwitch.pending = null; this.weaponSwitch.hand = 'melee'; this.weaponSwitch.shotUntil = 0; }
       }
     }
     const vine = this.climbingVine; if (!vine) return false;
-    if (jump || direction) {
+    if (Math.abs(this.player.x - vine.x) > 15) {
       this.climbingVine = null; this.climbCooldown = now + 350; body.setAllowGravity(true);
-      const leap = jump || (up && !this.hazards.isSticky());
-      body.setVelocity(direction * 210, leap ? -430 : 0); this.restoreAfterClimbing(); return false;
+      body.setVelocity(direction * 210, 0); this.restoreAfterClimbing(); return false;
     }
     const speed = ((down ? 1 : 0) - (up ? 1 : 0)) * 145 * (this.hazards.isSticky() ? .45 : 1);
-    body.setAllowGravity(false); body.setVelocity(0, speed);
-    this.player.x += (vine.x - this.player.x) * .25;
+    body.setAllowGravity(false); body.setVelocity(direction * 90, speed);
     this.climbDistance += Math.abs(speed) * dt;
     const female = this.registry?.get('saveData')?.playerGender === 'female';
     const texture = (female ? 'knight-female-climb-' : 'knight-climb-') + Math.floor(this.climbDistance / 24) % 2;
     if (this.textures?.exists(texture)) this.player.setTexture(texture);
+    const platform = this.branches?.find(p => Math.abs(p.y - vine.top) < 16 && vine.x >= p.x && vine.x <= p.x + p.width);
+    if (up && platform && body.bottom <= platform.y + 62) {
+      this.climbMantle = { elapsed: 0, startX: this.player.x, startY: this.player.y,
+        endX: Math.max(platform.x + 26, Math.min(platform.x + platform.width - 26, vine.x + (this.facingX || 1) * 20)),
+        endY: this.player.y + platform.y - body.bottom - 1.5 };
+      body.setVelocity(0, 0); this.updateClimbMantle(0); return true;
+    }
     if (body.bottom < vine.top + 2 || body.y > vine.bottom || (down && body.bottom > vine.bottom + 6)) {
       this.climbingVine = null; this.climbCooldown = now + 300; body.setAllowGravity(true); body.setVelocityY(-45); this.restoreAfterClimbing();
     }
     return true;
+  }
+
+  updateClimbMantle(dt) {
+    const mantle = this.climbMantle, body = this.player.body;
+    mantle.elapsed += Math.max(0, Math.min(.05, dt));
+    const t = Math.min(1, mantle.elapsed / .68), lift = t * t * (3 - 2 * t);
+    const female = this.registry?.get('saveData')?.playerGender === 'female';
+    const key = (female ? 'knight-female-mantle-' : 'knight-mantle-') + Math.min(3, Math.floor(t * 4));
+    if (this.textures?.exists(key)) this.player.setTexture(key);
+    this.player.setPosition(mantle.startX + (mantle.endX - mantle.startX) * lift,
+      mantle.startY + (mantle.endY - mantle.startY) * lift);
+    body.reset(this.player.x, this.player.y);
+    // reset() starts at the image corner; immediately include our smaller,
+    // offset hitbox so the last pose already rests on the platform this frame.
+    body.updateFromGameObject();
+    body.prev.copy(body.position); body.prevFrame.copy(body.position); body.autoFrame.copy(body.position);
+    body.setAllowGravity(false); body.setVelocity(0, 0);
+    if (t >= 1) {
+      this.climbMantle = null; this.climbingVine = null; this.climbCooldown = this.worldTime + 400;
+      body.setAllowGravity(true); this.lastGroundedAt = this.worldTime; this.restoreAfterClimbing();
+    }
   }
 
   restoreAfterClimbing() { const key = this.player.getData?.('standingTexture'); if (key) this.player.setTexture(key); }
@@ -524,7 +585,10 @@ export default class JungleScene extends Phaser.Scene {
     const body = this.player.body;
     if (this.climbingVine || body.blocked.down || body.touching.down || this.isPaused || this.hammerSlamActive) return false;
     this.climbingVine = null; body.setAllowGravity(true);
-    this.hammerSlamActive = true; this.isSwinging = true; body.setVelocityY(Math.max(550, body.velocity.y));
+    this.hammerCharge?.cancel();
+    this.hammerSlamActive = true; this.isSwinging = true;
+    this.swingStartedAt = this.worldTime; this.swingVisualKind = 'slam';
+    body.setVelocityY(Math.max(550, body.velocity.y));
     this.player.setTexture(this.player.getData('hitTexture')); return true;
   }
 
@@ -544,7 +608,7 @@ export default class JungleScene extends Phaser.Scene {
     const dropped = downPress && this.tryDropThrough();
     const climbing = this.updateClimbing(direction, upHeld, downHeld, jumpW && !sticky, dt);
     if (!climbing) {
-      body.setVelocityX(this.hammerSlamActive ? 0 : direction * JUNGLE_PHYSICS.moveSpeed * (sticky ? JUNGLE_PHYSICS.slowFactor : 1));
+      body.setVelocityX(this.hammerSlamActive ? 0 : direction * JUNGLE_PHYSICS.moveSpeed * (this.hammerCharge?.moveFactor ?? 1) * (sticky ? JUNGLE_PHYSICS.slowFactor : 1));
       if ((jumpUp || jumpW) && !sticky && !this.hammerSlamActive && this.worldTime - this.lastGroundedAt < 110) {
         body.setVelocityY(-JUNGLE_PHYSICS.jumpSpeed * (this.equipped.shoes || this.equipped.passive === 'shoes' ? 1.12 : 1));
         this.lastGroundedAt = -1000; this.playJungleSound('sfx-jump');
@@ -553,7 +617,7 @@ export default class JungleScene extends Phaser.Scene {
         if (this.weaponSwitch) this.weaponSwitch.request('melee', () => this.activateHammerSlam()); else this.activateHammerSlam();
       }
     }
-    if (direction && !this.isSwinging) { this.facingX = direction; this.player.setFlipX(direction > 0); }
+    if (direction && !this.isSwinging && !this.climbMantle) { this.facingX = direction; this.player.setFlipX(direction > 0); }
     const ducking = downHeld && grounded && !climbing;
     if (ducking !== this.isDucking) {
       this.isDucking = ducking; body.setSize(50, ducking ? 70 : 108, false).setOffset(49, ducking ? 77 : 39);

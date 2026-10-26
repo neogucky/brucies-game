@@ -20,9 +20,28 @@ function load(file, replacement = '') {
 }
 load('src/utils/jungleRules.js');
 load('src/utils/weapons.js');
+load('src/utils/inventory.js'); context.saveProgress=()=>{};
 load('src/utils/JungleHazards.js', 'Hazards');
 load('src/scenes/jungle/JungleScene.js', 'JungleScene');
 const rules = vm.runInContext('({ JUNGLE_BRANCHES, JUNGLE_PHYSICS, MONKEY_TYPES, JUNGLE_LEVELS })', context);
+
+for(const [level,bonus] of [['Urwaldkronen',50],['Lianenpfad',25]])for(const completed of [false,true])
+test(level+(completed?' replay has no completion bonus':' first victory pays a small completion bonus'),()=>{
+  let save={coins:100,health:3,completedLevels:completed?[level]:[],unlockedLevels:['Urwaldkronen']};const labels=[];
+  const art=()=>Object.assign(visual(),{setScrollFactor(){return this},setStrokeStyle(){return this},setInteractive(){return this},on(){return this}});
+  const s=Object.create(context.JungleScene.prototype);
+  Object.assign(s,{levelId:level,config:rules.JUNGLE_LEVELS[level],coins:100,health:3,
+    inventory:{weapons:{sword:true},passives:{},consumables:{},companions:{default:true}},equipped:{weapon:'sword'},
+    registry:{get:()=>save,set(_key,next){save=next}},physics:{world:{pause(){}}},swordHitbox:art(),hazards:{destroy(){}},hud:{setCoins(){}},
+    input:{keyboard:{once(){}}},playJungleSound(){},scene:{start(){},restart(){}},
+    add:{container(){return Object.assign(art(),{list:[],add(child){this.list.push(child);return this}})},rectangle:art,
+      text(_x,_y,text){labels.push(text);return art()}}});
+  s.finish(true);assert.equal(save.coins,100+(completed?0:bonus));assert.ok(save.completedLevels.includes(level));
+  assert.equal(save.health,3);assert.equal(labels.some(text=>text.includes('+'+bonus+' Gold')),!completed);
+  assert.ok(!labels.some(text=>text.includes('+0 Gold')));
+  if(level==='Urwaldkronen')assert.ok(save.unlockedLevels.includes('UrwaldShop')&&save.unlockedLevels.includes('Lianenpfad'));
+  s.finish(true);assert.equal(save.coins,100+(completed?0:bonus));
+});
 
 function visual(x = 0, y = 0) {
   return { x, y, active: true, angle: 0,
@@ -30,6 +49,7 @@ function visual(x = 0, y = 0) {
     setTint() { return this; }, clearTint() { return this; }, setFlipX() { return this; },
     setPosition(x, y) { this.x = x; this.y = y; return this; },
     setText(text) { this.text = text; return this; }, setTexture(key) { this.texture = key; return this; },
+    setColor(color) { this.style = { ...this.style, color }; return this; },
     setVisible(value) { this.visible = value; return this; }, setSize() { return this; },
     setAlpha() { return this; }, destroy() { this.active = false; },
   };
@@ -233,11 +253,13 @@ test('monkeys telegraph audibly and play an attack sound on a throw that misses'
     hp: 3, stunnedUntil: 0, nextClimbAt: 9000, nextThrowAt: 1000 };
   Object.assign(scene, { worldTime: 1000, monkeys: [monkey], boss: null,
     player: { x: 850, body: { center: { x: 850, y: 500 } } },
-    add: { text: visual }, playJungleSound: key => sounds.push(key),
+    add: { text: visual, image: visual }, playJungleSound: key => sounds.push(key),
     hazards: { throw: (...args) => throws.push(args) } });
   scene.updateMonkeys(.016);
+  assert.equal(monkey.attackPhase, 'search'); assert.equal(throws.length, 0);
+  scene.worldTime = monkey.searchUntil; scene.updateMonkeys(.016);
   assert.deepEqual(sounds, ['sfx-charging']); assert.equal(throws.length, 0);
-  scene.worldTime = 1700; scene.updateMonkeys(.016);
+  scene.worldTime = monkey.chargeUntil; scene.updateMonkeys(.016);
   assert.deepEqual(sounds, ['sfx-charging', 'sfx-monster-attack']); assert.equal(throws.length, 1);
 });
 
@@ -267,7 +289,9 @@ function kingScene() {
 test('the monkey king throws every coconut color and a stone in each complete attack cycle', () => {
   const { scene, boss, hazards } = kingScene(), thrown = [];
   for (let i = 0; i < 8; i++) {
+    if (boss.attackPhase === 'release') { scene.worldTime = boss.releaseUntil; scene.updateMonkeys(0); }
     scene.worldTime = boss.nextThrowAt; scene.updateMonkeys(0);
+    scene.worldTime = boss.searchUntil; scene.updateMonkeys(0);
     const preview = boss.throwPreview, warning = boss.warning, kind = boss.throwKind;
     assert.equal(preview.texture, kind === 'stone' ? 'underground-stonemonster-rolledup' : 'coconut-' + kind);
     assert.ok(warning.text.length > 1);
@@ -287,6 +311,7 @@ test('the king visibly warns of a red explosive coconut and a blue coconut befor
   for (const [count, kind, label, color] of [[1, 'red', 'EXPLOSIV!', '#ffaaa0'], [2, 'blue', 'BLAUE KOKOSNUSS!', '#a9dcff']]) {
     const { scene, boss, hazards } = kingScene(); boss.throwCount = count;
     scene.updateMonkeys(0);
+    scene.worldTime = boss.searchUntil; scene.updateMonkeys(0);
     assert.equal(boss.throwKind, kind); assert.equal(boss.warning.text, label);
     assert.equal(boss.warning.style.color, color);
     assert.equal(boss.throwPreview.texture, 'coconut-' + kind);
@@ -296,9 +321,40 @@ test('the king visibly warns of a red explosive coconut and a blue coconut befor
 
 test('canceling a king throw removes both warning and projectile preview without advancing the sequence', () => {
   const { scene, boss, hazards } = kingScene(); boss.throwCount = 2; scene.updateMonkeys(0);
+  scene.worldTime = boss.searchUntil; scene.updateMonkeys(0);
   const preview = boss.throwPreview, warning = boss.warning;
   scene.cancelCharge(boss);
   assert.equal(preview.active, false); assert.equal(warning.active, false);
   assert.equal(boss.chargeUntil, 0); assert.equal(boss.throwCount, 2); assert.equal(hazards.projectiles.length, 0);
-  scene.updateMonkeys(0); assert.equal(boss.throwKind, 'blue');
+  scene.updateMonkeys(0);scene.worldTime=boss.searchUntil;scene.updateMonkeys(0);assert.equal(boss.throwKind, 'blue');
+});
+
+for (const bossMode of [false, true]) test(`${bossMode ? 'king' : 'monkey'} locks its aim before windup; moving afterwards evades the intended landing spot`, () => {
+  const { scene, boss: monkey, hazards } = kingScene();
+  if (!bossMode) { monkey.isBoss = false; scene.boss = null; scene.monkeys = [monkey]; }
+  scene.updateMonkeys(0); assert.equal(monkey.attackPhase, 'search');
+  // Looking around can still discover a new target before the windup starts.
+  scene.player.body.center.x = 900;
+  scene.worldTime = monkey.searchUntil; scene.updateMonkeys(0);
+  assert.equal(monkey.attackPhase, 'windup'); assert.equal(monkey.throwTarget.x, 900);
+  const intended = { ...monkey.throwTarget }, handX = monkey.throwPreview.x;
+  // Cross to the other side after the arm has been raised.
+  scene.player.x = 540; scene.player.body.center.x = 540; scene.player.body.center.y = 490;
+  scene.worldTime += 300; scene.updateMonkeys(0);
+  assert.equal(monkey.throwPreview.x, handX); assert.equal(monkey.throwTarget.x, 900);
+  assert.equal(hazards.projectiles.length, 0);
+  scene.worldTime = monkey.chargeUntil; scene.updateMonkeys(0);
+  const p = hazards.projectiles.at(-1), t = Math.max(.65, Math.min(1.3, Math.abs(intended.x - p.x) / 340));
+  assert.ok(Math.abs(p.x + p.vx * t - intended.x) < .001);
+  assert.ok(Math.abs(p.y + p.vy * t + 425 * t * t - intended.y) < .001);
+  assert.ok(Math.abs(p.x + p.vx * t - scene.player.body.center.x) > 300);
+  assert.equal(monkey.attackPhase, 'release');
+});
+
+test('hitting a normal monkey during windup clears its committed target and prevents the throw', () => {
+  const { scene, boss: m, hazards } = kingScene(); m.isBoss = false; m.hp = 3; scene.boss = null; scene.monkeys = [m];
+  scene.updateMonkeys(0); scene.worldTime = m.searchUntil; scene.updateMonkeys(0);
+  assert.ok(m.throwTarget); const releaseAt = m.chargeUntil;
+  scene.damageMonkey(m, 1); assert.equal(m.throwTarget, null); assert.equal(m.attackPhase, null);
+  scene.worldTime = releaseAt; scene.updateMonkeys(0); assert.equal(hazards.projectiles.length, 0);
 });

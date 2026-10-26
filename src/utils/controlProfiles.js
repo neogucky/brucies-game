@@ -25,7 +25,13 @@ export function canonicalCode(event) {
 }
 export function actionForKey(event, profile = DEFAULT_CONTROL_PROFILE) {
   if (event.isComposing || event.metaKey || event.ctrlKey || event.altKey) return null;
-  const code = canonicalCode(event), keys = CONTROL_PROFILES[controlProfileId(profile)].keys;
+  const id = controlProfileId(profile), code = canonicalCode(event), keys = CONTROL_PROFILES[id].keys;
+  // Both movement layouts are always available on a keyboard. Confirmation
+  // and menu actions still have exactly the one key shown by the active profile.
+  if (id !== 'ipadTouch') {
+    const movement = { KeyW: 'up', KeyA: 'left', KeyS: 'down', KeyD: 'right' };
+    if (movement[code]) return movement[code];
+  }
   return Object.keys(keys).find(action => keys[action] === code) || null;
 }
 export function keyLabel(profile, action) {
@@ -43,11 +49,11 @@ export function formatControlHint(template, profile = DEFAULT_CONTROL_PROFILE) {
   if (touch) text = text.replace(/\s*·\s*\{(?:confirm|back|inventory|attack|shoot|pause|potion1|potion2)\}(?!\s*[:=+])/g, '')
     .replace(/\{(?:confirm|back|inventory|attack|shoot|pause|potion1|potion2)\}\s*·\s*/g, '');
   return text.replace(/\{(\w+)\}/g, (_match, action) => {
-    if (action === 'move') return touch ? 'Richtungsknöpfe' : 'Pfeile';
+    if (action === 'move') return touch ? 'Richtungsknöpfe' : 'WASD / Pfeile';
     if (action === 'jump') return touch ? 'Springen' : '↑';
     if (action === 'climb') return touch ? '↑/↓' : '↑/↓';
     if (action === 'drop') return '↓↓';
-    if (touch) return ({ confirm: 'Antippen', back: 'Zurück', inventory: 'Inventar', attack: 'Angriff', shoot: 'Bogen', pause: 'Pause' })[action] || '';
+    if (touch) return ({ confirm: 'Antippen', back: 'Zurück', inventory: 'Inventar', attack: 'Angriff', shoot: 'Bogen', pause: 'Pause', potion1: 'Trank 1', potion2: 'Trank 2' })[action] || '';
     return keyLabel(profile, action);
   });
 }

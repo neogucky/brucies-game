@@ -11,6 +11,7 @@ function load(file, className) {
   vm.runInContext(source, context);
 }
 load('utils/weapons.js'); load('utils/inventory.js'); load('utils/itemRegistry.js');
+load('utils/hammerRules.js'); load('utils/hammerTraining.js');
 load('scenes/shop/ShopSceneBase.js', 'ShopSceneBase');
 load('scenes/underground/UndergroundShopScene.js', 'UndergroundShopScene');
 load('ui/InventoryOverlay.js', 'InventoryOverlay'); load('ui/topHud.js', 'TopHud');
@@ -52,6 +53,15 @@ test('insufficient gold or an unfinished shop loading screen cannot grant the ha
   const loading = shop(200); loading.isLoading = true; loading.buyItem(hammer);
   assert.equal(loading.inventory.weapons.powerHammer, undefined);
   assert.equal(loading.coins, 200);
+});
+test('buying a hammer launches the trainer after saving its price once',()=>{
+  const scene=shop(250),starts=[];scene.sys={settings:{key:'UndergroundShopScene'}};
+  scene.scene={start:(...args)=>starts.push(args)};
+  const hammer=scene.shopConfig.items.find(item=>item.id==='powerHammer');scene.buyItem(hammer);
+  assert.equal(scene.coins,50);assert.equal(starts.length,1);assert.equal(starts[0][0],'HammerTrainingScene');
+  assert.equal(starts[0][1].returnScene,'UndergroundShopScene');
+  assert.equal(context.saved.tutorials.powerHammer.offered,true);assert.equal(context.saved.tutorials.powerHammer.completed,false);
+  scene.buyItem(hammer);assert.equal(starts.length,1);assert.equal(scene.coins,50);
 });
 
 test('hammer inventory choice appears only after purchase and shares the primary weapon slot', () => {

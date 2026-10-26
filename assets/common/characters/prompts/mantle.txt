@@ -1,0 +1,9 @@
+Use case: stylized-concept
+Asset type: transparent 2D sprite sheet for a four-frame ledge pull-up / climbing-exit animation, matching the exact knight and female knight in the reference sprite sheet.
+Primary request: eight separate full-body cutout poses arranged in a strict 4 column by 2 row grid with generous transparent padding between every cell. Top row: male brown-haired knight. Bottom row: female knight with golden ponytail. Same silver armor, blue plume and tunic, red cape, brown boots and gloves as the reference. Both unarmed, empty hands, no sword/hammer/bow/shield.
+Each row shows the same character pulling up onto a platform toward screen RIGHT, profile or clear three-quarter profile. 4 sequential poses:
+Column 1: hanging below an invisible ledge with BOTH hands reaching forward/up to grip the edge, arms extended, knees bent.
+Column 2: elbows bent and chest pulling up toward the gripped edge, feet tucked below, cape draping downward.
+Column 3: chest above the edge, one knee lifting onto the invisible platform, hands still supporting the body.
+Column 4: compact low crouch on top of the invisible platform, one hand braced beside a boot, ready to rise to standing.
+No drawn ledge, platform, rope, scene, ground, shadows or background: only the full character cutout in each cell. Both rows use the same four clearly different poses, each aligned consistently in its cell. Keep complete helmet plume, hands, boots and cape inside each cell. No neighboring sprite overlap, no motion streaks, no extra body parts, no text, no watermark. Clear clean outlines and warm polished 2D children's game art. Genuine transparent background.

@@ -16,6 +16,14 @@ Dann im Browser öffnen:
 http://localhost:8000
 ```
 
+## iPhone-Home-Bildschirm
+
+Das Spiel enthält ein eigenes Icon mit Ritter und gelbem Helfer. In Safari die
+Seite öffnen und über **Teilen → Zum Home-Bildschirm** hinzufügen. Eine bestehende
+Verknüpfung mit altem Symbol bei Bedarf entfernen und neu hinzufügen, sobald die
+aktualisierten Dateien veröffentlicht sind. Die Grafiken und der vollständige
+Bildprompt stehen in [assets/icons](assets/icons/README.md).
+
 ## Steuerung
 
 Das Burgzimmer-Intro startet automatisch und zeigt Ritter und Helfer, einen
@@ -25,8 +33,9 @@ Der Drachenschatten erscheint bereits nach etwa zwei Sekunden. Schlaf-„z“ st
 vom Ritter auf; Bett und Ritter sind getrennt, sodass das Bett beim animierten
 Absprung und der Landung an seinem Platz bleibt.
 Dort lässt sich die Geschichte mit **Intro ansehen** erneut abspielen.
-Überspringen funktioniert ausschließlich mit **Leertaste** oder dem dezenten
-Overlay unten rechts. Im Touch-Profil trägt das Overlay keinen Tastaturhinweis.
+Überspringen funktioniert mit **Leertaste**, **Enter** oder dem dezenten
+Overlay unten rechts. Ein gehaltener Tastendruck löst im folgenden Menü keine
+weitere Aktion aus; erst nach dem Loslassen reagiert die Taste wieder. Im Touch-Profil trägt das Overlay keinen Tastaturhinweis.
 Beim Tabwechsel pausiert die Geschichte und läuft bei der Rückkehr automatisch
 weiter. Der Ton versucht automatisch zu starten und wird, falls nötig, bei einer
 normalen Berührung oder Taste freigegeben; verpasste Geräusche werden nicht nachgeholt.
@@ -62,16 +71,16 @@ Weltkarten und Menüs werden dort direkt angetippt.
 | Bestätigen / Ja / Gespräch weiter | Enter | Enter | Bestätigen / Ja antippen |
 | Zurück / Nein / Inventar schließen | Q | Esc | Zurück / Nein antippen |
 | Inventar öffnen | I | Tab | Inventar antippen |
-| Bewegen / Auswahl | Pfeile | Pfeile | Richtungsknöpfe |
+| Bewegen / Auswahl | WASD / Pfeile | WASD / Pfeile | Richtungsknöpfe |
 | Springen | ↑ | ↑ | Springen antippen |
 | Nahkampf | Leertaste | Leertaste | Angriff antippen |
 | Bogen | Shift | Shift | Schießen antippen |
 | Pause / Fortsetzen | P | P | Pause / Weiterspielen antippen |
 | Trankslots 1 und 2 | T und G | T und G | Trank 1 / Trank 2 antippen |
 
-Jede Aktion hat pro Tastaturprofil genau eine logische Taste. Andere Profile und
-frühere Alternativen (E, J/N, WASD, Rückschritt, Esc beim iPad-Profil) lösen
-keine Spielaktionen aus. Offene Dialoge und Inventarhinweise wechseln sofort mit
+Menüaktionen haben pro Tastaturprofil genau eine Taste. Bewegen funktioniert
+mit WASD und Pfeilen. Andere Profile und frühere Alternativen (E, J/N,
+Rückschritt, Esc beim iPad-Profil) lösen keine Menüaktionen aus. Offene Dialoge und Inventarhinweise wechseln sofort mit
 dem Profil. Im Touchprofil stehen an den Knöpfen keine Tastaturkürzel.
 
 Im Inventar schließt nur die Zurück-Aktion; die Inventartaste öffnet es. Ein
@@ -88,7 +97,22 @@ und beim Landungsschlag. Der Landungsschlag bricht auch Erde direkt unter dem
 Ritter auf. Geduckte Schläge treffen nur die untere Blockreihe auf Fußhöhe, auch
 bei aktiviertem Auto-Anvisieren. Schwarze Begrenzungskacheln bleiben unzerstörbar.
 
-Der Steinwächter am Ende des Schlüsselwegs und der Obsidian-Titan in den neuen
+**Hammer aufladen:** Leertaste kurz antippen behält den normalen Schlag.
+Gedrückthalten zieht den Hammer zurück: gelbe, rote und schließlich blaue
+Blitze zeigen die steigende Kraft. Beim Loslassen saust der Hammer bis zum Boden;
+volle blaue Ladung erzeugt eine kleine Druckwelle. Während des Haltens bleibt
+das Bewegungstempo bei 80 %. Das Schwert schlägt weiterhin sofort zu.
+Im Touch-Profil wird der Angriffsknopf entsprechend gehalten und losgelassen.
+
+Beim ersten Kauf führt **Meister Muck** fünf kurze Übungen vor: normaler Schlag,
+gelbe, rote und blaue Ladung sowie Sprung-Landungsschlag. Der Spieler macht sie
+nach; falsche Versuche bekommen passende Hinweise und eine neue Vorführung.
+Vorhandene Hammerbesitzer erhalten die Einführung beim nächsten Level mit Hammer.
+Das Training lässt sich mit „Später“ verlassen und im Unterwelt-Shop über
+„Hammer üben“ jederzeit kostenlos wiederholen. Grafiken und vollständige Prompts:
+[assets/common/training](assets/common/training/README.md).
+
+Der Steinwächter am Ende des Steinwächtermines und der Obsidian-Titan in den neuen
 Kristalltiefen haben drei Phasen. Sie sind beim Rollen und Fallen gepanzert:
 Nach einem Aufprall sind zwei Spielertreffer und ein zusätzlicher Helfertreffer
 möglich. Die Betäubung lässt sich nicht verlängern. Beim Phasenwechsel kehren sie
@@ -133,20 +157,35 @@ Der Obsidian-Titan in den Kristalltiefen schaltet die eigenständige **Urwaldwel
 Auf der Unterweltkarte führt ab Kristalltiefen der Weg nach rechts am Kartenrand
 in die Urwaldwelt. Die Urwaldwelt ist kein Unterwelt-Level: Wie Wüste und
 Unterwelt hat sie eine eigene begehbare Weltkarte mit Orten und Wegen. Links
-beim Urwald-Shop geht es zurück zu Kristalltiefen. Die Karte enthält zwei Level:
+bei Kokoskronen geht es zurück zu Kristalltiefen. Kokoskronen ist jetzt der
+Einstieg an der früheren Shopposition. Nach unten führt ein klarer Pfad zum
+Urwaldexperten; der Rückweg von dort beginnt nach links. Nach rechts geht es
+erst nach dem Sieg über den Affenkönig zum Shop und weiter zum Lianenpfad.
+Jeder Pfad verlässt seinen Ort in einer eindeutigen Richtung; die Richtungstaste
+passt zum sichtbaren Abzweig. Die Karte enthält zwei Level:
 
-- **Kokoskronen:** Äste erklimmen und den Affenkönig besiegen, Belohnung 300 Gold.
+- **Kokoskronen:** Äste erklimmen und den Affenkönig besiegen, Abschlussbonus 50 Gold.
   Der König wirft abwechselnd braune, rote explosive und blaue Kokosnüsse sowie
   Steinmonster. Eine farbige Warnung und das sichtbare Wurfobjekt kündigen den
   nächsten Angriff an; jede vollständige Folge enthält alle vier Wurfarten.
 - **Lianenpfad:** Nach dem Affenkönig freigeschaltet. An Lianen durch große Astlücken klettern und die
-  goldene Kokosnuss ganz oben erreichen, Belohnung 200 Gold.
+  goldene Kokosnuss ganz oben erreichen, Abschlussbonus 25 Gold.
+
+Abschlussboni gibt es nur beim ersten Sieg. Unter Tage geben Steinwächter
+und Obsidian-Titan entsprechend 50 und 75 Gold. Im Testmodus `unlockAll=1`
+bleiben die Orte unabhängig vom Bossfortschritt erreichbar. Das gespeicherte
+Gold und bereits gekaufte Ausrüstung bleiben bei dieser Umstellung erhalten.
 
 Beide Level sind 960 Pixel breit; die Kamera folgt nach oben durch 1820 bzw.
 2120 Pixel hohe Baumkronen. Die Kokoskronen haben engere Astfolgen, der Lianenpfad
 weniger Plattformen und vier lange Kletterlianen. An einer Liane mit ↑/↓ klettern,
-mit links/rechts loslassen oder mit seitwärts + ↑ abspringen. Zweimal ↓ innerhalb von 300 ms lässt den
+Mit links/rechts umdrehen und seitlich bewegen; erst bei mehr als 15 Pixeln
+Abstand zur Lianenmitte lässt der Ritter los. Am oberen Ende greift er den Ast
+und zieht sich mit vier eigenen Posen darauf. Beide Figuren haben dafür freie Hände. Zweimal ↓ innerhalb von 300 ms lässt den
 Ritter durch den aktuellen Ast auf die nächste Ebene fallen; der Boden bleibt fest.
+Während dieses Falls greift er mit ↑ oder W sofort eine noch erreichbare Liane
+und klettert hoch, auch direkt nach dem Loslassen oder Hochziehen. ↓ auf einem
+Ast bleibt zunächst Ducken; der Doppeldruck wird nicht als Abwärtsklettern abgefangen.
 Beim Klettern verwendet der Ritter eine eigene Pose mit freien Händen; Nahkampf, Bogen und Waffenwechsel sind gesperrt. Alle Strecken sind ohne Spezialschuhe erreichbar. Die Zurück-Aktion öffnet eine Rückfrage zur
 Weltkarte; nach einer Niederlage startet die Bestätigen-Aktion mit vollen Herzen neu.
 
@@ -185,7 +224,7 @@ Dateien und verwendete Prompts stehen in [der Urwald-Assetübersicht](assets/jun
 
 ### Urwald-Shop und Bogen
 
-Der Urwald-Shop ist ein Ort auf der Weltkarte. Mit den Pfeilen oder Richtungsknöpfen geht der Ritter
+Der Urwald-Shop ist ein Ort auf der Weltkarte. Mit WASD, den Pfeilen oder Richtungsknöpfen geht der Ritter
 zwischen Shop und Levels; Bestätigen öffnet den aktuellen Ort. Antippen eines
 benachbarten Orts lässt den Ritter dorthin gehen, erneutes Antippen öffnet ihn.
 Die Inventar- und Zurück-Aktionen hängen vom gewählten Steuerungsprofil ab.
@@ -222,7 +261,10 @@ Verwundbarkeitsfenster der Bosse bleiben maßgeblich.
 Die Bedienleiste bietet dieselben Aktionen als große klickbare Knöpfe. Das
 Touchprofil ergänzt Richtungen, Springen, Angriff und beide Trankslots. Auch
 Heldenauswahl, alle Weltkarten, Shops, Experten, Dialoge und Inventar lassen sich
-antippen. Am Profilnamen lässt sich jederzeit erkennen, welche Tasten gelten.
+antippen. WASD und Pfeiltasten funktionieren in beiden Tastaturprofilen parallel.
+Bestätigen bleibt Enter; die übrigen Tasten richten sich nach dem Profil in den
+Einstellungen. Bei unbekanntem Gerät gilt ohne zusätzliche Anzeige das
+iPad-Tastaturprofil.
 
 Beim Appwechsel werden gehaltene Tasten zurückgesetzt und laufende Level
 pausiert. Fortsetzen hat seine eigene eindeutige Aktion; Zurück aus der Pause
@@ -236,19 +278,43 @@ Fliege wiederzuerkennen. Die drei kostenlosen Orte sind mit ihrer Welt verfügba
 
 - **Wüstenexperte:** von der Wüstenruine nach oben.
 - **Unterweltexperte:** vom Unterwelt-Shop nach rechts.
-- **Urwaldexperte:** vom Urwald-Shop nach unten.
+- **Urwaldexperte:** von den Kokoskronen nach unten.
 
-Zuerst begrüßt der Professor den Ritter mit einer Geschichte aus der jeweiligen
-Welt. Erst nach dem Gespräch erscheint seine Tafel. Die Tipps beschreiben
-Gefahren und Hilfen ohne genaue Schadens- oder Zeitwerte; wichtige Begriffe
-werden fett hervorgehoben.
+Beim ersten Besuch in der Wüste erzählt der Professor, dass der Drache nach
+Osten geflogen ist. Danach und bei jedem weiteren Besuch fragt er nach deinen
+Entdeckungen. Erst nach der kurzen Begrüßung erscheint die Tafel.
 
-Die Forschungsstube bietet die Rubriken Gegner, Ausrüstung und Level. Rubriken
-und einzelne Tipps sind anklickbar; mit ←/→ wechselt die Rubrik, mit ↑/↓ der Tipp.
-Zurück führt zur jeweiligen Weltkarte. Besuche und Kartenposition bleiben
-beim Speichern erhalten. Die Tipps kosten kein Gold und ändern keine Ausrüstung.
+Auf der Tafel stehen **alle Bildkarten gleichzeitig**. Es gibt keine Rubriken,
+versteckten Seiten oder Bildlaufleisten. Mit den Pfeiltasten oder WASD wählst du
+eine Karte; mit **Enter** oder einem Klick holst du dir einen Tipp. Unbekannte
+Karten bleiben grau und bieten noch keinen Tipp. Wichtige Wörter sind fett.
+Ein ausgewähltes Thema besteht aus kurzen Abschnitten; **Enter** liest weiter,
+**Zurück** führt zu den Karten und von dort zur Weltkarte. Beides geht auch per
+Klick. Die Tipps passen zur jeweiligen Welt: Der Helfer sammelt in der Wüste
+heilende Beeren, bekämpft unter Tage Höhlengegner und trinkt im Urwald Kokossaft.
+Die Flügelschuhe erklären das tatsächliche Sprinten, der Hammer auch Aufladen,
+Druckwelle, Landung und das Graben in der Unterwelt.
+
+Die Sammlung enthält Gegner und Ausrüstung, keine Levelbeschreibungen. Jede
+Gegnerfarbe wird einzeln erfasst, sobald der Gegner im sichtbaren Spielbereich
+auftaucht. Versteckte Affen und Gegner hinter dem Ladebild zählen noch nicht.
+Ausrüstung wird beim Ansehen im Shop oder beim Besitz bekannt. Entdeckungen
+bleiben im Spielstand, auch wenn ein Honigsaft später getrunken wird. Ältere
+Spielstände übernehmen vorhandene Ausrüstung und erhalten einmal die neue
+Begrüßung. Der Testmodus schaltet Wege frei, ohne Begegnungen zu erfinden.
+Tipps kosten kein Gold und ändern keine Ausrüstung.
 
 [Grafiken und Bildbeschreibungen](assets/common/experts/README.md).
+
+Auf den Karten sind die Experten Forschungsstationen mit Buchschild, Teleskop
+und Wimpel; Bauweise und Pflanzen passen zur jeweiligen Welt. Orte stehen direkt
+im Gelände. [Neue Ortsgrafiken und Prompts](assets/worldmap/README.md).
+Wanderpfade und felsige Gänge teilen ihre Kurven mit der Gehbewegung.
+
+`?unlockAll=1` öffnet alle Welten, Orte und das Schlüsseltor, einschließlich der
+Verbindung vom Fremdweg zur Unterwelt. Das setzt keine Levelabschlüsse voraus.
+Mit `&world=desert`, `&world=underground` oder `&world=jungle` wird die Welt gewählt;
+das Intro endet weiterhin im Hauptmenü. `&skipIntro=1` führt für Tests direkt zur Karte.
 
 ## Körperkontakt und Angriffssignale
 
@@ -290,3 +356,34 @@ Beerenkollisionen mit Spieler, Schild, Boden und Plattformen ab.
 - `src/main.js`: Phaser-Konfiguration
 - `src/scenes`: Szenen für Menü, Levelauswahl, Level 1
 - `src/saveManager.js`: Spielstand in `localStorage`
+
+## Karten, Urwaldsee und faire Kokoswürfe
+
+Die Unterwelt hat nun einen Hintergrund ohne doppelte, fest eingezeichnete
+Höhleneingänge. Erdgang, Händler, Tor, Steinwächtermine, Kristalltiefen und
+Expertenhütte stehen auf den passenden Felssimsen. Das Schlüsseltor versperrt
+den einzigen Zugang zur Mine; beim Aufschließen ändern sich Grafik und Wege
+sofort. Die internen Level-IDs bleiben für alte Spielstände erhalten.
+
+Auf der Urwaldkarte folgen die Laufstrecken den vorhandenen gemalten Pfaden,
+auch zur Kristallhöhle zurück in die Unterwelt. Vom rechten Rand des Lianenpfads
+führt ein Übergang zur Wasserwelt: zunächst nur ein begehbares Ufer am Urwaldsee
+mit einem Schnorchel-Schild. Dort gibt es noch keine Level und keinen käuflichen
+Schnorchel. Tastatur, Antippen, Inventar und die Rückreise in den Urwald funktionieren
+wie auf den anderen Weltkarten. Mit `?unlockAll=1&world=water` lässt sich das Ufer
+direkt testen; das Intro führt wie bisher zuerst zum Hauptmenü.
+
+Affen und Affenkönig schauen sich vor einem Wurf zunächst um. Sobald sie
+ausholen, werden Ziel und Wurfrichtung festgehalten; danach wird nicht mehr
+nachgezielt. Der sicht- und hörbare Wurf und ein kurzes Nachschwingen folgen
+darauf. Treffer unterbrechen einen normalen Affen weiterhin.
+
+Die neuen Hintergründe und alle Bildprompts liegen in
+[assets/worldmap](assets/worldmap/README.md), die Posen fürs Hochziehen in
+[assets/common/characters](assets/common/characters/mantle-atlas.README.md).
+
+Schwert und Power Hammer haben in Unterwelt und Urwald flüssige, mehrteilige
+Angriffsanimationen für Ritter und Ritterin, auch geduckt. Die sichtbare Waffe
+zeigt die tatsächliche Reichweite; die rechteckige Angriffsmarkierung entfällt.
+Grafiken, vollständige Bildprompts und Details zur Animation liegen in
+[assets/common/characters/melee](assets/common/characters/melee/README.md).

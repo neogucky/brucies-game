@@ -1,23 +1,23 @@
 const { test } = require('node:test'), assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm');
 const { EventEmitter } = require('node:events');
-const ctx = vm.createContext({ Phaser: { Scene: class {} } });
+const ctx = vm.createContext({ performance: {now:()=>100}, Phaser: { Scene: class {} }, saveProgress() {} });
 function load(file, name) {
   let code = fs.readFileSync(path.join(__dirname, '..', file), 'utf8').replace(/^import .*;\n/gm, '');
   if (name) code = code.replace(/export default class \w+/, `globalThis.${name} = class ${name}`);
   vm.runInContext(code.replace(/export /g, ''), ctx);
 }
-load('src/ui/emphasizedText.js'); load('src/utils/expertKnowledge.js');
+load('src/utils/controlProfiles.js'); load('src/ui/emphasizedText.js'); load('src/utils/expertKnowledge.js'); load('src/utils/expertDiscovery.js');
 load('src/dialogManager.js', 'DialogManager'); load('src/scenes/shop/ShopSceneBase.js', 'ShopSceneBase');
 load('src/scenes/ExpertScene.js', 'ExpertScene'); load('src/utils/PortableControls.js', 'PortableControls');
-const experts = vm.runInContext('EXPERT_WORLDS', ctx);
+const {experts,cards} = vm.runInContext('({experts:EXPERT_WORLDS,cards:EXPERT_CARDS})', ctx);
 
 function art(x = 0, y = 0, text = '', style = {}) {
   return { x, y, text, style: { ...style }, width: 0, height: 20, visible: true, list: [], originX: 0,
     texture: { getSourceImage: () => ({ width: 200, height: 200 }) },
-    setDepth() { return this; }, setScrollFactor() { return this; }, setStrokeStyle() { return this; },
+    setTint(tint) { this.tint=tint; return this; }, setAlpha(alpha) {this.alpha=alpha;return this;}, setDepth() { return this; }, setScrollFactor() { return this; }, setStrokeStyle() { return this; },
     setStroke() { return this; }, setScale(value) { this.scale = value; return this; }, setDisplaySize() { return this; }, setMask() { return this; },
-    setInteractive() { return this; }, on() { return this; }, createGeometryMask() { return {}; },
+    setInteractive() { return this; }, on(event, fn) { this[event]=fn;return this; }, createGeometryMask() { return {}; },
     setSize(w, h) { this.width = w; this.height = h; return this; },
     setVisible(v) { this.visible = v; return this; }, setTexture() { return this; }, setX(x) { this.x = x; return this; },
     setPosition(x, y) { this.x = x; this.y = y; return this; },
@@ -28,33 +28,80 @@ function art(x = 0, y = 0, text = '', style = {}) {
     removeAll() { this.list = []; return this; }, destroy() { this.destroyed = true; },
   };
 }
-function fixture(world, visited = false) {
-  const s = new ctx.ExpertScene(); s.init({ world }); s.expert = experts[world]; s.categoryIndex = 0; s.topicIndex = 0;
-  s.getSaveData = () => ({ visitedExperts: { [world]: visited } });
-  s.add = { container: art, rectangle: art, image(x, y) { return Object.assign(art(x, y), { width: 1586, height: 992 }); }, circle: art, text: art };
+function fixture(world, visited = false, discoveries = []) {
+  const s = new ctx.ExpertScene(); s.init({ world }); s.expert = experts[world]; s.cardIndex = 0; s.showingTip = false;
+  let save = {coins: 43, discoveries, expertIntroductions: { [world]: visited }};
+  s.registry = { get: () => save, set: (key,value) => { save=value; } }; s.getSaveData = () => save;
+  s.add = { container: art, rectangle(x,y,w,h){return Object.assign(art(x,y),{width:w,height:h})}, ellipse: art, zone: art, image(x,y) { return Object.assign(art(x,y), {width:1586,height:992}); }, circle: art, text: art };
   s.shopConfig = s.getShopConfig(); s.addBackground();
   s.input = { keyboard: new EventEmitter() }; s.textures = { exists: () => true };
-  s.scene = { start() {} }; s.dialog = new ctx.DialogManager(s);
+  s.scene = { start(key) { s.returnedTo=key; } }; s.dialog = new ctx.DialogManager(s);
   const controls = Object.create(ctx.PortableControls.prototype); controls.activeScene = () => s;
   s.showLoadingScreen(); return { s, controls };
 }
 
 for (const world of Object.keys(experts)) for (const visited of [false, true]) {
-  test(`${world}, ${visited ? 'return' : 'first'} visit: the whole board waits for both dialog pages`, () => {
+  test(`${world}, ${visited ? 'return' : 'first'} visit: the board waits for the short greeting`, () => {
     const { s, controls } = fixture(world, visited);
     assert.equal(s.knowledgeBoard.visible, false); assert.equal(s.canBrowseKnowledge(), false);
-    assert.ok(960 / s.studyBackdrop.scale < s.studyBackdrop.width / 2, 'the painted board is outside the welcome shot');
+    assert.ok(960 / s.studyBackdrop.scale < s.studyBackdrop.width / 2);
     assert.equal(s.dialog.text.text, visited ? experts[world].returnGreeting : experts[world].greeting);
-    s.input.keyboard.emit('keydown-RIGHT'); assert.equal(s.categoryIndex, 0);
-    controls.dispatch('confirm');
-    assert.equal(s.dialog.text.text, experts[world].boardIntro); assert.equal(s.knowledgeBoard.visible, false);
+    s.input.keyboard.emit('keydown-RIGHT'); assert.equal(s.cardIndex, 0);
+    if (!visited) {
+      controls.dispatch('confirm');
+      assert.equal(s.dialog.text.text, experts[world].returnGreeting); assert.equal(s.knowledgeBoard.visible, false);
+    }
     controls.dispatch('confirm');
     assert.equal(s.dialog.container.visible, false); assert.equal(s.knowledgeBoard.visible, true);
     assert.equal(s.studyBackdrop.scale, s.studyScale); assert.equal(s.studyBackdrop.x, 480);
-    assert.equal(s.topicIndex, 0); assert.equal(s.canBrowseKnowledge(), true);
-    s.input.keyboard.emit('keydown-RIGHT'); assert.equal(s.categoryIndex, 1);
+    assert.equal(s.cardIndex, 0); assert.equal(s.canBrowseKnowledge(), true);
+    assert.equal(s.getSaveData().expertIntroductions[world],true);
+    assert.equal(s.getSaveData().coins,43);
+    s.input.keyboard.emit('keydown-RIGHT'); assert.equal(s.cardIndex, 1);
   });
 }
+
+test('the first desert conversation follows the intro dragon, then offers discovery tips',()=>{
+  const {s,controls}=fixture('desert');
+  assert.match(s.dialog.text.text,/Drachen.*Osten/);
+  controls.dispatch('confirm'); assert.match(s.dialog.text.text,/Abenteurer.*entdeckt.*Tipps/);
+  const returning=fixture('desert',true); assert.equal(returning.s.dialog.pages.length,1);
+  assert.doesNotMatch(returning.s.dialog.text.text,/Drachen/);
+});
+
+test('only a known card opens a short tip, by Enter or by clicking its picture',()=>{
+  const {s,controls}=fixture('desert',true,['mole-normal']); controls.dispatch('confirm');
+  assert.equal(s.cardViews.length,experts.desert.cards.length);assert.equal(s.cardViews[0].known,true);assert.equal(s.cardViews[1].known,false);
+  controls.dispatch('confirm'); assert.equal(s.showingTip,true);
+  s.input.keyboard.emit('keydown-RIGHT'); assert.equal(s.cardIndex,0);
+  controls.dispatch('confirm'); assert.equal(s.showingTip,true);assert.equal(s.tipIndex,1);
+  controls.dispatch('confirm'); assert.equal(s.showingTip,true);assert.equal(s.tipIndex,1);
+  s.closeKnowledgeTip(); assert.equal(s.showingTip,false);
+  s.input.keyboard.emit('keydown-RIGHT'); controls.dispatch('confirm'); assert.equal(s.showingTip,false);
+  const card=s.cardViews[0].view;card.list.at(-1).pointerdown();assert.equal(s.showingTip,true);
+  assert.equal(s.closeKnowledgeTip(),true);assert.equal(s.closeKnowledgeTip(),false);
+  s.chooseCard(-1);assert.equal(s.cardIndex,experts.desert.cards.length-1);
+});
+
+test('a new adventurer starts on a known equipment card instead of an entirely unknown page',()=>{
+  const {s,controls}=fixture('desert',true,['sword']);controls.dispatch('confirm');
+  assert.equal(s.expert.cards[s.cardIndex],'sword');assert.ok(s.cardViews.some(v=>v.selected&&v.known));
+  controls.dispatch('confirm');assert.equal(s.showingTip,true);
+});
+
+test('Back first closes a tip, then returns to the map; the map button works too',()=>{
+  const {s,controls}=fixture('desert',true,['mole-normal']); controls.dispatch('confirm');controls.dispatch('confirm');
+  s.input.keyboard.on('keydown-ESC',()=>{if(!s.closeKnowledgeTip())s.scene.start(s.expert.map)});
+  controls.dispatch('back');assert.equal(s.showingTip,false);assert.equal(s.returnedTo,undefined);
+  controls.dispatch('back');assert.equal(s.returnedTo,'DessertMapScene');
+  s.returnedTo=null;s.knowledgeBoard.list.at(-1).pointerdown();assert.equal(s.returnedTo,'DessertMapScene');
+});
+
+test('revisiting the professor never updates the destroyed map button from the previous visit',()=>{
+  const {s}=fixture('jungle',true);const old=s.mapReturnButton;old.destroy();
+  old.setText=()=>{throw new Error('the old text texture was destroyed')};
+  assert.doesNotThrow(()=>s.createExpertBoard());assert.notEqual(s.mapReturnButton,old);
+});
 
 test('dialog body and hint reserve space for the portrait and reset for text-only reuse', () => {
   const { s } = fixture('jungle');
@@ -82,14 +129,53 @@ test('bold words wrap using their own measured width, with no visible markup or 
   }
 });
 
-test('expert tips explain useful effects with emphasis instead of damage and time statistics', () => {
-  for (const expert of Object.values(experts)) for (const topics of Object.values(expert.topics)) for (const [, text] of topics) {
-    assert.ok(text.includes('**')); assert.equal(text.split('**').length % 2, 1);
-    assert.ok(!/\d|Sekunden|Millisekunden|Prozent|Lebenspunkte/.test(text), text);
+test('all world-appropriate cards are visible together, with no page or category navigation',()=>{
+  for(const world of Object.keys(experts)){
+    const {s,controls}=fixture(world,true);controls.dispatch('confirm');
+    assert.equal(s.cardViews.length,experts[world].cards.length);assert.equal(s.categories,undefined);
+    for(const card of s.cardViews){const r=card.view.list[0];assert.ok(r.x-r.width/2>=310&&r.x+r.width/2<=946);assert.ok(r.y-r.height/2>=170&&r.y+r.height/2<=539)}
+    s.input.keyboard.emit('keydown-DOWN');assert.equal(s.cardIndex,4);
+    s.input.keyboard.emit('keydown-UP');assert.equal(s.cardIndex,0);
   }
-  assert.ok(/Urwald/.test(experts.jungle.greeting)); assert.ok(/Urwald/.test(experts.jungle.returnGreeting));
-  assert.ok(experts.jungle.topics.Gegner[0][1].includes('**leichten Schaden**'));
-  assert.ok(experts.jungle.topics.Gegner[0][1].includes('**klebst du fest**'));
+});
+
+test('picture cards give one short emphasized idea at a time, without damage or time statistics', () => {
+  for (const [world,expert] of Object.entries(experts)) for (const id of expert.cards) {
+    const card=ctx.getExpertCard(world,id);assert.ok(['enemy','equipment'].includes(card.kind));
+    assert.ok(card.tips.length>=1);
+    for(const text of card.tips){assert.ok(text.includes('**'));assert.equal(text.split('**').length%2,1);
+      assert.ok(!/\d|Sekunden|Millisekunden|Prozent|Lebenspunkte/.test(text.replace(/\{[^}]*\}/g,'')),text);
+      assert.ok(text.split(/\s+/).length<=27,text);
+    }
+  }
+  assert.match(experts.jungle.greeting,/Urwald/);assert.match(experts.jungle.returnGreeting,/Urwald/);
+  assert.ok(cards['monkey-brown'].tips[0].includes('**leichten Schaden**'));
+  assert.ok(cards['monkey-brown'].tips[1].includes('**klebst du fest**'));
+});
+
+test('helper descriptions match each world and explain gathering, fighting, and recovery where implemented',()=>{
+  const tips=world=>ctx.getExpertCard(world,'companion').tips.join(' ');
+  assert.match(tips('desert'),/sammelt nahe Beeren/);assert.match(tips('desert'),/bringt sie zu dir/);assert.match(tips('desert'),/Herzen/);
+  assert.doesNotMatch(tips('desert'),/Urwald|Kokos|Lianen|Fledermäuse/);
+  assert.match(tips('underground'),/Maulwürfe, Steinmonster und Fledermäuse/);assert.match(tips('underground'),/Felswände/);assert.match(tips('underground'),/Honigsaft/);
+  assert.doesNotMatch(tips('underground'),/Kokos|Beeren|Urwald|Lianen/);
+  assert.match(tips('jungle'),/Kokospfützen/);assert.match(tips('jungle'),/nahe Affen/);assert.doesNotMatch(tips('jungle'),/Beeren|versteckt|Fledermäuse/);
+  for(const world of Object.keys(experts))assert.ok(experts[world].cards.includes('companion'));
+});
+
+test('reviewed tips cover actual equipment controls, digging and enemy counterplay',()=>{
+  const tips=(world,id)=>ctx.getExpertCard(world,id).tips.join(' ');
+  assert.match(tips('desert','shoes'),/Sprinten.*zweimal schnell/);assert.doesNotMatch(tips('desert','shoes'),/Schweben|Springen/);
+  assert.match(tips('underground','shoes'),/Am Boden.*links oder rechts zweimal/);assert.match(tips('underground','shoes'),/Erde durchbrechen/);
+  assert.match(tips('underground','powerHammer'),/Gelbe Blitze.*Rote Blitze.*blauen Blitzen/);assert.match(tips('underground','powerHammer'),/Druckwelle/);
+  assert.match(tips('underground','powerHammer'),/Erde unter dir/);assert.match(tips('underground','powerHammer'),/Geduckt/);
+  assert.match(tips('underground','sword'),/gräbt Erde/);assert.match(tips('underground','sword'),/keinen Stein/);
+  assert.doesNotMatch(tips('jungle','powerHammer'),/Randfelsen|Blockreihe|Erde unter/);
+  assert.doesNotMatch(tips('underground','bow'),/Liane|Klettern/);assert.match(tips('jungle','bow'),/Klettern/);
+  assert.match(tips('underground','bat'),/sind giftig/);assert.match(tips('underground','bat'),/keine Pfütze/);
+  for(const id of ['monkey-brown','monkey-red','monkey-blue']){assert.match(tips('jungle',id),/ausholt/);assert.match(tips('jungle',id),/Weiche|Bewege/)}
+  assert.match(tips('jungle','stone'),/prallen an den Rändern ab/);assert.doesNotMatch(tips('jungle','stone'),/Maulwurf/);
+  assert.match(tips('jungle','jungleShield'),/Steinmonster wirft er aber nicht zurück/);
 });
 
 test('mixed-weight text uses whole-run measurements without accumulating rounding gaps', () => {
@@ -97,4 +183,16 @@ test('mixed-weight text uses whole-run measurements without accumulating roundin
   const { runs } = ctx.layoutEmphasizedText('Viele kleine Worte vor **einem Hinweis** und danach.', 330, measure);
   assert.equal(runs[1].x, measure(runs[0].text) + measure(' '));
   assert.equal(runs[2].x, runs[1].x + measure(runs[1].text) + measure(' '));
+});
+
+test('keyboard and touch instructions are resolved before bold text is measured',()=>{
+  for(const profile of ['pc','ipadKeyboard','ipadTouch']){
+    const {s,controls}=fixture('desert',true,['honey']);
+    s.registry.get().settings={controlProfile:profile};controls.dispatch('confirm');controls.dispatch('confirm');controls.dispatch('confirm');
+    assert.equal(s.tipIndex,1);
+    const paragraph=s.board.list.find(child=>child.list?.some(run=>/Pack|Trinken/.test(run.text)));
+    const text=paragraph.list.map(run=>run.text).join(' ');assert.doesNotMatch(text,/\{|\}/);
+    if(profile==='ipadTouch'){assert.match(text,/Trank 1/);assert.match(text,/Trank 2/);assert.doesNotMatch(text,/\bT\b|\bG\b/)}
+    else{assert.match(text,/\bT\b/);assert.match(text,/\bG\b/)}
+  }
 });

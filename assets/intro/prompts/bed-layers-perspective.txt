@@ -1,0 +1,10 @@
+Use case: precise-object-edit. Make a production 2D GAME SPRITE SHEET on TRUE TRANSPARENT background, NO GLOW and NO SHADOW.
+Reference 1 is the current bed sheet. Reference 2 is the room it must fit.
+CORRECTION: Redraw the bed from a MUCH LOWER, ALMOST SIDE-ON camera. Show mostly the LONG SIDE of the bed. That long side rail is almost HORIZONTAL, falling only very slightly to the right. Show much LESS of the top mattress. Headboard and footboard are narrow and nearly edge-on. All posts stay vertical. This must look like a real bed standing in reference 2, not an isometric game icon. Preserve the warm wood, gold knobs, cream pillow and royal blue blanket. Bold clean children's animation style.
+Provide 4 separated sprites in 2 columns and 2 rows with generous transparent gutters:
+TOP LEFT: the complete empty bed with mattress and pillow, no blanket.
+TOP RIGHT: only its blue blanket, with a small occupied body mound and folded cream hem.
+BOTTOM LEFT: only the matching wooden footboard and two front posts.
+BOTTOM RIGHT: only the same blue blanket, settled flat after the person has left.
+No characters. No room or floor. No labels. No colored haze. Hard clean alpha edges. Keep the four objects inside their own cells.
+The perspective change is the entire purpose: rotate the view toward the long side so its wooden rail and mattress edge are almost horizontal.

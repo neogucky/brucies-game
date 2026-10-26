@@ -44,7 +44,7 @@ export default class BowManager {
     scene.input.keyboard.on("keydown", this.keyHandler);
   }
   isFinished() { return this.scene.isGameOver || this.scene.levelCompleted || this.scene.isComplete; }
-  isBlocked(forAttack = true) { return (forAttack && this.scene.climbingVine) || this.scene.isPaused || this.scene.inventoryOpen || this.scene.confirmation?.isOpen || this.scene.isEditorMode || this.scene.isHitboxEditMode || this.isFinished(); }
+  isBlocked(forAttack = true) { return (forAttack && (this.scene.climbingVine || this.scene.hammerCharge?.holding || this.scene.attackInputLocked)) || this.scene.isPaused || this.scene.inventoryOpen || this.scene.confirmation?.isOpen || this.scene.isEditorMode || this.scene.isHitboxEditMode || this.isFinished(); }
   equipped() { return (this.scene.equipped?.secondary === "bow" || this.scene.equipped?.passive === "bow") && Boolean(this.scene.inventory?.passives?.bow); }
 
   tryShoot() {

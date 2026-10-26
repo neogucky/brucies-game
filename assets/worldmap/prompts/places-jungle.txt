@@ -1,0 +1,10 @@
+Use case: stylized-concept.
+Asset type: transparent world map landmark sprite atlas for a children's fantasy adventure game.
+Style reference: the supplied game's menu illustration. Charming hand-painted cartoon buildings, warm light, readable broad shapes, dark softly inked outlines, coherent slightly elevated three-quarter view. These are miniature PLACES, never character portraits. Grounded naturally with a few scattered pebbles or plants at their feet, absolutely NO circular pedestal, NO plinth, NO floating disk, NO outline medallions, NO isolated terrain islands. No text/letters, no people, no knight, no UI. True transparent background.
+Exact sprite sheet layout: 2 equal columns x 2 equal rows, four separate fully contained objects with generous transparent gutters, no overlaps. Each icon occupies about 80% of its cell. All same visual scale and viewpoint.
+World: lush tropical jungle, timber, green leaves, vines, orange flowers.
+Top-left: towering jungle level landmark, two leafy trees with a wooden canopy lookout and little golden coconut crown emblem. A welcoming adventure place, no monkey/character.
+Top-right: VINE TRAIL level landmark, two tall tree trunks with dangling climbing vines, woven vine bridge between their branches, leafy foliage; visually distinct from canopy lookout.
+Bottom-left: cozy JUNGLE SHOP, rounded wooden hut with broad leafy thatched roof, a round woven wooden shield and little hanging coin sign beside the door. Recognizably the old friendly merchant's shop, tropical version. No merchant/person.
+Bottom-right: eccentric professor's JUNGLE RESEARCH STATION: wooden field hut with tilted teal leaf roof, brass telescope poking out, prominent open-book emblem on a round hanging sign and little orange pennant. Vines and tropical leaves at its feet. The book sign + telescope + pennant are its recognizable recurring landmark identity. No professor/person.
+Keep every sprite sitting directly on the earth, no bases.

@@ -827,6 +827,29 @@ test('normal hammer hit still deals one damage to moles and only one hit per swi
   scene.hitSwordEnemies();
   assert.equal(mole.getData('hp'), 2);
 });
+test('charged underground hammer keeps its windup, applies the larger stone hit once, and leaves normal attacks available',()=>{
+  const {scene,monster}=setup({hp:10});withHammer(scene);monster.x=455;monster.y=105;
+  scene.digBlock({id:'super',charged:true,superCharge:true,multiplier:3,progress:1});
+  advance(scene,79);scene.hitSwordEnemies();assert.equal(monster.getData('hp'),10);
+  advance(scene,80);scene.hitSwordEnemies();assert.equal(monster.getData('hp'),4);
+  scene.hitSwordEnemies();assert.equal(monster.getData('hp'),4);
+  advance(scene,360);assert.equal(scene.startSwing(),true);assert.equal(scene.hammerAttack,null);
+});
+
+test('pausing a hammer windup cannot make its damage precede the visible swing', () => {
+  const { scene, monster } = setup({ hp: 5 });
+  withHammer(scene); monster.x = 455; monster.y = 105;
+  scene.digBlock(); scene.time.now = 5000; scene.swingTimer.elapsed = 109;
+  scene.hitSwordEnemies(); assert.equal(monster.getData('hp'), 5);
+  scene.swingTimer.elapsed = 110; scene.hitSwordEnemies(); assert.equal(monster.getData('hp'), 3);
+});
+
+test('a landing recovery never becomes a second melee hit when its real timer advances', () => {
+  const { scene, monster } = setup({ hp: 5 });
+  withHammer(scene); monster.x = 455; monster.y = 105;
+  scene.digBlock(); scene.swingReadyAt = Infinity; scene.swingTimer.elapsed = 250;
+  scene.hitSwordEnemies(); assert.equal(monster.getData('hp'), 5);
+});
 
 test('successive slower hammer swings can keep a stone stunned', () => {
   const { scene, monster } = setup({ hp: 5 });
@@ -1145,7 +1168,8 @@ for (const level of ['Schluesselweg', 'Kristalltiefen']) {
     assert.equal(getSaved().mapState.undergroundNode, config.unlockWorld ? level : config.unlock || level);
     if (config.unlockWorld) {
       assert.equal(getSaved().unlockedWorlds.includes('jungle'), true);
-      assert.equal(getSaved().unlockedLevels.includes('UrwaldShop'), true);
+      assert.equal(getSaved().unlockedLevels.includes('Urwaldkronen'), true);
+      assert.equal(getSaved().unlockedLevels.includes('UrwaldShop'), false);
       assert.equal(getSaved().currentWorld, 'underground');
     }
     assert.equal(context.victory.name, config.name);
@@ -1154,6 +1178,11 @@ for (const level of ['Schluesselweg', 'Kristalltiefen']) {
     context.victory.onContinue();
     assert.equal(scene.scene.destination, 'UndergroundMapScene');
     assert.equal(scene.time.paused, false);
+  });
+  test(level + ': replaying a completed boss keeps loot but cannot pay its completion bonus again',()=>{
+    const {scene,config,getSaved}=withBoss(level);getSaved().completedLevels.push(level);
+    scene.winBossLevel(config);assert.equal(getSaved().coins,30);assert.equal(context.victory.reward,0);
+    assert.equal(getSaved().inventory.consumables.honey,2);assert.ok(getSaved().unlockedLevels.includes(config.unlock));
   });
 }
 

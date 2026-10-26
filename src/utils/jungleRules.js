@@ -6,7 +6,7 @@ for (let y = 1660, row = 0; y >= 160; y -= 100, row++) {
   else crownsBranches.push({ x: 65, y, width: 320 }, { x: 575, y, width: 320 });
 }
 export const JUNGLE_LEVELS = {
-  Urwaldkronen: { name: "Kokoskronen", subtitle: "Erklimme die Baumkronen · Besiege den Affenkönig", reward: 300,
+  Urwaldkronen: { name: "Kokoskronen", subtitle: "Erklimme die Baumkronen · Besiege den Affenkönig", reward: 50,
     height: 1820, spawn: { x: 130, y: 1762 }, branches: crownsBranches, boss: true,
     bossPosition: { x: 725, y: 260, perches: [260, 460, 660] },
     monkeys: [
@@ -16,7 +16,7 @@ export const JUNGLE_LEVELS = {
       { x: 725, y: 860, kind: "blue", hidden: true, perches: [860, 660] },
       { x: 235, y: 660, kind: "red", hidden: true, perches: [660, 460] },
     ] },
-  Lianenpfad: { name: "Lianenpfad", subtitle: "Klettere an den Lianen · Finde die goldene Kokosnuss", reward: 200,
+  Lianenpfad: { name: "Lianenpfad", subtitle: "Klettere an den Lianen · Finde die goldene Kokosnuss", reward: 25,
     height: 2120, spawn: { x: 130, y: 2062 }, boss: false, goal: { x: 480, y: 110 },
     branches: [
       { x: 0, y: 2062, width: 960, ground: true }, { x: 65, y: 1960, width: 330 },

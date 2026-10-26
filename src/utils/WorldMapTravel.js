@@ -43,6 +43,7 @@ export default class WorldMapTravel {
     const frame = Math.floor(this.totalWalked / MAP_STRIDE_PX * 6) % 6;
     player.setTexture(`knight${female ? "-female" : ""}-walk-${frame}`);
     player.setPosition(point.x, point.y - Math.abs(Math.sin(this.totalWalked / MAP_STRIDE_PX * Math.PI * 2)) * 1.1);
+    this.placeInLandscape(player, point, this.shadow);
     this.ground = point;
     if (helper?.visible) {
       const follow = pointOnMapRoute(this.route, Math.max(0, this.distance - 30));
@@ -51,6 +52,7 @@ export default class WorldMapTravel {
         y: this.helperStart.y + (follow.y - this.helperStart.y) * join };
       helper.setFlipX(dx < 0).setPosition(this.helperGround.x,
         this.helperGround.y - Math.abs(Math.sin(this.totalWalked / 60 * Math.PI)) * 4);
+      this.placeInLandscape(helper, this.helperGround, this.helperShadow);
     }
     this.updateShadows();
     if (this.distance >= this.route.length) this.finish();
@@ -64,11 +66,19 @@ export default class WorldMapTravel {
     this.helperShadow.setVisible(Boolean(helper?.visible)).setPosition(helperGround.x, helperGround.y - 2);
   }
 
+  placeInLandscape(actor, ground, shadow) {
+    const behind = [...(this.scene.nodeSprites?.values() || [])].some(({ icon }) =>
+      ground.y < icon.y - 8 && ground.y > icon.y - icon.displayHeight - 8 &&
+      Math.abs(ground.x - icon.x) < icon.displayWidth * .4);
+    actor.setDepth(behind ? 1 : 5); shadow.setDepth(behind ? 0 : 4);
+  }
+
   finish() {
     this.active = false;
     const scene = this.scene, player = scene.playerMarker;
     const point = pointOnMapRoute(this.route, this.route.length);
-    player.setPosition(point.x, point.y).setTexture(player.getData("standingTexture") || "knight-standing");
+    player.setPosition(point.x, point.y).setTexture(player.getData("standingTexture") || "knight-standing").setDepth(5);
+    this.shadow.setDepth(4);
     if (scene.companionMarker.visible && this.helperGround) scene.companionMarker.setPosition(this.helperGround.x, this.helperGround.y);
     scene.isMoving = false;
     this.updateShadows();

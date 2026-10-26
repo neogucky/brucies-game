@@ -35,6 +35,45 @@ function fixture(name, file, save = {}) {
 const jungleFixture = save => fixture('JungleMapScene', 'scenes/jungle/JungleMapScene.js', save);
 const underFixture = save => fixture('UndergroundMapScene', 'scenes/UndergroundMapScene.js', save);
 
+test('the new jungle entry swaps Kokoskronen and the shop without moving the remaining landmarks',()=>{
+  const {context}=jungleFixture(),nodes=vm.runInContext('JUNGLE_NODES',context);
+  const at=id=>plain(nodes.find(n=>n.id===id));
+  assert.deepEqual([at('Urwaldkronen').x,at('Urwaldkronen').y],[245,350]);
+  assert.deepEqual([at('UrwaldShop').x,at('UrwaldShop').y],[485,230]);
+  assert.deepEqual([at('Urwaldexperte').x,at('Urwaldexperte').y],[485,450]);
+});
+test('old shop unlocks cannot bypass Kokoskronen; the expert stays available and preview mode opens every place',()=>{
+  const {context}=jungleFixture(),save={coins:337,completedLevels:[],unlockedLevels:['UrwaldShop','Lianenpfad','Urwaldkronen']};
+  const original=JSON.stringify(save),open=context.jungleMapUnlocks(save);
+  assert.ok(open.has('Urwaldkronen')&&open.has('Urwaldexperte'));assert.ok(!open.has('UrwaldShop')&&!open.has('Lianenpfad'));
+  const preview=context.jungleMapUnlocks(save,true);assert.ok(preview.has('UrwaldShop')&&preview.has('Lianenpfad'));
+  const won=context.jungleMapUnlocks({...save,completedLevels:['Urwaldkronen']});assert.ok(won.has('UrwaldShop')&&won.has('Lianenpfad'));
+  assert.equal(JSON.stringify(save),original);
+});
+test('each jungle path leaves its marker along the exact cardinal direction used by the keyboard',()=>{
+  const {context}=jungleFixture(),nodes=vm.runInContext('JUNGLE_NODES',context),ports=vm.runInContext('JUNGLE_PATH_PORTS',context);
+  const exits=vm.runInContext('WORLD_MAP_EXITS.jungle',context),endpoints=[...nodes,...Object.values(exits)];
+  for(const from of nodes){
+    assert.equal(new Set(Object.values(ports[from.id])).size,Object.keys(ports[from.id]).length,'no ambiguous departure');
+    for(const [id,dir] of Object.entries(ports[from.id])){
+      const to=endpoints.find(n=>n.id===id),route=context.getWorldMapRoute('jungle',from,to),origin=context.mapFoot(from);
+      const vector={left:[-1,0],right:[1,0],up:[0,-1],down:[0,1]}[dir];
+      for(const d of [20,50]){
+        const p=context.pointOnMapRoute(route,d);
+        assert.ok(Math.abs(p.x-origin.x-d*vector[0])<1e-8,from.id+' '+dir+' x');
+        assert.ok(Math.abs(p.y-origin.y-d*vector[1])<1e-8,from.id+' '+dir+' y');
+      }
+    }
+  }
+});
+test('unused directions do not select a diagonal jungle neighbor; down reaches the expert and left returns',()=>{
+  const {scene,context,tweens}=jungleFixture(),nodes=vm.runInContext('JUNGLE_NODES',context);
+  scene.currentNode=nodes[0];scene.unlocked=new Set(nodes.map(n=>n.id));scene.saveLocation=()=>{};
+  scene.tryMove({x:0,y:-1});assert.equal(tweens.length,0);
+  scene.tryMove({x:0,y:1});assert.equal(tweens[0].to.id,'Urwaldexperte');tweens[0].onComplete();
+  scene.tryMove({x:-1,y:0});assert.equal(tweens[1].to.id,'Urwaldkronen');
+});
+
 test('legacy Urwald world marker becomes world progress and returns to the final real underground level', () => {
   const original = { currentLevel: 'Urwald', unlockedLevels: ['UnderShop', 'Urwald'], coins: 393, health: 3,
     inventory: { passives: { bow: true } }, completedLevels: ['Schluesselweg', 'Kristalltiefen'],
@@ -48,16 +87,16 @@ test('legacy Urwald world marker becomes world progress and returns to the final
   assert.deepEqual(plain(save.inventory), original.inventory);
   assert.deepEqual(original.unlockedLevels, ['UnderShop', 'Urwald']);
 });
-test('a world unlock grants its entry shop and first level, without unlocking the second level', () => {
+test('a world unlock grants Kokoskronen and its expert before the shop and second level', () => {
   const save = normalize({ unlockedLevels: ['Urwald'] });
-  assert.ok(save.unlockedLevels.includes('UrwaldShop')); assert.ok(save.unlockedLevels.includes('Urwaldkronen'));
+  assert.equal(save.unlockedLevels.includes('UrwaldShop'),false); assert.ok(save.unlockedLevels.includes('Urwaldkronen')); assert.ok(save.unlockedLevels.includes('Urwaldexperte'));
   assert.equal(save.unlockedLevels.includes('Lianenpfad'), false);
 });
 test('loading old jungle level or shop saves infers the world and preserves the selected place', () => {
   for (const level of ['UrwaldShop', 'Urwaldkronen', 'Lianenpfad']) {
     const save = normalize({ currentLevel: level, mapState: { jungleNode: level } });
     assert.equal(save.currentWorld, 'jungle'); assert.ok(save.unlockedWorlds.includes('jungle'));
-    assert.ok(save.unlockedLevels.includes('UrwaldShop')); assert.equal(save.currentLevel, level);
+    assert.ok(save.unlockedLevels.includes('Urwaldkronen')); assert.equal(save.currentLevel, level);
     assert.equal(save.mapState.jungleNode, level);
   }
 });
@@ -95,8 +134,8 @@ test('the unlocked world boundary travels directly between world maps and stores
   const { scene, tweens, starts, saved } = underFixture({ currentLevel: 'Kristalltiefen', unlockedLevels: ['Urwald'], coins: 393 });
   scene.currentNode = { id: 'Kristalltiefen', x: 690, y: 450 }; scene.travelToJungle();
   assert.equal(scene.isMoving, true); assert.equal(starts.length, 0);
-  assert.equal(saved().currentWorld, 'jungle'); assert.equal(saved().currentLevel, 'UrwaldShop');
-  assert.equal(saved().mapState.undergroundNode, 'Kristalltiefen'); assert.equal(saved().mapState.jungleNode, 'UrwaldShop');
+  assert.equal(saved().currentWorld, 'jungle'); assert.equal(saved().currentLevel, 'Urwaldkronen');
+  assert.equal(saved().mapState.undergroundNode, 'Kristalltiefen'); assert.equal(saved().mapState.jungleNode, 'Urwaldkronen');
   assert.equal(saved().coins, 393); tweens[0].onComplete();
   assert.equal(starts[0].key, 'JungleMapScene'); assert.equal(starts[0].data.fromUnderworld, true);
 });
@@ -112,11 +151,11 @@ test('jungle map places use the same walking/entering model as the other world m
   const nodes = vm.runInContext('JUNGLE_NODES', context);
   scene.currentNode = nodes[0]; scene.unlocked = new Set(nodes.map(n => n.id));
   let saves = 0; scene.saveLocation = () => { saves++; };
-  scene.tryMove({ x: 1, y: 0 });
+  scene.tryMove({ x: 0, y: 1 });
   assert.equal(scene.isMoving, true); assert.equal(starts.length, 0);
   scene.startCurrentLevel(); assert.equal(starts.length, 0);
-  tweens[0].onComplete(); assert.equal(scene.currentNode.id, 'Urwaldkronen'); assert.equal(saves, 1);
-  scene.startCurrentLevel(); assert.equal(starts[0].key, 'JungleScene'); assert.equal(starts[0].data.levelId, 'Urwaldkronen');
+  tweens[0].onComplete(); assert.equal(scene.currentNode.id, 'Urwaldexperte'); assert.equal(saves, 1);
+  scene.startCurrentLevel(); assert.equal(starts[0].key, 'ExpertScene'); assert.equal(starts[0].data.world, 'jungle');
 });
 test('the jungle shop enters its shop scene and never starts a combat level', () => {
   const { scene, starts } = jungleFixture(); scene.currentNode = { id: 'UrwaldShop' };
@@ -132,12 +171,12 @@ test('a locked next jungle level cannot be walked to or entered', () => {
 });
 test('returning from the jungle entry reaches Kristalltiefen on the underground world map', () => {
   const { scene, tweens, starts, saved } = jungleFixture({ coins: 393, mapState: { jungleNode: 'UrwaldShop' } });
-  scene.currentNode = { id: 'UrwaldShop', y: 360 }; scene.returnToUnderworld();
+  scene.currentNode = { id: 'Urwaldkronen', y: 350 }; scene.returnToUnderworld();
   assert.equal(saved().currentLevel, 'Kristalltiefen'); assert.equal(saved().currentWorld, 'underground');
   assert.equal(saved().mapState.undergroundNode, 'Kristalltiefen'); assert.equal(saved().coins, 393);
   tweens[0].onComplete(); assert.equal(starts[0].key, 'UndergroundMapScene'); assert.equal(starts[0].data.fromJungle, true);
 });
-test('the jungle return route is only at the entry shop, not on every level', () => {
+test('the jungle return route starts at Kokoskronen, not on later places', () => {
   const { scene, tweens } = jungleFixture(); scene.currentNode = { id: 'Lianenpfad' };
   scene.returnToUnderworld(); assert.equal(tweens.length, 0);
 });

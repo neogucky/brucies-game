@@ -6,6 +6,8 @@ import TopHud from "../../ui/topHud.js";
 import CoordinateDebugger from "../../utils/coordinateDebugger.js";
 import { applyInventoryToSave, normalizeInventory } from "../../utils/inventory.js";
 import { applyItemModeSupport, GAME_MODES } from "../../utils/itemRegistry.js";
+import { offerHammerTraining } from "../../utils/hammerTraining.js";
+import { recordDiscoveries } from '../../utils/expertDiscovery.js';
 
 export default class ShopSceneBase extends Phaser.Scene {
   constructor(sceneKey) {
@@ -32,6 +34,7 @@ export default class ShopSceneBase extends Phaser.Scene {
     this.input.keyboard.on("keydown-ESC", () => {
       if (this.inventoryOpen) { this.toggleInventory(); return; }
       if (this.dialog.container?.visible) { this.dialog.hide(); return; }
+      if (this.closeKnowledgeTip?.()) return;
       this.scene.start(this.shopConfig.returnSceneKey);
     });
     this.coordDebugger = new CoordinateDebugger(this);
@@ -82,7 +85,7 @@ export default class ShopSceneBase extends Phaser.Scene {
     this.hud.setConsumableEquipped(this.equipped?.consumable === "honey");
     applyItemModeSupport(this.hud, this.equipped, this.gameMode);
 
-    this.add
+    this.mapReturnHint = this.add
       .text(14, 585, "{back} · Zurück zur Karte", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "16px",
@@ -160,6 +163,7 @@ export default class ShopSceneBase extends Phaser.Scene {
   }
 
   createShelf() {
+    recordDiscoveries(this, this.shopConfig.items.map(item => item.id));
     this.selectedIndex = 0; this.buyButtons = [];
     this.add.text(662, 108, this.shopConfig.locationText.toUpperCase(), {
       fontFamily: "Georgia, serif", fontSize: "29px", color: "#fff0bb", stroke: "#183b2b", strokeThickness: 5,
@@ -196,6 +200,13 @@ export default class ShopSceneBase extends Phaser.Scene {
       .setOrigin(.5).setInteractive({ useHandCursor: true }).on("pointerdown", () => {
         if (!this.inventoryOpen && !this.dialog?.container?.visible) this.scene.start(this.shopConfig.returnSceneKey);
       });
+    if (this.inventory.weapons?.powerHammer && this.shopConfig.items.some(item => item.id === 'powerHammer')) {
+      this.add.text(170, 483, 'Hammer üben', { fontFamily: 'Trebuchet MS, sans-serif', fontSize: '18px',
+        color: '#fff0c2', backgroundColor: '#644c32', padding: { x: 16, y: 9 } }).setOrigin(.5)
+        .setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+          if (!this.inventoryOpen && !this.dialog?.container?.visible) offerHammerTraining(this, { force: true });
+        });
+    }
     this.refreshShelf();
   }
 
@@ -272,6 +283,7 @@ export default class ShopSceneBase extends Phaser.Scene {
     this.saveInventory();
     this.showPurchaseMessage(item.successText);
     this.refreshShelf();
+    if (item.id === 'powerHammer' && this.scene?.start) offerHammerTraining(this);
   }
 
   showPurchaseMessage(text) {

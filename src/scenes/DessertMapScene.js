@@ -1,7 +1,8 @@
 import WorldMapTravel from "../utils/WorldMapTravel.js";
+import { addWorldMapMarker } from "../utils/worldMapMarkers.js";
 import { drawWorldMapPaths, mapFoot, WORLD_MAP_EXITS } from "../utils/worldMapRoutes.js";
 import { applyWeaponAppearance } from "../utils/weapons.js";
-import { saveProgress } from "../saveManager.js";
+import { saveProgress, isWorldUnlocked } from "../saveManager.js";
 import { playMusic } from "../soundManager.js";
 import TopHud from "../ui/topHud.js";
 import { applyItemModeSupport, GAME_MODES } from "../utils/itemRegistry.js";
@@ -161,7 +162,7 @@ export default class DessertMapScene extends Phaser.Scene {
   drawPaths() {
     const save = this.registry.get("saveData") || {};
     const exit = NODES.find(n => n.id === "Fremdweg");
-    const exits = this.unlocked.has(exit.id) && save.completedLevels?.includes(exit.id)
+    const exits = this.unlocked.has(exit.id) && isWorldUnlocked(save, "underground")
       ? [[exit, WORLD_MAP_EXITS.desert.underground]] : [];
     this.pathGraphics = drawWorldMapPaths(this, "desert", NODES, exits);
   }
@@ -170,92 +171,17 @@ export default class DessertMapScene extends Phaser.Scene {
     const saveData = this.registry.get("saveData") || {};
     this.unlocked = new Set(saveData.unlockedLevels || []);
     this.nodeSprites = new Map();
-
-    NODES.forEach((node) => {
-      const isUnlocked = this.unlocked.has(node.id);
-      let label = null;
-      let icon = null;
-      if (node.id === "Wuestenexperte") {
-        icon = this.add.image(node.x, node.y - 14, "professor-desert").setDisplaySize(90, 105);
-        label = this.add.text(node.x, node.y + 50, node.label, { fontFamily: "Trebuchet MS, sans-serif", fontSize: "19px", color: "#fff0bf", stroke: "#3b2a17", strokeThickness: 4 }).setOrigin(.5).setDepth(4);
-      } else if (node.id === "Wuestenruine" && isUnlocked) {
-        const isCompleted = saveData.completedLevels?.includes("Wuestenruine");
-        const ruinKey = isCompleted
-          ? "worldmap-ruin-repaired"
-          : "worldmap-ruin";
-        icon = this.add.image(node.x, node.y, ruinKey).setScale(0.312);
-        if (isCompleted && !saveData.repairedRuinShown) {
-          this.animateRepairedRuin(icon);
-          const nextSave = {
-            ...saveData,
-            repairedRuinShown: true,
-          };
-          this.registry.set("saveData", nextSave);
-          saveProgress(nextSave);
-        }
-      } else if (node.id === "Taverne" && isUnlocked) {
-        icon = this.add.image(node.x, node.y, "tavern-map").setScale(0.3);
-      } else if (node.id === "Fremdweg" && isUnlocked) {
-        const isCompleted = saveData.completedLevels?.includes("Fremdweg");
-        const quarryKey = isCompleted ? "worldmap-quarry-tunnel" : "worldmap-quarry";
-        icon = this.add.image(node.x, node.y, quarryKey).setScale(0.3);
-      } else if (node.id === "DesertEndless" && isUnlocked) {
-        icon = this.add.image(node.x, node.y, "worldmap-oasis").setScale(0.3);
-      } else {
-        icon = this.add.image(node.x, node.y, "worldmap-ruin").setScale(0.281);
-        icon.setAlpha(isUnlocked ? 1 : 0.35);
+    const keys = { Wuestenruine: "map-desert-ruin", Taverne: "map-desert-shop",
+      DesertEndless: "map-desert-oasis", Wuestenexperte: "map-desert-expert",
+      Fremdweg: isWorldUnlocked(saveData, "underground") ? "map-desert-tunnel" : "map-desert-quarry" };
+    NODES.forEach(node => {
+      const marker = addWorldMapMarker(this, "desert", node, keys[node.id], () => this.chooseNode(node));
+      this.nodeSprites.set(node.id, marker);
+      if (node.id === "Wuestenruine" && saveData.completedLevels?.includes(node.id) && !saveData.repairedRuinShown) {
+        this.animateRepairedRuin(marker.icon);
+        const nextSave = { ...saveData, repairedRuinShown: true };
+        this.registry.set("saveData", nextSave); saveProgress(nextSave);
       }
-
-      if (isUnlocked && icon) {
-        icon.setDepth(2);
-        const glowKey = "worldmap-glow";
-        if (!this.textures.exists(glowKey)) {
-          const size = 160;
-          const canvasTexture = this.textures.createCanvas(glowKey, size, size);
-          const ctx = canvasTexture.getContext();
-          const grad = ctx.createRadialGradient(
-            size / 2,
-            size / 2,
-            10,
-            size / 2,
-            size / 2,
-            size / 2
-          );
-          grad.addColorStop(0, "rgba(255,226,161,0.9)");
-          grad.addColorStop(0.6, "rgba(255,226,161,0.4)");
-          grad.addColorStop(1, "rgba(255,226,161,0)");
-          ctx.fillStyle = grad;
-          ctx.fillRect(0, 0, size, size);
-          canvasTexture.refresh();
-        }
-        const glow = this.add.image(node.x, node.y + 8, glowKey);
-        glow.setDepth(1);
-        glow.setBlendMode(Phaser.BlendModes.ADD);
-        glow.setScale(0.9, 0.63);
-        this.tweens.add({
-          targets: glow,
-          alpha: { from: 0.5, to: 0.85 },
-          scaleX: { from: 0.9, to: 1.1 },
-          scaleY: { from: 0.65, to: 0.8 },
-          duration: 1400,
-          yoyo: true,
-          repeat: -1,
-        });
-      }
-
-      if (!isUnlocked) {
-        label = this.add
-          .text(node.x, node.y + 10, "???", {
-            fontFamily: "Trebuchet MS, sans-serif",
-            fontSize: "14px",
-            color: "#6b5a45",
-          })
-          .setOrigin(0.5);
-      }
-
-      icon.setInteractive({ useHandCursor: true }).on("pointerdown", () => this.chooseNode(node));
-      label?.setInteractive({ useHandCursor: true }).on("pointerdown", () => this.chooseNode(node));
-      this.nodeSprites.set(node.id, { icon, label });
     });
   }
 
@@ -280,6 +206,11 @@ export default class DessertMapScene extends Phaser.Scene {
   }
 
   createUI() {
+    if (isWorldUnlocked(this.registry.get("saveData") || {}, "underground")) {
+      this.add.text(835, 548, "Unterwelt ↓", { fontFamily: "Trebuchet MS, sans-serif", fontSize: "19px",
+        color: "#fff0c0", stroke: "#49301d", strokeThickness: 4 }).setOrigin(.5).setDepth(6)
+        .setInteractive({ useHandCursor: true }).on("pointerdown", () => this.travelToUnderground());
+    }
     this.hintText = this.add
       .text(14, 585, "{move} = Bewegen · {confirm} = Start · {back} = Menü", {
         fontFamily: "Trebuchet MS, sans-serif",
@@ -328,25 +259,7 @@ export default class DessertMapScene extends Phaser.Scene {
     const down = this.cursors.down.isDown || this.wasd.S.isDown;
 
     if (down && this.currentNode?.id === "Fremdweg") {
-      const saveData = this.registry.get("saveData") || {};
-      if (!saveData.completedLevels?.includes("Fremdweg")) {
-        this.lockText.setText("Der Weg nach unten ist noch versperrt.");
-        this.time.delayedCall(1000, () => this.lockText.setText(""));
-        return;
-      }
-      const nextSave = {
-        ...saveData,
-        currentWorld: "underground", currentLevel: "UnderShop",
-        mapState: {
-          ...saveData.mapState,
-          desertNode: this.currentNode.id,
-        },
-      };
-      this.registry.set("saveData", nextSave);
-      saveProgress(nextSave);
-      this.mapTravel.travel(this.currentNode, WORLD_MAP_EXITS.desert.underground, () => {
-        this.scene.start("UndergroundMapScene", { fromDesert: true });
-      });
+      this.travelToUnderground();
       return;
     }
 
@@ -355,6 +268,24 @@ export default class DessertMapScene extends Phaser.Scene {
     else if (up) this.tryMove({ x: 0, y: -1 });
     else if (down) this.tryMove({ x: 0, y: 1 });
 
+  }
+
+  travelToUnderground() {
+    if (this.isMoving || this.inventoryOpen || this.inventoryOverlay?.isOpen) return;
+    if (this.currentNode?.id !== "Fremdweg") {
+      this.lockText.setText("Der Weg zur Unterwelt beginnt beim Fremdweg."); return;
+    }
+    const saveData = this.registry.get("saveData") || {};
+    if (!isWorldUnlocked(saveData, "underground")) {
+      this.lockText.setText("Der Weg nach unten ist noch versperrt.");
+      this.time.delayedCall(1000, () => this.lockText.setText("")); return;
+    }
+    const nextSave = { ...saveData, currentWorld: "underground", currentLevel: "UnderShop",
+      mapState: { ...saveData.mapState, desertNode: "Fremdweg", undergroundNode: "UnderShop" } };
+    this.registry.set("saveData", nextSave); saveProgress(nextSave);
+    this.mapTravel.travel(this.currentNode, WORLD_MAP_EXITS.desert.underground, () => {
+      this.scene.start("UndergroundMapScene", { fromDesert: true });
+    });
   }
 
   tryMove(direction) {

@@ -1,4 +1,5 @@
 import ExpertScene from "./scenes/ExpertScene.js";
+import HammerTrainingScene from "./scenes/HammerTrainingScene.js";
 import IntroScene from "./scenes/IntroScene.js";
 import BootScene from "./scenes/BootScene.js";
 import MainMenuScene from "./scenes/MainMenuScene.js";
@@ -12,6 +13,7 @@ import TavernScene from "./scenes/desert/TavernScene.js";
 import UndergroundDigScene from "./scenes/underground/UndergroundDigScene.js";
 import UndergroundShopScene from "./scenes/underground/UndergroundShopScene.js";
 import JungleMapScene from "./scenes/jungle/JungleMapScene.js";
+import WaterMapScene from './scenes/water/WaterMapScene.js';
 import JungleScene from "./scenes/jungle/JungleScene.js";
 import JungleShopScene from "./scenes/jungle/JungleShopScene.js";
 import { installGameSystems } from "./utils/gameSystems.js";
@@ -56,9 +58,11 @@ const config = {
     TavernScene,
     UndergroundShopScene,
     JungleMapScene,
+    WaterMapScene,
     JungleScene,
     JungleShopScene,
     ExpertScene,
+    HammerTrainingScene,
   ],
 };
 

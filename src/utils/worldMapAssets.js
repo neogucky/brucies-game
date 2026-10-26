@@ -58,3 +58,19 @@ export function registerWorldMapAnimationTextures(scene) {
     texture.refresh();
   });
 }
+
+export function registerClimbMantleTextures(scene) {
+  const source = scene.textures.get('mantle-atlas').getSourceImage(), poses = atlasPoses(source);
+  const scale = 144 / Math.max(...poses.map(p => p.image.height));
+  poses.forEach((pose, index) => {
+    const key = `knight${index >= 4 ? '-female' : ''}-mantle-${index % 4}`;
+    if (scene.textures.exists(key)) return;
+    const texture = scene.textures.createCanvas(key, 150, 150), context = texture.getContext();
+    // All gameplay poses face left before flipX is applied. Keep one scale for
+    // the full sequence so the crouching knight does not grow between frames.
+    context.translate(150, 0); context.scale(-1, 1);
+    context.drawImage(pose.image, (150 - pose.image.width * scale) / 2,
+      147 - pose.image.height * scale, pose.image.width * scale, pose.image.height * scale);
+    texture.refresh();
+  });
+}

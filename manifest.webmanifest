@@ -1,0 +1,25 @@
+{
+  "id": "./",
+  "name": "Ritter und sein gelber Begleiter",
+  "short_name": "Brucies Spiel",
+  "lang": "de",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f8e9c8",
+  "theme_color": "#17323d",
+  "icons": [
+    {
+      "src": "./assets/icons/app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/icons/app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

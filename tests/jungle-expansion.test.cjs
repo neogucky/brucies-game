@@ -53,7 +53,10 @@ test('double-down drops through only the current platform, never the level floor
 });
 test('vines support climbing, holding still without gravity, and stepping off',()=>{
  const s=Object.create(ctx.JungleScene.prototype),b={y:1750,bottom:1860,setAllowGravity(v){this.gravity=v;return this},setVelocity(x,y){this.vx=x;this.vy=y},setVelocityY(y){this.vy=y}};Object.assign(s,{worldTime:1000,climbCooldown:0,config:levels.Lianenpfad,player:{x:350,body:b},hazards:{isSticky:()=>false}});
- assert.equal(s.updateClimbing(0,true,false,false),true);assert.equal(b.gravity,false);assert.equal(b.vy,-145);s.updateClimbing(0,false,false,false);assert.equal(b.vy,0);s.updateClimbing(1,false,false,false);assert.equal(s.climbingVine,null);assert.equal(b.gravity,true);
+ assert.equal(s.updateClimbing(0,true,false,false),true);assert.equal(b.gravity,false);assert.equal(b.vy,-145);s.updateClimbing(0,false,false,false);assert.equal(b.vy,0);
+ s.updateClimbing(1,false,false,false);assert.ok(s.climbingVine);assert.equal(b.vx,90);
+ s.player.x=365; s.updateClimbing(0,false,false,false);assert.ok(s.climbingVine);
+ s.player.x=365.1;s.updateClimbing(1,false,false,false);assert.equal(s.climbingVine,null);assert.equal(b.gravity,true);
 });
 function hazardScene(){return {worldTime:0,player:{body:{x:800,y:500,width:40,height:60}},equipped:{companion:'default'},add:{image:art,ellipse:art,circle:art,text:art},tweens:{add(){}},hits:[],takeJungleHit(n){this.hits.push(n)}}}
 test('helper slurping makes ten-second puddles disappear three times faster and shows a countdown',()=>{

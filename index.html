@@ -4,6 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Ritter & Begleiter - Brucies Game</title>
+    <meta name="application-name" content="Brucies Spiel" />
+    <meta name="apple-mobile-web-app-title" content="Brucies Spiel" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#17323d" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32.png" />
+    <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="stylesheet" href="style.css?v=intro-autoplay-1" />
   </head>
   <body>
@@ -17,61 +25,71 @@
 {
   "imports": {
     "./src/dialogManager.js": "./src/dialogManager.js?v=expert-dialog-2",
-    "./src/main.js": "./src/main.js?v=intro-autoplay-1",
-    "./src/saveManager.js": "./src/saveManager.js?v=intro-autoplay-1",
-    "./src/scenes/BootScene.js": "./src/scenes/BootScene.js?v=intro-motion-1",
+    "./src/main.js": "./src/main.js?v=hammer-charge-3",
+    "./src/saveManager.js": "./src/saveManager.js?v=discovery-cards-2",
+    "./src/scenes/BootScene.js": "./src/scenes/BootScene.js?v=professor-floor-1",
     "./src/scenes/CharacterSelectScene.js": "./src/scenes/CharacterSelectScene.js?v=intro-autoplay-1",
     "./src/scenes/DesertRuinScene.js": "./src/scenes/DesertRuinScene.js?v=intro-autoplay-1",
-    "./src/scenes/DessertMapScene.js": "./src/scenes/DessertMapScene.js?v=intro-autoplay-1",
-    "./src/scenes/ExpertScene.js": "./src/scenes/ExpertScene.js?v=expert-dialog-2",
-    "./src/scenes/MainMenuScene.js": "./src/scenes/MainMenuScene.js?v=intro-autoplay-1",
+    "./src/scenes/DessertMapScene.js": "./src/scenes/DessertMapScene.js?v=world-places-2",
+    "./src/scenes/ExpertScene.js": "./src/scenes/ExpertScene.js?v=professor-floor-3",
+    "./src/scenes/MainMenuScene.js": "./src/scenes/MainMenuScene.js?v=intro-exit-1",
     "./src/scenes/TavernScene.js": "./src/scenes/TavernScene.js?v=intro-autoplay-1",
-    "./src/scenes/UndergroundMapScene.js": "./src/scenes/UndergroundMapScene.js?v=intro-autoplay-1",
-    "./src/scenes/desert/DesertEndlessScene.js": "./src/scenes/desert/DesertEndlessScene.js?v=intro-autoplay-1",
-    "./src/scenes/desert/DesertRuinScene.js": "./src/scenes/desert/DesertRuinScene.js?v=intro-autoplay-1",
-    "./src/scenes/desert/DesertTunnelScene.js": "./src/scenes/desert/DesertTunnelScene.js?v=intro-autoplay-1",
+    "./src/scenes/UndergroundMapScene.js": "./src/scenes/UndergroundMapScene.js?v=jungle-paths-2",
+    "./src/scenes/desert/DesertEndlessScene.js": "./src/scenes/desert/DesertEndlessScene.js?v=hammer-charge-3",
+    "./src/scenes/desert/DesertRuinScene.js": "./src/scenes/desert/DesertRuinScene.js?v=hammer-charge-3",
+    "./src/scenes/desert/DesertTunnelScene.js": "./src/scenes/desert/DesertTunnelScene.js?v=hammer-charge-3",
     "./src/scenes/desert/MonsterSpawner.js": "./src/scenes/desert/MonsterSpawner.js?v=intro-autoplay-1",
     "./src/scenes/desert/TavernScene.js": "./src/scenes/desert/TavernScene.js?v=intro-autoplay-1",
-    "./src/scenes/jungle/JungleMapScene.js": "./src/scenes/jungle/JungleMapScene.js?v=intro-autoplay-1",
-    "./src/scenes/jungle/JungleScene.js": "./src/scenes/jungle/JungleScene.js?v=intro-autoplay-1",
+    "./src/scenes/water/WaterMapScene.js": "./src/scenes/water/WaterMapScene.js?v=landscape-climb-3",
+    "./src/scenes/jungle/JungleMapScene.js": "./src/scenes/jungle/JungleMapScene.js?v=jungle-paths-2",
+    "./src/scenes/jungle/JungleScene.js": "./src/scenes/jungle/JungleScene.js?v=jungle-paths-2",
     "./src/scenes/jungle/JungleShopScene.js": "./src/scenes/jungle/JungleShopScene.js?v=intro-autoplay-1",
-    "./src/scenes/shop/ShopSceneBase.js": "./src/scenes/shop/ShopSceneBase.js?v=intro-autoplay-1",
-    "./src/scenes/underground/UndergroundDigScene.js": "./src/scenes/underground/UndergroundDigScene.js?v=intro-autoplay-1",
-    "./src/scenes/underground/UndergroundShopScene.js": "./src/scenes/underground/UndergroundShopScene.js?v=intro-autoplay-1",
+    "./src/scenes/shop/ShopSceneBase.js": "./src/scenes/shop/ShopSceneBase.js?v=discovery-cards-2",
+    "./src/scenes/underground/UndergroundDigScene.js": "./src/scenes/underground/UndergroundDigScene.js?v=jungle-paths-2",
+    "./src/scenes/underground/UndergroundShopScene.js": "./src/scenes/underground/UndergroundShopScene.js?v=hammer-charge-3",
     "./src/soundManager.js": "./src/soundManager.js?v=intro-autoplay-1",
     "./src/ui/ConfirmationDialog.js": "./src/ui/ConfirmationDialog.js?v=intro-autoplay-1",
     "./src/ui/InventoryOverlay.js": "./src/ui/InventoryOverlay.js?v=intro-autoplay-1",
-    "./src/ui/UndergroundVictoryScreen.js": "./src/ui/UndergroundVictoryScreen.js?v=intro-autoplay-1",
+    "./src/ui/UndergroundVictoryScreen.js": "./src/ui/UndergroundVictoryScreen.js?v=jungle-paths-2",
     "./src/ui/topHud.js": "./src/ui/topHud.js?v=intro-autoplay-1",
-    "./src/utils/BowManager.js": "./src/utils/BowManager.js?v=intro-autoplay-1",
+    "./src/utils/BowManager.js": "./src/utils/BowManager.js?v=hammer-charge-3",
     "./src/utils/CompanionNavigator.js": "./src/utils/CompanionNavigator.js?v=intro-autoplay-1",
     "./src/utils/ControlLabels.js": "./src/utils/ControlLabels.js?v=intro-autoplay-1",
     "./src/utils/DesertMoleAI.js": "./src/utils/DesertMoleAI.js?v=intro-autoplay-1",
     "./src/utils/EnemyContacts.js": "./src/utils/EnemyContacts.js?v=intro-autoplay-1",
     "./src/utils/JungleHazards.js": "./src/utils/JungleHazards.js?v=intro-autoplay-1",
-    "./src/utils/PortableControls.js": "./src/utils/PortableControls.js?v=intro-autoplay-1",
+    "./src/utils/PortableControls.js": "./src/utils/PortableControls.js?v=intro-exit-1",
     "./src/utils/ShieldManager.js": "./src/utils/ShieldManager.js?v=intro-autoplay-1",
     "./src/utils/UndergroundBats.js": "./src/utils/UndergroundBats.js?v=intro-autoplay-1",
-    "./src/utils/WeaponSwitch.js": "./src/utils/WeaponSwitch.js?v=intro-autoplay-1",
-    "./src/utils/controlProfiles.js": "./src/utils/controlProfiles.js?v=enter-confirm-1",
+    "./src/utils/WeaponSwitch.js": "./src/utils/WeaponSwitch.js?v=hammer-charge-3",
+    "./src/utils/controlProfiles.js": "./src/utils/controlProfiles.js?v=discovery-cards-2",
     "./src/utils/coordinateDebugger.js": "./src/utils/coordinateDebugger.js?v=intro-autoplay-1",
-    "./src/utils/expertKnowledge.js": "./src/utils/expertKnowledge.js?v=expert-dialog-2",
+    "./src/utils/expertDiscovery.js": "./src/utils/expertDiscovery.js?v=discovery-cards-2",
+    "./src/utils/expertKnowledge.js": "./src/utils/expertKnowledge.js?v=discovery-cards-2",
     "./src/ui/emphasizedText.js": "./src/ui/emphasizedText.js?v=expert-dialog-2",
-    "./src/utils/gameSystems.js": "./src/utils/gameSystems.js?v=intro-autoplay-1",
+    "./src/utils/gameSystems.js": "./src/utils/gameSystems.js?v=discovery-cards-2",
     "./src/utils/inventory.js": "./src/utils/inventory.js?v=intro-autoplay-1",
     "./src/utils/itemRegistry.js": "./src/utils/itemRegistry.js?v=intro-autoplay-1",
-    "./src/utils/jungleRules.js": "./src/utils/jungleRules.js?v=intro-autoplay-1",
+    "./src/utils/jungleRules.js": "./src/utils/jungleRules.js?v=jungle-paths-2",
     "./src/utils/potions.js": "./src/utils/potions.js?v=intro-autoplay-1",
-    "./src/utils/undergroundBoss.js": "./src/utils/undergroundBoss.js?v=intro-autoplay-1",
-    "./src/utils/weapons.js": "./src/utils/weapons.js?v=intro-autoplay-1",
-    "./src/scenes/IntroScene.js": "./src/scenes/IntroScene.js?v=intro-motion-1",
+    "./src/utils/undergroundBoss.js": "./src/utils/undergroundBoss.js?v=jungle-paths-2",
+    "./src/utils/MeleeAnimation.js": "./src/utils/MeleeAnimation.js?v=hammer-charge-3",
+    "./src/utils/weapons.js": "./src/utils/weapons.js?v=hammer-charge-3",
+    "./src/scenes/IntroScene.js": "./src/scenes/IntroScene.js?v=intro-exit-1",
     "./src/utils/IntroAudio.js": "./src/utils/IntroAudio.js?v=intro-autoplay-1",
-    "./src/utils/introTimeline.js": "./src/utils/introTimeline.js?v=intro-motion-1",
-    "./src/utils/introAssets.js": "./src/utils/introAssets.js?v=intro-motion-1",
-    "./src/utils/worldMapAssets.js": "./src/utils/worldMapAssets.js?v=intro-autoplay-1",
-    "./src/utils/worldMapRoutes.js": "./src/utils/worldMapRoutes.js?v=intro-autoplay-1",
+    "./src/utils/introTimeline.js": "./src/utils/introTimeline.js?v=bed-rug-3",
+    "./src/utils/introBedGeometry.js": "./src/utils/introBedGeometry.js?v=bed-rug-3",
+    "./src/utils/introAssets.js": "./src/utils/introAssets.js?v=bed-rug-3",
+    "./src/utils/worldMapAssets.js": "./src/utils/worldMapAssets.js?v=landscape-climb-3",
+    "./src/utils/worldMapRoutes.js": "./src/utils/worldMapRoutes.js?v=jungle-paths-2",
     "./src/utils/companionDrinking.js": "./src/utils/companionDrinking.js?v=intro-autoplay-1",
-    "./src/utils/WorldMapTravel.js": "./src/utils/WorldMapTravel.js?v=intro-autoplay-1"
+    "./src/utils/WorldMapTravel.js": "./src/utils/WorldMapTravel.js?v=landscape-climb-3",
+    "./src/utils/worldMapMarkers.js": "./src/utils/worldMapMarkers.js?v=world-places-2",
+    "./src/scenes/HammerTrainingScene.js": "./src/scenes/HammerTrainingScene.js?v=hammer-charge-3",
+    "./src/utils/HammerCharge.js": "./src/utils/HammerCharge.js?v=hammer-charge-3",
+    "./src/utils/hammerRules.js": "./src/utils/hammerRules.js?v=hammer-charge-3",
+    "./src/utils/hammerTraining.js": "./src/utils/hammerTraining.js?v=hammer-charge-3",
+    "./src/utils/hammerTrainingAssets.js": "./src/utils/hammerTrainingAssets.js?v=hammer-charge-3"
   }
 }
 </script>

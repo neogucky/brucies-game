@@ -1,6 +1,9 @@
-import { defaultSave, loadSave, saveProgress } from "../saveManager.js";
+import { defaultSave, loadSave, saveProgress, unlockAllForTesting } from "../saveManager.js";
 import { registerIntroTextures } from "../utils/introAssets.js";
-import { registerWorldMapAnimationTextures } from "../utils/worldMapAssets.js";
+import { registerWorldMapAnimationTextures, registerClimbMantleTextures } from "../utils/worldMapAssets.js";
+import { registerWorldMapMarkers } from "../utils/worldMapMarkers.js";
+import { registerMeleeTextures } from "../utils/MeleeAnimation.js";
+import { registerHammerTrainingTextures } from "../utils/hammerTrainingAssets.js";
 
 export default class BootScene extends Phaser.Scene {
   constructor() {
@@ -8,11 +11,18 @@ export default class BootScene extends Phaser.Scene {
   }
 
   preload() {
+    this.load.image('hammer-training-atlas', 'assets/common/training/hammer-coach-atlas.png');
+    this.load.image('hammer-coach-civilian', 'assets/common/training/hammer-coach-civilian.png');
+    this.load.image('melee-bodies-atlas', 'assets/common/characters/melee/attack-bodies.png');
+    this.load.image('melee-parts-atlas', 'assets/common/characters/melee/attack-parts.png');
+    this.load.image('melee-parts-v2-atlas', 'assets/common/characters/melee/attack-parts-v2.png');
+    for (const world of ['desert', 'underground', 'jungle']) this.load.image('map-places-' + world, 'assets/worldmap/places-' + world + '.png');
     this.load.image('knight-walk-atlas', 'assets/common/characters/world-travel/knight-walk.png');
     this.load.image('companion-drink-atlas', 'assets/common/characters/world-travel/helper-drink.png');
-    this.load.image('intro-bedroom', 'assets/intro/bedroom.png');
+    this.load.image('intro-bedroom', 'assets/intro/bedroom-perspective.png');
     this.load.image('intro-exterior', 'assets/intro/exterior.png');
-    this.load.image('intro-bed-atlas', 'assets/intro/bed.png');
+    this.load.image('intro-bed-rug', 'assets/intro/bed-rug-aligned.png');
+    this.load.image('intro-blanket-layers', 'assets/intro/blanket-rug-aligned.png');
     this.load.image('intro-knight-poses', 'assets/intro/knight-poses.png');
     this.load.image('intro-helper-atlas', 'assets/intro/helper.png');
     this.load.image('intro-dragon-atlas', 'assets/intro/dragon.png');
@@ -24,8 +34,10 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("jungle-shop", "assets/jungle/jungle-shop-familiar.png");
     this.load.image("jungle-bow-atlas", "assets/jungle/jungle-bow-atlas.png");
     this.load.image("climbing-atlas", "assets/common/characters/climbing-atlas.png");
+    this.load.image('mantle-atlas', 'assets/common/characters/mantle-atlas.png');
+    this.load.image('worldmap-water-bg', 'assets/worldmap/water-world.jpg');
     this.load.image("professor-atlas", "assets/common/experts/professor-atlas.png");
-    this.load.image("professor-study", "assets/common/experts/professor-study.png");
+    this.load.image("professor-study", "assets/common/experts/professor-study-floor.png");
     this.load.image("bow-characters-atlas", "assets/common/characters/bow-characters-atlas.png");
     this.load.image("jungle-equipment-atlas", "assets/jungle/jungle-equipment-atlas.png");
     this.createLoadingUI();
@@ -73,7 +85,7 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("worldmap-underground-molelevel", "assets/worldmap/underground_molelevel.png");
     this.load.image("worldmap-quarry", "assets/worldmap/quarry.png");
     this.load.image("worldmap-quarry-tunnel", "assets/worldmap/quarry_tunnel.png");
-    this.load.image("worldmap-underground-bg", "assets/worldmap/underground_world.png");
+    this.load.image("worldmap-underground-bg", "assets/worldmap/underground-terrain.jpg");
     this.load.image("worldmap-keytower", "assets/worldmap/keytower.png");
     this.load.image("worldmap-keytower-open", "assets/worldmap/keytower_open.png");
     this.load.image("tavern-map", "assets/worldmap/tavern.png");
@@ -164,24 +176,19 @@ export default class BootScene extends Phaser.Scene {
 
   create() {
     registerIntroTextures(this);
+    registerWorldMapMarkers(this);
     this.createHammerTextures();
     this.createBatTextures();
     this.createJungleTextures();
-    const saveData = loadSave();
-    const unlockAll = new URLSearchParams(window.location.search).get("unlockAll") === "1";
+    registerMeleeTextures(this);
+    registerHammerTrainingTextures(this);
+    let saveData = loadSave();
+    const params = new URLSearchParams(window.location.search);
+    const unlockAll = params.get("unlockAll") === "1";
+    this.registry.set('unlockAllForTesting', unlockAll);
     if (unlockAll) {
-      saveData.unlockedLevels = Array.from(new Set([
-        ...(saveData.unlockedLevels || []),
-        "Wuestenruine", "Taverne", "DesertEndless", "Fremdweg",
-        "UnderShop", "UnderDig", "Schluesseltor", "Schluesselweg", "Kristalltiefen",
-        "UrwaldShop", "Urwaldkronen", "Lianenpfad",
-      ]));
-      saveData.unlockedWorlds = ["desert", "underground", "jungle"];
-      saveData.currentWorld = new URLSearchParams(window.location.search).get("world") === "jungle" ? "jungle" : "underground";
-      saveData.undergroundKeyCollected = true;
-      saveData.health = 5;
-      saveData.currentLevel = saveData.currentWorld === "jungle" ? saveData.mapState?.jungleNode || "UrwaldShop" : "Schluesselweg";
-      saveData.mapState = { ...saveData.mapState, undergroundNode: "Schluesselweg" };
+      saveData = unlockAllForTesting(saveData, params.get("world"));
+      saveData.lastPlayed ||= new Date().toISOString();
       saveProgress(saveData);
     }
     this.registry.set("saveData", { ...defaultSave, ...saveData });
@@ -200,14 +207,15 @@ export default class BootScene extends Phaser.Scene {
       this.registry.set("saveData", nextSave);
       saveProgress(nextSave);
     });
-    const junglePreview = unlockAll && new URLSearchParams(window.location.search).get("world") === "jungle";
-    const returnScene = junglePreview ? "JungleMapScene" : unlockAll ? "UndergroundMapScene" : "MainMenuScene";
-    if (new URLSearchParams(window.location.search).get('skipIntro') === '1') this.scene.start(returnScene);
+    const maps = { desert: 'DessertMapScene', underground: 'UndergroundMapScene', jungle: 'JungleMapScene', water: 'WaterMapScene' };
+    const returnScene = unlockAll ? maps[saveData.currentWorld] : 'MainMenuScene';
+    if (params.get('skipIntro') === '1') this.scene.start(returnScene);
     else this.scene.start('IntroScene');
   }
 
   createJungleTextures() {
     registerWorldMapAnimationTextures(this);
+    registerClimbMantleTextures(this);
     const crop = (sourceKey, key, x, y, width, height, grounded = false, outWidth = 150, outHeight = 150) => {
       if (this.textures.exists(key)) return;
       const source = this.textures.get(sourceKey).getSourceImage();

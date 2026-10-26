@@ -4,13 +4,19 @@ Eine 27,8 Sekunden lange 2D-Sequenz mit getrennten Kulissen und transparenten
 Figuren. Die Grafiken wurden mit der integrierten Bildgenerierung erstellt.
 Das vorhandene Titelbild und die Spielfiguren dienen als Stil- und Figurenreferenz.
 Originaldateien bleiben unverändert; BootScene registriert die ausgeschnittenen
-Posen im Browser auf Leinwänden mit festen Größen und gemeinsamer Bodenlinie.
+Posen im Browser auf Leinwänden mit festen Größen. Das Bett und seine
+Deckenebenen verwenden gemeinsame Filmkoordinaten.
 
 | Grafik | Verwendung | Vollständiger Prompt |
 | --- | --- | --- |
-| [bedroom.png](bedroom.png) | Burgzimmer, freier Platz für Bett und Helfer, offenes Fenster; die Drachenprojektion liegt auf dem Holzboden | [bedroom.txt](prompts/bedroom.txt) |
+| [bedroom.png](bedroom.png) | Ursprüngliches Burgzimmer als Stilreferenz | [bedroom.txt](prompts/bedroom.txt) |
+| [bedroom-perspective.png](bedroom-perspective.png) | Verwendete Zimmerkulisse: höherer Wandabschluss und zusammenhängender Holzboden unter allen Bettfüßen | [bedroom-perspective.txt](prompts/bedroom-perspective.txt) |
 | [exterior.png](exterior.png) | Blick über die Burg mit freiem Himmel für den Drachen | [exterior.txt](prompts/exterior.txt) |
-| [bed.png](bed.png) | Leeres Bett als feste Möbelebene; ursprüngliche Ritterposen bleiben als Referenz erhalten | [bed.txt](prompts/bed.txt) |
+| [bed.png](bed.png) | Ursprüngliches Bett als Stilreferenz; bleibt unverändert | [bed.txt](prompts/bed.txt) |
+| [bed-layers.png](bed-layers.png) | Erste getrennte Bett- und Deckenebenen, als Referenz erhalten | [bed-layers.txt](prompts/bed-layers.txt) |
+| [bed-layers-perspective.png](bed-layers-perspective.png) | Vorherige Seitenansicht, als Referenz erhalten | [bed-layers-perspective.txt](prompts/bed-layers-perspective.txt) |
+| [bed-rug-aligned.png](bed-rug-aligned.png) | Verwendetes Bett: Kopfende hinten rechts, Fußende vorne links, an der Teppichperspektive ausgerichtet | [bed-rug-aligned.txt](prompts/bed-rug-aligned.txt) |
+| [blanket-rug-aligned.png](blanket-rug-aligned.png) | Gefüllte und leere blaue Decke aus derselben Blickrichtung, weißer Kragen am Kopfende rechts | [blanket-rug-aligned.txt](prompts/blanket-rug-aligned.txt) |
 | [bed-awake.png](bed-awake.png) | Stil- und Figurenreferenz für die getrennten Ritterposen | [bed-awake.txt](prompts/bed-awake.txt) |
 | [knight-poses.png](knight-poses.png) | Acht getrennte Ritterposen: Schlafen, Gähnen, Aufwachen, Vorbereitung, Absprung, Flug, Landung und Bereitstehen | [knight-poses.txt](prompts/knight-poses.txt) |
 | [helper.png](helper.png) | Schlafen, neugieriges Schauen, am Fenster spähen und Hüpfen | [helper.txt](prompts/helper.txt) |
@@ -20,9 +26,34 @@ Die Animation ist keine Videodatei: Bewegungen, Schatten auf dem Boden, Sprünge
 Funkeln, Überblendungen und Credits werden direkt im Spiel zusammengesetzt.
 Die vorgegebene Einstellung für reduzierte Bewegung verkleinert die Sprünge.
 Das Bett verwendet während der gesamten Zimmersequenz dieselbe Textur und
-Position. Ritter und Vorderkante des Betts liegen auf getrennten Ebenen. Die
+Position. Ritter, Decke und hölzernes Fußende liegen auf getrennten Ebenen. Der
+weiche Bodenschatten folgt der perspektivischen Stellfläche des Betts;
+kleine Kontaktschatten liegen direkt unter den Holzfüßen. Je zwei Stellpunkte
+liegen auf der oberen bzw. unteren goldenen Teppichlinie. Auch der verdeckte
+Stellpunkt folgt dieser Bodenfläche. Die sichtbaren deckenden Fußenden aus der
+Originalgrafik werden auf diese Punkte projiziert; senkrechte Bildspalten
+bleiben dabei senkrecht. Matratze und Bettseiten zeigen dadurch zum selben
+Fluchtbereich wie die Teppichkanten. Als Vordergrund wird das geschwungene
+hölzerne Fußende aus demselben Bettbild erneut gezeichnet, damit die Holzlinien
+genau übereinanderliegen. Die benachbarte hintere Kopfstütze und die helle
+Matratze gehören dabei nicht zur Vordergrundmaske.
+Diese Schatten werden im Spiel gezeichnet und bleiben mit dem Gestell unverändert.
+Der geschwungene Deckenrand verdeckt den Körper, ohne eine gerade Schnittkante. Der
+Helfer landet auf der Körperwölbung unter der Decke; Stoff und Ritter federn
+bei den drei Aufweck-Hüpfern leicht mit. Beim Absprung sinkt die Decke in ihre
+leere Form zurück. Die
 neuen Ritterposen werden nach Gesichtsgröße ausgerichtet; Vorbereitung,
 angewinkelte Beine im Flug, Landekniebeuge und Aufrichten erhalten eigene Posen.
+
+Die neue Bettgrafik und die Decken entstanden mit der integrierten
+Bildgenerierung. Für die Bettform wurde zuerst eine geometrische
+[Zeichenvorlage](references/bed-rug-proxy.png) aus den gemessenen
+[Teppichlinien und Stellpunkten](references/bed-rug-geometry.json) erstellt.
+Die zweite Referenz des Bettprompts ist die
+[Stilvorlage](references/bed-render-style.png); die Decke nutzt das neue Bett
+und die ursprünglichen Deckenfarben als Referenzen. Die Registrierung und ihre
+Kalibrierpunkte stehen in
+[introBedGeometry.js](../../src/utils/introBedGeometry.js).
 
 ## Ton
 

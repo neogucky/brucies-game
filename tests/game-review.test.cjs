@@ -244,15 +244,15 @@ test('reequipping a shield cannot bypass its existing cooldown', () => {
   assert.equal(shield.cooldownUntil, 0);
 });
 
-test('Kristalltiefen unlocks after the guardian and is reachable from the gate', () => {
+test('Kristalltiefen unlocks after the guardian and is reachable beyond the mine', () => {
   const { scene, context, getSaved } = loadScene('UndergroundMapScene', 'scenes/UndergroundMapScene.js');
   scene.ensureUnlocks();
   assert.equal(getSaved().unlockedLevels.includes('Kristalltiefen'), false);
   getSaved().completedLevels = ['Schluesselweg'];
   scene.ensureUnlocks();
   assert.equal(getSaved().unlockedLevels.includes('Kristalltiefen'), true);
-  scene.currentNode = vm.runInContext('NODES.find(n => n.id === "Schluesseltor")', context);
-  assert.equal(scene.getNeighborForDirection({ x: 0, y: 1 }), 'Kristalltiefen');
+  scene.currentNode = vm.runInContext('NODES.find(n => n.id === "Schluesselweg")', context);
+  assert.equal(scene.getNeighborForDirection({ x: 1, y: 0 }), 'Kristalltiefen');
   scene.currentNode = vm.runInContext('NODES.find(n => n.id === "Kristalltiefen")', context);
   scene.unlocked = new Set(getSaved().unlockedLevels);
   let target, data;

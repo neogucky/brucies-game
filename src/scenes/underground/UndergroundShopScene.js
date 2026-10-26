@@ -19,7 +19,7 @@ export default class UndergroundShopScene extends ShopSceneBase {
           id: "powerHammer",
           label: "Power Hammer",
           price: 200,
-          successText: "Ein schwerer Hammer für harte Gegner!\nRüste ihn im Inventar aus.\nSpringen + Unten: mächtiger Landungsschlag!",
+          successText: "Rüste den Hammer im Inventar aus.\n{attack}: antippen oder halten und loslassen.\nSpringen + ↓: Landungsschlag!",
         },
         {
           id: "honey",

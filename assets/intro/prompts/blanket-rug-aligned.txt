@@ -1,0 +1,8 @@
+Use case: precise-object-edit.
+Asset type: production transparent sprite atlas, TWO separate royal-blue BLANKETS, one above the other, with clear transparent separation.
+Image 1 is the AUTHORITATIVE bed geometry and camera. Image 2 gives only the existing blanket's colors and illustration style.
+The bed's HEAD and pillow are at the UPPER RIGHT / back, and its FOOT is at the LOWER LEFT / front. Design the two cloth shapes to fit EXACTLY that bed, looking at its footboard and long RIGHT side. The cream folded collar is at the UPPER-RIGHT head end, close to the pillow; the blue fabric extends diagonally DOWN-LEFT toward the foot. A skirt drapes along the long RIGHT side, facing the lower-right foreground. The fabric must match the shallow projected mattress plane in image 1, not a deep isometric mattress.
+TOP SPRITE: only a royal-blue blanket with a cream folded head collar, raised a little by a sleeping child's body. A soft torso mound is near the upper-right middle, below the pillow. Leave the head and neck area open. No actual body.
+BOTTOM SPRITE: the SAME blanket with the SAME footprint, perspective, collar, draping hem, folds and camera, settled after the child leaves, with a lower body mound. Keep both sprites' horizontal size equal and registration as close as possible.
+Match the warm clean bold outlines and simple polished cel shading of the game. Natural curved hems, clear large folds, no tiny patterns.
+Draw ONLY the two blankets, each complete and isolated with true alpha transparency. No furniture, posts, bed frame, pillow, characters, backdrop, floor, shadows, haze, glow, captions, labels or divider lines. Do not flip the direction: the white collar belongs on the RIGHT, the blue foot end on the LEFT.

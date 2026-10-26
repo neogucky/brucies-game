@@ -20,9 +20,9 @@ test('scene cuts occur under black and the dragon crosses above the castle from 
  assert.ok(ctx.getIntroFrame(7300).dragon.x<ctx.getIntroFrame(11300).dragon.x);
  assert.ok(ctx.getIntroFrame(8300).dragon.y<350);
 });
-test('helper actually reaches the windowsill, bounces on the bed, and ends beside the ready knight',()=>{
+test('helper actually reaches the windowsill, bounces on the covered torso, and ends beside the ready knight',()=>{
  const sill=ctx.getIntroFrame(5800);assert.equal(sill.helper.x,764);assert.equal(sill.helper.y,370);assert.equal(sill.helper.pose,'peek');
- const bounce=ctx.getIntroFrame(15800);assert.equal(bounce.helper.x,280);assert.ok(bounce.helper.y<405);
+ const bounce=ctx.getIntroFrame(15800);assert.equal(bounce.helper.x,306);assert.equal(bounce.helper.groundY,354);assert.ok(bounce.helper.y<354);
  const end=ctx.getIntroFrame(25000);assert.equal(end.helper.x,695);assert.equal(end.knight.x,565);assert.equal(end.helper.y,end.knight.y);
 });
 test('reduced motion keeps the whole story but reduces jump height',()=>{
@@ -54,16 +54,46 @@ test('credits use real elapsed time rather than an accelerated game-loop delta',
   now=1050;s.update(0,5000);assert.equal(s.elapsed,50);now=1070;s.update(0,5000);assert.equal(s.elapsed,70);
  }finally{ctx.performance.now=original}
 });
-for(const profile of ['ipadKeyboard','pc','ipadTouch'])test(profile+': Space alone skips the intro; confirm/back do not start or skip it',()=>{
- let starts=0,skips=0;const s={isIntro:true,startIntro(){starts++},finish(){skips++}};
- const c=Object.create(ctx.PortableControls.prototype);c.activeScene=()=>s;c.getProfile=()=>profile;c.held=new Set();
- for(const code of ['KeyE','KeyQ','Enter','Escape'])c.onKey({code,preventDefault(){},stopImmediatePropagation(){}},true);
- c.dispatch('confirm');c.dispatch('back');assert.equal(starts+skips,0);
- c.onKey({code:'Space',preventDefault(){},stopImmediatePropagation(){}},true);
- c.onKey({code:'Space',repeat:true,preventDefault(){},stopImmediatePropagation(){}},true);
- c.onKey({code:'Space',preventDefault(){},stopImmediatePropagation(){}},false);
- assert.equal(starts,0);assert.equal(skips,1);
+for(const profile of ['ipadKeyboard','pc','ipadTouch'])test(profile+': Space and Enter skip once; unrelated keys never restart the intro',()=>{
+ for(const code of ['Space','Enter']){
+  let starts=0,skips=0;const s={isIntro:true,startIntro(){starts++},finish(){skips++}};
+  const c=Object.create(ctx.PortableControls.prototype);c.activeScene=()=>s;c.getProfile=()=>profile;c.held=new Set();
+  for(const key of ['KeyE','KeyQ','Escape'])c.onKey({code:key,preventDefault(){},stopImmediatePropagation(){}},true);
+  c.dispatch('back');assert.equal(starts+skips,0);
+  c.onKey({code,preventDefault(){},stopImmediatePropagation(){}},true);
+  c.onKey({code,repeat:true,preventDefault(){},stopImmediatePropagation(){}},true);
+  c.onKey({code,repeat:false,preventDefault(){},stopImmediatePropagation(){}},true);
+  c.onKey({code,preventDefault(){},stopImmediatePropagation(){}},false);
+  assert.equal(starts,0);assert.equal(skips,1);
+ }
  assert.equal(ctx.introSkipLabel(profile),profile==='ipadTouch'?'Überspringen':'Überspringen · Leertaste');
+});
+
+for(const code of ['Space','Enter'])test(code+': a held skip key is consumed across the menu transition until release',()=>{
+ const {EventEmitter}=require('node:events'), keyboard=new EventEmitter();let active,skips=0,menuActions=0;
+ const menu={input:{keyboard}};keyboard.on('keydown-'+(code==='Space'?'SPACE':'ENTER'),()=>menuActions++);
+ const intro={isIntro:true,finish(){skips++;active=menu}};active=intro;
+ const c=Object.create(ctx.PortableControls.prototype);c.activeScene=()=>active;c.getProfile=()=>'ipadKeyboard';c.held=new Set();c.heldKeys=new Map();
+ const event=(repeat=false)=>({code,repeat,preventDefault(){},stopImmediatePropagation(){}});
+ c.onKey(event(),true);assert.equal(skips,1);assert.equal(active,menu);
+ // Scene housekeeping releases movement, but must retain the skip-key latch.
+ c.clearHeld();c.onKey(event(true),true);c.onKey(event(false),true);assert.equal(menuActions,0);
+ c.onKey(event(),false);c.onKey(event(),true);assert.equal(menuActions,1);assert.equal(skips,1);
+});
+
+test('the Enter used to open a replay cannot also skip that replay while held',()=>{
+ const {EventEmitter}=require('node:events'),keyboard=new EventEmitter();let active,starts=0,skips=0;
+ const intro={isIntro:true,finish(){skips++}},menu={input:{keyboard}};active=menu;
+ keyboard.on('keydown-ENTER',()=>{starts++;active=intro});
+ const c=Object.create(ctx.PortableControls.prototype);c.activeScene=()=>active;c.getProfile=()=>'ipadKeyboard';
+ const event={code:'Enter',preventDefault(){},stopImmediatePropagation(){}};
+ c.onKey(event,true);assert.equal(starts,1);c.onKey(event,true);assert.equal(skips,0);
+ c.onKey(event,false);c.onKey(event,true);assert.equal(skips,1);
+});
+
+test('losing focus releases pressed keys even when the browser never sends their keyup',()=>{
+ const c=Object.create(ctx.PortableControls.prototype);c.pressedKeys=new Set(['Enter']);c.activeScene=()=>({});
+ c.autoPause();assert.equal(c.pressedKeys.size,0);
 });
 
 function audioFixture(){
@@ -191,11 +221,25 @@ test('all frames keep one fixed bed and furniture foreground while only the knig
  assert.ok(s.bedroom.list.indexOf(s.occupant)<s.bedroom.list.indexOf(s.bedFront));
  assert.ok(s.bedroom.list.indexOf(s.bedHero)<s.bedroom.list.indexOf(s.bedFront));
 });
+test('a separate curved blanket covers the waist; the helper lands on its body mound and only cloth reacts',()=>{
+ const {s}=introSceneFixture(),layers=s.bedroom.list;
+ assert.equal(s.occupant.mask,undefined);assert.equal(s.bedFront.mask,undefined);
+ assert.equal(s.bedFront.texture,'intro-bed-front');assert.equal(s.blanket.texture,'intro-blanket-occupied');
+ assert.ok(layers.indexOf(s.occupant)<layers.indexOf(s.blanket));assert.ok(layers.indexOf(s.blanket)<layers.indexOf(s.bedFront));
+ for(const t of [15300,16300,17300]){
+  const f=ctx.getIntroFrame(t);assert.equal(f.helper.x,306);assert.equal(f.helper.groundY,354);assert.equal(f.helper.y,f.helper.groundY);
+  assert.equal(ctx.introCuesBetween(t-1,t+1)[0][1],'boing');
+  assert.ok(f.helper.stretch<1);assert.ok(f.blanket.scaleY<1);s.drawFrame(f);assert.equal(s.bed.y,600);
+ }
+ assert.equal(ctx.getIntroFrame(20000).blanket.empty,0);
+ assert.ok(ctx.getIntroFrame(20650).blanket.empty>0&&ctx.getIntroFrame(20650).blanket.empty<1);
+ assert.equal(ctx.getIntroFrame(21000).blanket.empty,1);
+});
 for(const reduced of [false,true])test(`jump layer changes only once after clearing the bedding, reduced motion: ${reduced}`,()=>{
  let previous=true,changes=0;
  for(let t=20450;t<=22300;t+=10){
   const k=ctx.getIntroFrame(t,reduced).knight;
-  if(k.behindBed!==previous){changes++;assert.ok(k.y<=365);}
+  if(k.behindBed!==previous){changes++;assert.ok(k.y<=380);}
   previous=k.behindBed;
  }
  assert.equal(changes,1);

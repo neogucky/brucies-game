@@ -12,6 +12,7 @@ export default class WeaponSwitch {
   blocked() { const s=this.scene; return s.climbingVine || s.isPaused || s.inventoryOpen || s.confirmation?.isOpen || s.isGameOver || s.levelCompleted || s.isComplete; }
   request(kind, action) {
     if (this.blocked()) return false;
+    if (kind === 'bow' && this.scene.hammerCharge?.holding) return false;
     if (this.pending) { if (this.pending.kind === kind) this.pending.action = action; return false; }
     if (kind === this.hand) return action();
     if (this.scene.isSwinging || this.scene.hammerSlamActive) return false;

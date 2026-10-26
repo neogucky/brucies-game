@@ -148,7 +148,7 @@ for (const [event, profile, action] of [
 ]) test(JSON.stringify(event) + ' maps to ' + profile + ' action ' + action, () => assert.equal(context.actionForKey(event, profile), action));
 test('legacy aliases, shortcuts and composing text do not activate the default iPad profile', () => {
   for (const event of [{ code: 'Enter', ctrlKey: true }, { code: 'KeyQ', metaKey: true }, { key: 'Enter', isComposing: true },
-    { code: 'KeyW' }, { code: 'KeyE' }, { code: 'Escape' }, { code: 'Tab' }, { code: 'Backspace' }, { code: 'KeyJ' }, { code: 'KeyN' }, { metaKey: true, key: '.' }])
+    { code: 'KeyE' }, { code: 'Escape' }, { code: 'Tab' }, { code: 'Backspace' }, { code: 'KeyJ' }, { code: 'KeyN' }, { metaKey: true, key: '.' }])
     assert.equal(context.actionForKey(event), null);
 });
 function controls(scene) {
@@ -175,7 +175,7 @@ test('confirm advances a dialog page or selects the current shop option without 
   const c = controls(scene); c.dispatch('confirm'); scene.dialog.pages[0] = { options: [{}] }; c.dispatch('confirm');
   assert.equal(next, 1); assert.equal(selected, 1);
 });
-test('both broken and native iPad arrow events use the same held-key adapter; WASD is inactive', () => {
+test('both broken and native iPad arrow events use the same held-key adapter as WASD', () => {
   let downs = 0, ups = 0, prevented = 0;
   const key = { onDown() { downs++; }, onUp() { ups++; } };
   const c = controls({ cursors: { up: key }, input: { keyboard: new EventEmitter() } }); c.held = new Set();
@@ -183,7 +183,7 @@ test('both broken and native iPad arrow events use the same held-key adapter; WA
   c.onKey(event, true); c.onKey(event, false);
   assert.equal(downs, 1); assert.equal(ups, 1); assert.equal(prevented, 2);
   c.onKey({ ...event, keyCode: 38 }, true); c.onKey({ ...event, keyCode: 38 }, false); assert.equal(downs, 2);
-  c.onKey({ ...event, key: 'w' }, true); assert.equal(downs, 2);
+  c.onKey({ ...event, key: 'w' }, true); c.onKey({ ...event, key: 'w' }, false); assert.equal(downs, 3); assert.equal(ups, 3);
 });
 test('app switching clears stuck movement keys and pause/resume grants a short grace period', () => {
   let resets = 0, paused = 0, resumed = 0;

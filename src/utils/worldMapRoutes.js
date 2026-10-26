@@ -1,13 +1,22 @@
 export const MAP_GROUND_OFFSET = 32;
 export const MAP_TRAVEL_SPEED = 260;
 
+// Visible departures and keyboard directions share these cardinal ports.
+export const JUNGLE_PATH_PORTS = {
+  Urwaldkronen: { UrwaldShop: 'right', Urwaldexperte: 'down', '@underground': 'left' },
+  UrwaldShop: { Urwaldkronen: 'left', Lianenpfad: 'right' },
+  Lianenpfad: { UrwaldShop: 'left', '@water': 'right' },
+  Urwaldexperte: { Urwaldkronen: 'left' },
+};
+
 export const WORLD_MAP_EXITS = {
   desert: { underground: { id: "@underground", x: 720, y: 570 } },
   underground: {
-    desert: { id: "@desert", x: 460, y: -30 },
-    jungle: { id: "@jungle", x: 990, y: 450 },
+    desert: { id: "@desert", x: 467, y: -30 },
+    jungle: { id: "@jungle", x: 990, y: 444 },
   },
-  jungle: { underground: { id: "@underground", x: -34, y: 360 } },
+  jungle: { underground: { id: "@underground", x: 72, y: 219 }, water: { id: '@water', x: 990, y: 350 } },
+  water: { jungle: { id: '@jungle', x: -35, y: 305 } },
 };
 
 // These bends are shared by the painted trail and the characters following it.
@@ -20,20 +29,22 @@ const BENDS = {
     ["Fremdweg", "@underground", [[760, 534], [752, 574]]],
   ],
   underground: [
-    ["UnderShop", "UnderDig", [[374, 234], [309, 201], [265, 165]]],
-    ["UnderShop", "Schluesseltor", [[452, 296], [411, 327], [387, 371]]],
-    ["Schluesseltor", "Schluesselweg", [[286, 385], [230, 372]]],
-    ["Schluesseltor", "Kristalltiefen", [[409, 410], [456, 464], [551, 491], [627, 467]]],
-    ["UnderShop", "Unterweltexperte", [[517, 275], [600, 280], [641, 250]]],
-    ["UnderShop", "@desert", [[471, 194], [441, 143], [455, 83]]],
-    ["Kristalltiefen", "@jungle", [[772, 505], [847, 483], [922, 492]]],
+    ["UnderShop", "UnderDig", [[412, 163], [330, 153], [256, 145]]],
+    ["UnderShop", "Schluesseltor", [[500, 190], [453, 215], [431, 229]]],
+    ["Schluesseltor", "Schluesselweg", [[348, 311], [309, 355], [264, 391]]],
+    ["Schluesselweg", "Kristalltiefen", [[314, 409], [406, 417], [491, 427], [554, 430], [621, 434], [658, 459]]],
+    ["UnderShop", "Unterweltexperte", [[625, 167], [695, 158]]],
+    ["UnderShop", "@desert", [[530, 142], [488, 113], [466, 89], [467, 43]]],
+    ["Kristalltiefen", "@jungle", [[778, 485], [850, 477], [924, 476]]],
   ],
   jungle: [
-    ["UrwaldShop", "Urwaldkronen", [[300, 395], [332, 353], [380, 319], [434, 321]]],
-    ["Urwaldkronen", "Lianenpfad", [[559, 292], [579, 345], [666, 352], [713, 381]]],
-    ["UrwaldShop", "Urwaldexperte", [[254, 431], [235, 470]]],
-    ["UrwaldShop", "@underground", [[142, 416], [79, 394], [15, 409]]],
+    ["Urwaldkronen", "UrwaldShop", [[410, 361], [440, 320], [390, 285]]],
+    ["UrwaldShop", "Lianenpfad", [[602, 292], [573, 320], [590, 373]]],
+    ["Urwaldkronen", "Urwaldexperte", [[292, 510], [342, 482]]],
+    ["Urwaldkronen", "@underground", [[132, 352], [149, 322], [173, 300], [119, 288], [90, 275]]],
+    ["Lianenpfad", "@water", [[894, 402], [952, 384]]],
   ],
+  water: [["Seeufer", "@jungle", [[158, 313], [108, 303], [54, 318]]]],
 };
 
 export function mapFoot(node) {
@@ -72,7 +83,14 @@ export function getWorldMapRoute(world, from, to) {
   // Always build the canonical direction first so the reverse route is identical.
   const reverse = entry && entry[0] !== from.id;
   const start = reverse ? to : from, end = reverse ? from : to;
-  const anchors = [mapFoot(start), ...(entry?.[2] || []).map(([x, y]) => ({ x, y })), mapFoot(end)];
+  const portAnchors = (node, other, arriving) => {
+    const direction = world === 'jungle' && JUNGLE_PATH_PORTS[node.id]?.[other.id];
+    if (!direction) return [];
+    const vector = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] }[direction], foot = mapFoot(node);
+    return (arriving ? [110, 60] : [60, 110]).map(distance => ({ x: foot.x + vector[0] * distance, y: foot.y + vector[1] * distance }));
+  };
+  const anchors = [mapFoot(start), ...portAnchors(start, end, false),
+    ...(entry?.[2] || []).map(([x, y]) => ({ x, y })), ...portAnchors(end, start, true), mapFoot(end)];
   const route = createMapRoute(anchors);
   return reverse ? reverseMapRoute(route) : route;
 }
@@ -90,36 +108,108 @@ export function pointOnMapRoute(route, distance) {
 }
 
 const PALETTES = {
-  desert: { edge: 0x744a24, earth: 0xbd8241, center: 0xe6b66a, marks: 0xffedba },
-  underground: { edge: 0x241c2d, earth: 0x655468, center: 0xa28d9f, marks: 0xffe3a6 },
-  jungle: { edge: 0x203b28, earth: 0x9a6934, center: 0xd7b66d, marks: 0xffedb1 },
+  desert: { edge: 0x99753f, earth: 0xc79450, dust: 0xd4a45e, marks: 0x956c3d, plants: 0x788447 },
+  underground: { edge: 0x4c3425, earth: 0x715036, dust: 0x9c7346, marks: 0xb08a54, plants: 0x69b7bc },
+  jungle: { edge: 0x475630, earth: 0xb38a4d, dust: 0xd2ad6a, marks: 0x80613a, plants: 0x3b6a37 },
+  water: { marks: 0x80613a },
 };
+
+function jungleTrailPainter(scene) {
+  const key = 'map-jungle-footpaths';
+  const texture = scene.textures.exists(key) ? scene.textures.get(key) : scene.textures.createCanvas(key, 960, 600);
+  const ctx = texture.getContext(); ctx.clearRect(0, 0, 960, 600);
+  // Brush the trail with the landscape's own sandy clearing. Its grain and
+  // colour match the painting, while the runtime path stays exactly walkable.
+  const source = scene.textures.get('worldmap-jungle-bg').getSourceImage();
+  const brush = document.createElement('canvas'); brush.width = 92; brush.height = 56;
+  brush.getContext('2d').drawImage(source, source.width * 352 / 1586, source.height * 548 / 992,
+    source.width * 92 / 1586, source.height * 56 / 992, 0, 0, 92, 56);
+  const soil = ctx.createPattern(brush, 'repeat');
+  scene.add.image(0, 0, key).setOrigin(0).setDepth(-1.1);
+  return {
+    paint(left, right, opacity) {
+      const polygon = [...left, ...right.slice().reverse()];
+      ctx.save(); ctx.globalAlpha = opacity * .94; ctx.fillStyle = soil;
+      ctx.beginPath(); polygon.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+      ctx.closePath(); ctx.fill(); ctx.restore();
+    },
+    refresh() { texture.refresh(); },
+  };
+}
 
 export function drawWorldMapPaths(scene, world, nodes, exits = []) {
   const graphics = scene.add.graphics().setDepth(-1), palette = PALETTES[world];
+  const painter = world === 'jungle' ? jungleTrailPainter(scene) : null;
   const seen = new Set();
   const draw = (from, to) => {
     const key = [from.id, to.id].sort().join("/");
     if (seen.has(key)) return;
     seen.add(key);
     const route = getWorldMapRoute(world, from, to);
-    graphics.lineStyle(23, 0x111512, .28).strokePoints(route.points.map(p => ({ x: p.x, y: p.y + 3 })), false);
-    graphics.lineStyle(19, palette.edge, .96).strokePoints(route.points, false);
-    graphics.lineStyle(14, palette.earth, 1).strokePoints(route.points, false);
-    graphics.lineStyle(9, palette.center, 1).strokePoints(route.points, false);
-    graphics.lineStyle(2.5, palette.marks, .95);
-    for (let distance = 14; distance < route.length - 8; distance += 22) {
-      const a = pointOnMapRoute(route, distance), b = pointOnMapRoute(route, Math.min(route.length, distance + 7));
-      graphics.lineBetween(a.x, a.y, b.x, b.y);
+    if (world === 'underground' || world === 'water') {
+      // The landscape already contains its trails. Do not paint a second path
+      // over it: just leave occasional footprints on the very same walk route.
+      for (let d = 18, i = 0; d < route.length - 15; d += 36, i++) {
+        const p = pointOnMapRoute(route, d);
+        graphics.fillStyle(palette.marks, .18).fillEllipse(p.x + (i % 2 ? -2 : 2), p.y, 3, 4);
+      }
+      return;
+    }
+    const tunnel = world === 'underground';
+    const jungle = world === 'jungle', open = scene.unlocked.has(from.id) && (to.id.startsWith('@') || scene.unlocked.has(to.id));
+    const opacity = jungle && !open ? .3 : 1;
+    if (!painter) graphics.lineStyle(tunnel ? 51 : 37, palette.edge, (tunnel ? .45 : .08) * opacity).strokePoints(route.points, false);
+    const left = [], right = [];
+    for (let d = 0; d <= route.length; d += 3) {
+      const p = pointOnMapRoute(route, d), a = pointOnMapRoute(route, d - 2), b = pointOnMapRoute(route, d + 2);
+      const length = Math.hypot(b.x - a.x, b.y - a.y) || 1, nx = -(b.y - a.y) / length, ny = (b.x - a.x) / length;
+      const width = (tunnel ? 20 : 13) + Math.sin(d / 29) * 3 + Math.sin(d / 8) * 1.8;
+      left.push({ x: p.x + nx * width, y: p.y + ny * width });
+      right.push({ x: p.x - nx * (width + Math.sin(d / 17) * 3), y: p.y - ny * (width + Math.sin(d / 17) * 3) });
+    }
+    if (painter) painter.paint(left, right, opacity);
+    else graphics.fillStyle(palette.earth, (tunnel ? .85 : .6) * opacity).fillPoints([...left, ...right.reverse()], true);
+    // Overlapping, uneven dabs blend into the terrain. No kerbs or centre stripe.
+    for (let d = 0, i = 0; d < route.length; d += 5, i++) {
+      const p = pointOnMapRoute(route, d), width = (tunnel ? 30 : 25) + Math.sin(i * 1.7) * 5;
+      graphics.fillStyle(palette.dust, (tunnel ? .045 : .04) * opacity).fillEllipse(p.x, p.y, width, width * .73);
+    }
+    for (let d = 16, i = 0; d < route.length - 12; d += 18, i++) {
+      const p = pointOnMapRoute(route, d), next = pointOnMapRoute(route, d + 2);
+      const length = Math.hypot(next.x - p.x, next.y - p.y) || 1;
+      const nx = -(next.y - p.y) / length, ny = (next.x - p.x) / length;
+      const side = i % 2 ? 1 : -1;
+      if (tunnel) {
+        // Rough rock rims make a continuous walkable tunnel through the cave.
+        for (const s of [-1, 1]) {
+          const offset = s * (23 + Math.sin(d / 29) * 3 + Math.sin(i * 2.1) * 3);
+          const x = p.x + nx * offset, y = p.y + ny * offset;
+          graphics.fillStyle(palette.edge, .9).fillEllipse(x + 1, y + 2, 16 + i % 6, 11 + i % 5);
+          graphics.fillStyle(0x89613a, .9).fillEllipse(x, y, 13 + i % 6, 9 + i % 4);
+          graphics.fillStyle(palette.marks, .55).fillEllipse(x - 2, y - 3, 9, 3);
+        }
+        if (i % 6 === 2) {
+          const x = p.x + nx * side * 27, y = p.y + ny * side * 27;
+          graphics.fillStyle(palette.plants, .9).fillTriangle(x - 3, y + 3, x, y - 7, x + 4, y + 3);
+        }
+      } else {
+        const edge = 18 + Math.sin(i * 1.9) * 4;
+        graphics.fillStyle(palette.plants, .65 * opacity).fillEllipse(p.x + nx * side * edge, p.y + ny * side * edge, world === 'jungle' ? 9 : 4, 4);
+      }
+      // Occasional paired footprints and pebbles, never a dashed road marking.
+      if (!tunnel) graphics.fillStyle(palette.marks, .3 * opacity)
+        .fillEllipse(p.x + nx * side * 3, p.y + ny * side * 3, 3, 5);
+      if (i % 3 === 0) graphics.fillStyle(palette.marks, .45 * opacity).fillEllipse(p.x - nx * 10, p.y - ny * 10, 4, 2);
     }
   };
   nodes.forEach(node => {
-    if (!scene.unlocked.has(node.id)) return;
+    if (!scene.unlocked.has(node.id) && world !== 'jungle') return;
     Object.values(node.neighbors || {}).forEach(id => {
       const next = nodes.find(n => n.id === id);
-      if (next && scene.unlocked.has(id)) draw(node, next);
+      if (next && (scene.unlocked.has(id) || world === 'jungle')) draw(node, next);
     });
   });
   exits.forEach(([from, to]) => draw(from, to));
+  painter?.refresh();
   return graphics;
 }

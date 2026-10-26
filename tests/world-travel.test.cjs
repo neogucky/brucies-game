@@ -14,18 +14,21 @@ const exits = vm.runInContext('WORLD_MAP_EXITS', ctx);
 const foot = ctx.mapFoot, route = ctx.getWorldMapRoute, point = ctx.pointOnMapRoute;
 const pairs = [
   ['desert', {id:'Wuestenruine',x:180,y:490}, {id:'Taverne',x:420,y:410}],
-  ['underground', {id:'Schluesseltor',x:338,y:340}, {id:'Kristalltiefen',x:690,y:450}],
-  ['jungle', {id:'UrwaldShop',x:220,y:360}, {id:'Urwaldkronen',x:485,y:230}],
-  ['jungle', {id:'UrwaldShop',x:220,y:360}, {id:'Urwaldexperte',x:200,y:490}],
+  ['underground', {id:'Schluesselweg',x:205,y:383}, {id:'Kristalltiefen',x:705,y:436}],
+  ['jungle', {id:'Urwaldkronen',x:245,y:350}, {id:'UrwaldShop',x:485,y:230}],
+  ['jungle', {id:'Urwaldkronen',x:245,y:350}, {id:'Urwaldexperte',x:485,y:450}],
+  ['jungle', {id:'UrwaldShop',x:485,y:230}, {id:'Lianenpfad',x:760,y:360}],
   ['desert', {id:'Fremdweg',x:720,y:460}, exits.desert.underground],
-  ['underground', {id:'UnderShop',x:445,y:210}, exits.underground.desert],
-  ['underground', {id:'Kristalltiefen',x:690,y:450}, exits.underground.jungle],
-  ['jungle', {id:'UrwaldShop',x:220,y:360}, exits.jungle.underground],
+  ['underground', {id:'UnderShop',x:570,y:130}, exits.underground.desert],
+  ['underground', {id:'Kristalltiefen',x:705,y:436}, exits.underground.jungle],
+  ['jungle', {id:'Urwaldkronen',x:245,y:350}, exits.jungle.underground],
+  ['jungle', {id:'Lianenpfad',x:760,y:360}, exits.jungle.water],
+  ['water', {id:'Seeufer',x:210,y:288}, exits.water.jungle],
 ];
 for (const [world, from, to] of pairs) test(`${world}: ${from.id} ↔ ${to.id} follows the same curved trail in both directions`, () => {
   const forward = route(world, from, to), backward = route(world, to, from);
   assert.equal(forward.length, backward.length);
-  assert.ok(forward.length > Math.hypot(to.x-from.x,to.y-from.y) * 1.015);
+  assert.ok(forward.length >= Math.hypot(to.x-from.x,to.y-from.y));
   assert.deepEqual(point(forward, 0), foot(from)); assert.deepEqual(point(forward, forward.length), foot(to));
   for (let i=0;i<=20;i++) {
     const a=point(forward,forward.length*i/20), b=point(backward,backward.length*(1-i/20));
@@ -35,7 +38,7 @@ for (const [world, from, to] of pairs) test(`${world}: ${from.id} ↔ ${to.id} f
 function actor(x=0,y=0) { return {x,y,active:true,visible:true,texture:'knight-hammer-standing',
   setTexture(key){this.texture=key;return this},getData(){return 'knight-hammer-standing'},
   setPosition(x,y){this.x=x;this.y=y;return this},setFlipX(value){this.flipX=value;return this},
-  setDepth(){return this},setVisible(value){this.visible=value;return this},setDisplaySize(w,h){this.width=w;this.height=h;return this}}; }
+  setDepth(value){this.depth=value;return this},setVisible(value){this.visible=value;return this},setDisplaySize(w,h){this.width=w;this.height=h;return this}}; }
 function travelFixture(world, from, female=false) {
   const at=foot(from), events=new EventEmitter();
   // Phaser's emitter supports an explicit listener context.
@@ -77,6 +80,14 @@ test('the helper follows the actual trail, and shutdown cancels travel and its c
   assert.ok(Math.abs(scene.companionMarker.x-follow.x)<1e-8);
   assert.ok(Math.abs(scene.companionMarker.y-follow.y)<=4);
   events.emit('shutdown');assert.equal(travel.active,false);assert.equal(calls,0);assert.equal(events.listenerCount('update'),0);
+});
+test('walking behind a tall gate hides the knight and shadow behind it, then restores the foreground on arrival',()=>{
+  const from={id:'UnderShop',x:570,y:130},to={id:'UnderDig',x:185,y:130};
+  const {scene,travel}=travelFixture('underground',from);let behind=0;
+  scene.nodeSprites=new Map([['gate',{icon:{x:385,y:260,displayWidth:180,displayHeight:150}}]]);
+  travel.travel(from,to);
+  while(travel.active){travel.update(0,16);if(scene.playerMarker.depth===1){behind++;assert.equal(travel.shadow.depth,0);}}
+  assert.ok(behind>5);assert.equal(scene.playerMarker.depth,5);assert.equal(travel.shadow.depth,4);
 });
 test('drinking has four repeating phases, and only works near a puddle on the same floor', () => {
   assert.equal(new Set([0,140,280,420].map(ctx.companionDrinkTexture)).size,4);

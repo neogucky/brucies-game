@@ -21,14 +21,17 @@ export default class IntroScene extends Phaser.Scene {
     this.dragonShadow = this.add.image(650, 516, 'intro-dragon-0').setTint(0x101827).setAlpha(0).setDisplaySize(370, 94).setAngle(-10);
     this.dragonShadow.setMask(maskFor(INTRO_FLOOR_LIGHT));
     this.bedroom.add(this.dragonShadow);
-    this.bedroom.add(this.add.ellipse(316, 537, 490, 31, 0x1c1523, .25));
-    this.bed = this.add.image(315, 542, 'intro-bed-fixed').setOrigin(.5, 1).setDisplaySize(535, 418);
+    this.bedShadow = this.add.image(480, 300, 'intro-bed-ground-shadow');
+    this.bedroom.add(this.bedShadow);
+    this.bed = this.add.image(480, 600, 'intro-bed-fixed').setOrigin(.5, 1).setDisplaySize(960, 600);
     this.bedroom.add(this.bed);
-    this.occupant = this.add.image(220, 365, 'intro-hero-sleep').setOrigin(260 / 440, 1);
+    this.occupant = this.add.image(350, 397, 'intro-hero-sleep').setOrigin(260 / 440, 1);
     this.bedHero = this.add.image(245, 430, 'intro-hero-push').setOrigin(260 / 440, 1).setVisible(false);
     this.bedroom.add([this.occupant, this.bedHero]);
-    this.bedFront = this.add.image(315, 542, 'intro-bed-fixed').setOrigin(.5, 1).setDisplaySize(535, 418);
-    this.bedFront.setMask(maskFor([{ x: 0, y: 360 }, { x: 960, y: 360 }, { x: 960, y: 600 }, { x: 0, y: 600 }]));
+    this.blanketEmpty = this.add.image(480, 600, 'intro-blanket-empty').setOrigin(.5, 1).setDisplaySize(960, 600).setAlpha(0);
+    this.blanket = this.add.image(480, 600, 'intro-blanket-occupied').setOrigin(.5, 1).setDisplaySize(960, 600);
+    this.bedroom.add([this.blanketEmpty, this.blanket]);
+    this.bedFront = this.add.image(480, 600, 'intro-bed-front').setOrigin(.5, 1).setDisplaySize(960, 600);
     this.bedroom.add(this.bedFront);
     this.exterior = this.add.container(0, 0).setVisible(false);
     this.exterior.add(this.add.image(480, 300, 'intro-exterior').setDisplaySize(960, 600));
@@ -93,6 +96,10 @@ export default class IntroScene extends Phaser.Scene {
     const occupant = f.occupant;
     this.occupant.setVisible(occupant.visible).setTexture('intro-hero-' + occupant.pose)
       .setPosition(occupant.x, occupant.y).setAngle(occupant.angle).setScale(occupant.scaleX, occupant.scaleY);
+    this.blanket.setDisplaySize(960, 600 * f.blanket.scaleY).setAlpha(1 - f.blanket.empty);
+    // Keep the settled cloth opaque underneath the fading body mound, so
+    // the mattress cannot show through the overlapping blankets.
+    this.blanketEmpty.setAlpha(f.blanket.empty > 0 ? 1 : 0);
     this.dragonShadow.setPosition(f.shadow.x, f.shadow.y).setTexture('intro-dragon-' + f.shadow.frame)
       .setDisplaySize(f.shadow.width, f.shadow.height).setAngle(f.shadow.angle).setAlpha(outside ? 0 : f.shadow.alpha);
     this.dragon.setPosition(f.dragon.x, f.dragon.y).setTexture('intro-dragon-' + f.dragon.frame).setDisplaySize(f.dragon.width, f.dragon.height);

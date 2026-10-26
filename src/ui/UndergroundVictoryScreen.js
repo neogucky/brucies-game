@@ -16,6 +16,7 @@ export default function showUndergroundVictory(scene, { name, reward, unlocked, 
   const gold = scene.add.text(450, 397, "+" + reward + " Gold", {
     fontFamily: "Trebuchet MS, sans-serif", fontSize: "25px", color: "#ffe29a",
   }).setOrigin(0, 0.5);
+  if (!reward) { coin.setVisible(false); gold.setVisible(false); }
   const message = scene.add.text(480, 443, unlockedWorld === "jungle"
     ? "Neue Welt freigeschaltet: Urwaldwelt\nAuf der Unterweltkarte bei Kristalltiefen nach rechts gehen."
     : unlocked

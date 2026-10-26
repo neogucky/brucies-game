@@ -16,6 +16,17 @@ export function getWeaponDamage(id, isStone = false, multiplier = 1) {
   return stats ? stats.damage * (isStone ? stats.stoneMultiplier : 1) * multiplier : 0;
 }
 
+export function getAttackStats(id, attack) {
+  const stats = getWeaponStats(id);
+  return stats && id === 'powerHammer' && attack?.charged
+    ? { ...stats, windupMs: 80, impactMs: 210, swingMs: 360, chargeProgress: attack.progress } : stats;
+}
+
+export function getMeleeDamage(scene, isStone = false) {
+  return getWeaponDamage(scene.equipped?.weapon, isStone,
+    scene.equipped?.weapon === 'powerHammer' ? scene.hammerAttack?.multiplier || 1 : 1);
+}
+
 export function getWeaponTextures(id, gender = "male") {
   const prefix = `knight${gender === "female" ? "-female" : ""}${id === "powerHammer" ? "-hammer" : ""}`;
   return {

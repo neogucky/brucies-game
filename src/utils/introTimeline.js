@@ -1,5 +1,6 @@
 export const INTRO_DURATION = 27800;
 export const INTRO_JUMP = { prepare: 20000, launch: 20450, land: 21700, settle: 22300 };
+export const INTRO_BED_BOUNCE = { x: 306, y: 354, start: 15300, end: 18300, period: 1000 };
 // Coordinates are in the 960 × 600 film frame. Only this patch of the room's
 // wooden floor receives the projected silhouette from the open window.
 export const INTRO_FLOOR_LIGHT = [
@@ -22,7 +23,7 @@ export const INTRO_CUES = [
   [400, 'snore'], [1300, 'snore'], [2000, 'whoosh'],
   [3200, 'hop'], [3800, 'hop'], [4500, 'hop'],
   [6500, 'whoosh'], [8100, 'whoosh'], [9700, 'whoosh'], [11300, 'whoosh'],
-  [13100, 'hop'], [14600, 'hop'], [15400, 'boing'], [16300, 'boing'], [17200, 'boing'],
+  [13100, 'hop'], [14600, 'hop'], [15300, 'boing'], [16300, 'boing'], [17300, 'boing'],
   [18000, 'yawn'], [20450, 'hop'], [21700, 'chime'],
 ];
 
@@ -44,8 +45,10 @@ export function getIntroFrame(milliseconds, reducedMotion = false) {
   const outside = t >= 6200 && t < 12800;
   const f = {
     time: t, stage: outside ? 'exterior' : 'bedroom', beat: 'sleep',
-    occupant: { visible: !outside, pose: 'sleep', x: 220, y: 365, angle: 0, scaleX: 1,
+    occupant: { visible: !outside, pose: 'sleep', x: 350, y: 397, angle: 0, scaleX: 1,
       scaleY: 1 + Math.sin(t / 650) * .009 * motion },
+    blanket: { scaleY: 1 + Math.sin(t / 650) * .0025 * motion,
+      empty: smooth(progress(t, INTRO_JUMP.launch, INTRO_JUMP.launch + 400)) },
     helper: { x: 625, y: 526, groundY: 526, pose: 'sleep', stretch: 1 + Math.sin(t / 650) * .025 },
     knight: { visible: false, x: 565, y: 535, pose: 'ready', angle: 0, scaleX: 1, scaleY: 1, behindBed: false },
     shadow: { x: mix(310, 1010, progress(t, 2000, 3800)), y: 516,
@@ -69,15 +72,20 @@ export function getIntroFrame(milliseconds, reducedMotion = false) {
   } else if (outside) {
     f.beat = 'dragon'; f.helper = { x: 112, y: 494, groundY: 494, pose: 'peek', stretch: 1 + Math.sin(t / 230) * .015 * motion };
   } else if (t >= 12800 && t < 14400) {
-    f.beat = 'return'; f.helper = { ...hop({ x: 764, y: 370 }, { x: 465, y: 510 }, progress(t, 12900, 14400), 1, 80 * motion), pose: 'hop' };
+    f.beat = 'return'; f.helper = { ...hop({ x: 764, y: 370 }, { x: 465, y: 550 }, progress(t, 12900, 14400), 1, 80 * motion), pose: 'hop' };
   } else if (t >= 14400 && t < 15300) {
-    f.beat = 'wake'; f.helper = { ...hop({ x: 465, y: 510 }, { x: 280, y: 405 }, progress(t, 14400, 15300), 1, 90 * motion), pose: 'hop' };
+    f.beat = 'wake'; f.helper = { ...hop({ x: 465, y: 550 }, INTRO_BED_BOUNCE, progress(t, 14400, 15300), 1, 90 * motion), pose: 'hop' };
   } else if (t >= 15300 && t < 18300) {
-    f.beat = 'wake'; f.helper = { ...hop({ x: 280, y: 405 }, { x: 280, y: 405 }, progress(t, 15300, 18300), 3, 65 * motion), pose: 'hop' };
+    f.beat = 'wake'; f.helper = { ...hop(INTRO_BED_BOUNCE, INTRO_BED_BOUNCE, progress(t, 15300, 18300), 3, 48 * motion), pose: 'hop' };
+    const phase = (t - INTRO_BED_BOUNCE.start) % INTRO_BED_BOUNCE.period / INTRO_BED_BOUNCE.period;
+    const landing = Math.exp(-phase * 18) * motion;
+    f.blanket.scaleY -= landing * .012;
+    f.occupant.y += landing * 3; f.occupant.angle = Math.sin(phase * Math.PI * 4) * landing * 2;
+    f.helper.stretch -= landing * .13;
   } else if (t >= 18300 && t < 20300) {
-    f.beat = 'yawn'; f.helper = { ...hop({ x: 280, y: 405 }, { x: 430, y: 515 }, progress(t, 18300, 20000), 2, 55 * motion), pose: 'awake' };
+    f.beat = 'yawn'; f.helper = { ...hop(INTRO_BED_BOUNCE, { x: 430, y: 560 }, progress(t, 18300, 20000), 2, 55 * motion), pose: 'awake' };
   } else if (t >= 20300) {
-    f.beat = 'ready'; f.helper = { ...hop({ x: 430, y: 515 }, { x: 695, y: 535 }, progress(t, 20300, 22000), 2, 70 * motion), pose: 'hop' };
+    f.beat = 'ready'; f.helper = { ...hop({ x: 430, y: 560 }, { x: 695, y: 535 }, progress(t, 20300, 22000), 2, 70 * motion), pose: 'hop' };
   }
   if (t >= 17600) f.occupant.pose = 'yawn';
   if (t >= 19300) f.occupant.pose = 'awake';
@@ -92,13 +100,13 @@ export function getIntroFrame(milliseconds, reducedMotion = false) {
   if (t >= INTRO_JUMP.launch) {
     f.occupant.visible = false;
     const p = progress(t, INTRO_JUMP.launch, INTRO_JUMP.land);
-    const flight = hop({ x: 245, y: 430 }, { x: 565, y: 535 }, p, 1, 110 + 35 * motion);
+    const flight = hop({ x: 375, y: 450 }, { x: 565, y: 535 }, p, 1, 110 + 35 * motion);
     f.knight = { ...f.knight, ...flight, visible: true,
       pose: p < .2 ? 'push' : p < .75 ? 'air' : 'ready',
       angle: Math.sin(p * Math.PI * 2) * 9 * motion,
       scaleX: 1 - Math.sin(p * Math.PI) * .025 * motion,
       scaleY: 1 + Math.sin(p * Math.PI) * .04 * motion,
-      behindBed: p < .5 && flight.y > 365 };
+      behindBed: p < .5 && flight.y > 380 };
     if (f.knight.pose === 'air') f.knight.scaleY *= mix(.9, 1, progress(t, INTRO_JUMP.launch + 250, INTRO_JUMP.launch + 410));
     if (t >= INTRO_JUMP.land) {
       const impact = Math.sin(progress(t, INTRO_JUMP.land, INTRO_JUMP.land + 280) * Math.PI);
@@ -113,7 +121,7 @@ export function getIntroFrame(milliseconds, reducedMotion = false) {
   }
   f.sleepSymbols = [0, 1, 2].map(i => {
     const p = (t / 1900 + i / 3) % 1;
-    return { x: 245 + p * 95, y: 290 - p * 140, scale: .8 + p * .5,
+    return { x: 350 + p * 80, y: 305 - p * 120, scale: .8 + p * .5,
       alpha: !outside && t < 17600 ? Math.sin(p * Math.PI) * .9 * (1 - progress(t, 17300, 17600)) : 0 };
   });
   return f;

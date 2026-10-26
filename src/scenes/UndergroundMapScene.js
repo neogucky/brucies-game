@@ -1,4 +1,5 @@
 import WorldMapTravel from "../utils/WorldMapTravel.js";
+import { addWorldMapMarker } from "../utils/worldMapMarkers.js";
 import { drawWorldMapPaths, mapFoot, WORLD_MAP_EXITS } from "../utils/worldMapRoutes.js";
 import { applyWeaponAppearance } from "../utils/weapons.js";
 import { saveProgress, normalizeWorldProgress } from "../saveManager.js";
@@ -14,39 +15,39 @@ const NODES = [
   {
     id: "UnderShop",
     label: "Händlerin",
-    x: 445,
-    y: 210,
+    x: 570,
+    y: 130,
     neighbors: { left: "UnderDig", downLeft: "Schluesseltor", right: "Unterweltexperte" },
   },
   {
     id: "UnderDig",
     label: "Erdgang",
-    x: 192,
-    y: 127,
+    x: 185,
+    y: 130,
     neighbors: { right: "UnderShop" },
   },
   {
     id: "Schluesseltor",
-    label: "Schluesseltor",
-    x: 338,
-    y: 340,
-    neighbors: { upRight: "UnderShop", left: "Schluesselweg", downRight: "Kristalltiefen" },
+    label: "Schlüsseltor",
+    x: 385,
+    y: 236,
+    neighbors: { upRight: "UnderShop", downLeft: "Schluesselweg" },
   },
   {
     id: "Schluesselweg",
-    label: "Schluesselweg",
-    x: 191,
-    y: 307,
-    neighbors: { right: "Schluesseltor" },
+    label: "Steinwächtermine",
+    x: 205,
+    y: 383,
+    neighbors: { upRight: "Schluesseltor", right: "Kristalltiefen" },
   },
   {
     id: "Kristalltiefen",
     label: "Kristalltiefen",
-    x: 690,
-    y: 450,
-    neighbors: { upLeft: "Schluesseltor" },
+    x: 705,
+    y: 436,
+    neighbors: { left: "Schluesselweg" },
   },
-  { id: "Unterweltexperte", label: "Unterweltexperte", x: 685, y: 220, neighbors: { left: "UnderShop" } },
+  { id: "Unterweltexperte", label: "Unterweltexperte", x: 755, y: 125, neighbors: { left: "UnderShop" } },
 ];
 
 export default class UndergroundMapScene extends Phaser.Scene {
@@ -167,88 +168,25 @@ export default class UndergroundMapScene extends Phaser.Scene {
   }
 
   addBackground() {
-    const bg = this.add.image(480, 300, "worldmap-underground-bg");
-    const scale = Math.max(960 / bg.width, 600 / bg.height);
-    bg.setScale(scale);
+    const bg = this.add.image(480, 300, "worldmap-underground-bg").setDisplaySize(960, 600);
     bg.setDepth(-2);
   }
 
   createNodes() {
     const saveData = this.registry.get("saveData") || {};
     this.unlocked = new Set(saveData.unlockedLevels || []);
-    const path = this.add.graphics();
-    path.setDepth(-1);
-    path.lineStyle(4, 0x9a7c56, 1);
-    path.strokeLineShape(new Phaser.Geom.Line(NODES[0].x, 40, NODES[0].x, NODES[0].y + 18));
     this.nodeSprites = new Map();
-    NODES.forEach((node) => {
-      const isUnlocked = this.unlocked.has(node.id);
-      const iconKey =
-        node.id === "Unterweltexperte" ? "professor-underground" : node.id === "UnderShop"
-          ? "underground-shop-map"
-          : node.id === "Schluesseltor"
-          ? isUnlocked && saveData.unlockedLevels?.includes("Schluesselweg")
-            ? "worldmap-keytower-open"
-            : "worldmap-keytower"
-          : node.id === "UnderDig"
-          ? "worldmap-underground-level"
-          : node.id === "Schluesselweg"
-          ? "worldmap-underground-molelevel"
-          : "underground-stonemonster-standing";
-      const iconScale =
-        node.id === "UnderShop" ? 0.3 : node.id === "Schluesseltor" ? 0.5 : 0.26;
-      const icon = this.add.image(node.x, node.y, iconKey).setScale(iconScale);
-      if (node.id === "Unterweltexperte") {
-        icon.setDisplaySize(90, 105);
-        this.add.text(node.x, node.y + 65, node.label, { fontFamily: "Trebuchet MS, sans-serif", fontSize: "19px", color: "#fff0bf", stroke: "#3b2a17", strokeThickness: 4 })
-          .setOrigin(.5).setDepth(4).setInteractive({ useHandCursor: true }).on("pointerdown", () => this.chooseNode(node));
+    const keys = { UnderShop: "map-underground-shop", UnderDig: "map-underground-dig",
+      Schluesseltor: this.unlocked.has("Schluesselweg") ? "map-underground-open-gate" : "map-underground-gate",
+      Schluesselweg: "map-underground-dig", Kristalltiefen: "map-underground-depths",
+      Unterweltexperte: "map-underground-expert" };
+    NODES.forEach(node => {
+      const marker = addWorldMapMarker(this, "underground", node, keys[node.id], () => this.chooseNode(node));
+      if (node.id === "Schluesselweg") {
+        this.add.image(node.x + 45, node.y - 46, "underground-stonemonster-standing")
+          .setDisplaySize(51, 51).setDepth(3).setAlpha(this.unlocked.has(node.id) ? 1 : .38);
       }
-      icon.setInteractive({ useHandCursor: true }).on("pointerdown", () => this.chooseNode(node));
-      if (node.id === "Kristalltiefen") {
-        icon.setTint(0xa9dcff);
-        this.add.text(node.x, node.y + 44, "Kristalltiefen", {
-          fontFamily: "Trebuchet MS, sans-serif", fontSize: "16px",
-          color: isUnlocked ? "#e2f5ff" : "#999999", stroke: "#1d1920", strokeThickness: 3,
-        }).setOrigin(0.5).setDepth(3);
-      }
-      icon.setAlpha(isUnlocked ? 1 : 0.35);
-      icon.setDepth(2);
-      const glowKey = "worldmap-glow";
-      if (!this.textures.exists(glowKey)) {
-        const size = 160;
-        const canvasTexture = this.textures.createCanvas(glowKey, size, size);
-        const ctx = canvasTexture.getContext();
-        const grad = ctx.createRadialGradient(
-          size / 2,
-          size / 2,
-          10,
-          size / 2,
-          size / 2,
-          size / 2
-        );
-        grad.addColorStop(0, "rgba(255,226,161,0.9)");
-        grad.addColorStop(0.6, "rgba(255,226,161,0.4)");
-        grad.addColorStop(1, "rgba(255,226,161,0)");
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, size, size);
-        canvasTexture.refresh();
-      }
-      if (isUnlocked) {
-        const glow = this.add.image(node.x, node.y + 8, glowKey);
-        glow.setDepth(1);
-        glow.setBlendMode(Phaser.BlendModes.ADD);
-        glow.setScale(0.9, 0.63);
-        this.tweens.add({
-          targets: glow,
-          alpha: { from: 0.5, to: 0.85 },
-          scaleX: { from: 0.9, to: 1.1 },
-          scaleY: { from: 0.65, to: 0.8 },
-          duration: 1400,
-          yoyo: true,
-          repeat: -1,
-        });
-      }
-      this.nodeSprites.set(node.id, { icon });
+      this.nodeSprites.set(node.id, marker);
     });
   }
 
@@ -269,8 +207,8 @@ export default class UndergroundMapScene extends Phaser.Scene {
       return;
     }
     this.isMoving = true;
-    const nextSave = { ...save, currentWorld: "jungle", currentLevel: "UrwaldShop",
-      mapState: { ...save.mapState, undergroundNode: "Kristalltiefen", jungleNode: "UrwaldShop" } };
+    const nextSave = { ...save, currentWorld: "jungle", currentLevel: "Urwaldkronen",
+      mapState: { ...save.mapState, undergroundNode: "Kristalltiefen", jungleNode: "Urwaldkronen" } };
     this.registry.set("saveData", nextSave); saveProgress(nextSave);
     this.mapTravel.travel(this.currentNode, WORLD_MAP_EXITS.underground.jungle, () => {
       this.scene.start("JungleMapScene", { fromUnderworld: true });
@@ -302,6 +240,12 @@ export default class UndergroundMapScene extends Phaser.Scene {
   }
 
   createUI() {
+    this.add.text(464, 95, "↑ Wüste", { fontFamily: "Trebuchet MS, sans-serif", fontSize: "19px",
+      color: "#fff0c0", stroke: "#38291e", strokeThickness: 4 }).setOrigin(.5).setDepth(6)
+      .setInteractive({ useHandCursor: true }).on("pointerdown", () => {
+        if (this.currentNode?.id === "UnderShop") this.returnToDesert();
+        else this.lockText.setText("Der Weg zur Wüste beginnt bei der Händlerin.");
+      });
     this.hintText = this.add
       .text(14, 585, "{confirm} = Betreten · {move} = Bewegen · {back} = Menü", {
         fontFamily: "Trebuchet MS, sans-serif",
@@ -321,8 +265,6 @@ export default class UndergroundMapScene extends Phaser.Scene {
       .setStroke("#3b2a17", 2);
     const jungleOpen = this.registry.get("saveData")?.unlockedWorlds?.includes("jungle");
     if (jungleOpen) {
-      const path = this.add.graphics().setDepth(-1);
-      path.lineStyle(4, 0x9a7c56, 1); path.lineBetween(690, 468, 960, 468);
       this.add.text(850, 430, "Urwaldwelt →", { fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "20px", color: "#dbf5ae", stroke: "#173d29", strokeThickness: 4 })
         .setOrigin(.5).setDepth(6).setInteractive({ useHandCursor: true })
@@ -361,10 +303,15 @@ export default class UndergroundMapScene extends Phaser.Scene {
         };
         this.registry.set("saveData", nextSave);
         saveProgress(nextSave);
+        this.unlocked = unlocked;
+        this.nodeSprites?.get('Schluesseltor')?.icon.setTexture('map-underground-open-gate');
+        const mine = this.nodeSprites?.get('Schluesselweg');
+        mine?.icon.setAlpha(1); mine?.label.setColor('#fff1cb');
+        if (this.pathGraphics) { this.pathGraphics.destroy(); this.drawPaths(); }
         this.sound.play("sfx-key-open");
         this.showDialog("Du hast das Tor aufgeschlossen!");
       } else {
-        this.showDialog("Der Schluesselturm ist bereits geöffnet!");
+        this.showDialog("Das Schlüsseltor ist bereits geöffnet!");
       }
       return;
     }
@@ -386,13 +333,13 @@ export default class UndergroundMapScene extends Phaser.Scene {
       this.scene.start("UndergroundDigScene", {
         mapKey: "underground-dig-map",
         levelId: "UnderDig",
-        locationName: "Untergrundpfad",
+        locationName: "Erdgang",
       });
     } else if (this.currentNode.id === "Schluesselweg") {
       this.scene.start("UndergroundDigScene", {
         mapKey: "underground-keytower-map",
         levelId: "Schluesselweg",
-        locationName: "Schluesselweg",
+        locationName: "Steinwächtermine",
       });
     } else if (this.currentNode.id === "Kristalltiefen") {
       this.scene.start("UndergroundDigScene", {
@@ -405,12 +352,13 @@ export default class UndergroundMapScene extends Phaser.Scene {
     if (!this.currentNode || this.isMoving || this.inventoryOpen || this.isDialogOpen) return;
     this.isMoving = true;
     const saveData = this.registry.get("saveData") || {};
-    const desertNode = saveData.mapState?.desertNode ?? "Fremdweg";
+    const desertNode = "Fremdweg";
     const nextSave = {
       ...saveData,
       currentWorld: "desert", currentLevel: desertNode,
       mapState: {
         ...saveData.mapState,
+        desertNode,
         undergroundNode: this.currentNode?.id ?? saveData.mapState?.undergroundNode,
       },
     };

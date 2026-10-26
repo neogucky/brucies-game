@@ -1,5 +1,5 @@
 import { showExitConfirmation } from "../../ui/ConfirmationDialog.js";
-import { getWeaponStats, isMeleeWeapon, getWeaponTextures, applyWeaponAppearance, getWeaponDamage } from "../../utils/weapons.js";
+import { getWeaponStats, isMeleeWeapon, getWeaponTextures, applyWeaponAppearance, getWeaponDamage, getAttackStats, getMeleeDamage } from "../../utils/weapons.js";
 import { saveProgress } from "../../saveManager.js";
 import { bumpMusicRate, playMusic } from "../../soundManager.js";
 import TopHud from "../../ui/topHud.js";
@@ -21,7 +21,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.isEditorMode = false;
     this.mapKey = "underground-dig-map";
     this.levelId = "UnderDig";
-    this.locationName = "Untergrundpfad";
+    this.locationName = "Erdgang";
     this.scrollXEnabled = false;
     this.worldWidth = 960;
     this.worldHeight = 600;
@@ -168,7 +168,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys("W,A,S,D");
-    this.input.keyboard.on("keydown-SPACE", () => this.digBlock());
+    this.input.keyboard.on("keydown-SPACE", event => { if (this.hammerCharge) this.hammerCharge.press(event); else this.digBlock(); });
     this.input.keyboard.on("keydown-THREE", () => this.toggleEditorMode());
     this.input.keyboard.on("keydown-FOUR", () => this.toggleHitboxEditor());
     this.input.keyboard.on("keydown-ESC", () => this.openExitPrompt());
@@ -1993,10 +1993,10 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.player.setFlipX(this.facingX > 0);
   }
 
-  digBlock() {
+  digBlock(attack = null) {
     if (this.isPaused || this.isEditorMode) return;
     if (!isMeleeWeapon(this.equipped?.weapon)) return;
-    if (!this.startSwing()) return;
+    if (!this.startSwing(attack)) return;
     if (this.hitSwordEnemies()) return;
     const hitBounds = this.swordHitbox.getBounds();
     if (this.chests?.children?.size) {
@@ -2056,7 +2056,11 @@ export default class UndergroundDigScene extends Phaser.Scene {
 
   hitSwordEnemies() {
     if (!this.isSwinging || !this.swingHits) return false;
-    if (this.hammerSlamActive || this.time.now < (this.swingReadyAt || 0)) return false;
+    const elapsed = this.swingTimer?.elapsed;
+    const stillWindingUp = Number.isFinite(elapsed)
+      ? elapsed < (getAttackStats(this.equipped?.weapon, this.hammerAttack)?.windupMs || 0)
+      : this.time.now < (this.swingReadyAt || 0);
+    if (this.hammerSlamActive || this.swingReadyAt === Infinity || stillWindingUp) return false;
     const hitBounds = this.swordHitbox.getBounds();
     let hitEnemy = false;
     if (this.molesGroup?.getChildren) {
@@ -2066,7 +2070,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
         if (!mole.active || this.swingHits.has(mole)) continue;
         if (!Phaser.Geom.Intersects.RectangleToRectangle(hitBounds, mole.getBounds())) continue;
         this.swingHits.add(mole);
-        this.damageMole(mole, getWeaponDamage(this.equipped.weapon));
+        this.damageMole(mole, getMeleeDamage(this));
         hitEnemy = true;
       }
     }
@@ -2084,7 +2088,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
           continue;
         }
         this.swingHits.add(monster);
-        this.damageStoneMonster(monster, getWeaponDamage(this.equipped.weapon, true));
+        this.damageStoneMonster(monster, getMeleeDamage(this, true));
         hitEnemy = true;
       }
     }
@@ -2093,18 +2097,21 @@ export default class UndergroundDigScene extends Phaser.Scene {
       if (!Phaser.Geom.Intersects.RectangleToRectangle(hitBounds, this.batSystem.getBounds(bat))) return;
       if (!this.hasLineOfSight(this.player.x, hitBounds.y + hitBounds.height / 2, bat.x, bat.y)) return;
       this.swingHits.add(bat);
-      this.batSystem.damage(bat, getWeaponDamage(this.equipped.weapon));
+      this.batSystem.damage(bat, getMeleeDamage(this));
       hitEnemy = true;
     });
     return hitEnemy;
   }
 
-  startSwing() {
+  startSwing(attack = null) {
     if (this.isSwinging) return false;
-    const stats = getWeaponStats(this.equipped?.weapon);
+    const stats = getAttackStats(this.equipped?.weapon, attack);
     if (!stats) return false;
+    this.hammerAttack = attack;
     this.applyAutoAim();
     this.isSwinging = true;
+    this.swingStartedAt = this.time.now; this.swingVisualKind = 'swing';
+    this.swingUntil = this.time.now + stats.swingMs;
     this.player.setFlipX(this.facingX > 0);
     this.swingReadyAt = this.time.now + stats.windupMs;
     this.swingHits = new Set();
@@ -2141,8 +2148,13 @@ export default class UndergroundDigScene extends Phaser.Scene {
 
   updateSwordHitbox() {
     if (!this.swordHitbox) return;
+    const bounds = this.getMeleeBounds();
+    this.swordHitbox.setSize(bounds.width, bounds.height);
+    this.swordHitbox.setPosition(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  }
+
+  getMeleeBounds() {
     const stats = getWeaponStats(this.equipped?.weapon) || getWeaponStats("sword");
-    this.swordHitbox.setSize(stats.width, stats.height);
     const offsetX = this.facingX * stats.offset;
     let centerY = this.getSwingCenterY();
     const target = this.autoAimTarget;
@@ -2151,26 +2163,29 @@ export default class UndergroundDigScene extends Phaser.Scene {
         : target.kind === "bat" ? this.batSystem.getBounds(target.enemy) : target.enemy.getBounds();
       centerY = Phaser.Math.Clamp(bounds.y + bounds.height / 2, centerY - 16, centerY + 16);
     }
-    this.swordHitbox.setPosition(this.player.x + offsetX, centerY);
+    return new Phaser.Geom.Rectangle(this.player.x + offsetX - stats.width / 2, centerY - stats.height / 2, stats.width, stats.height);
   }
 
   performDownStrike() {
     if (this.isPaused || this.isEditorMode) return;
     if (!isMeleeWeapon(this.equipped?.weapon)) return;
+    this.hammerCharge?.cancel();
     if (!this.startSwing()) return;
     this.digBlockBelow();
   }
 
   updateWeaponHint() {
     this.hintText?.setText(this.equipped?.weapon === "powerHammer"
-      ? "{move}: Bewegen · {jump}: Springen · ↓ in der Luft: Hammerschlag · {attack}: Angriff · {back}: Menü"
+      ? "{move}: Bewegen · {jump}: Springen · ↓ in der Luft: Hammerschlag · {attack}: antippen / aufladen · {back}: Menü"
       : "{move}: Bewegen · {jump}: Springen · {attack}: Angriff/Graben · {back}: Menü");
   }
 
   beginHammerSlam() {
     if (this.equipped?.weapon !== "powerHammer" || this.player.body.blocked.down) return false;
     if (this.isPaused || this.isGameOver || this.isEditorMode || this.hammerSlamActive) return false;
+    this.hammerCharge?.cancel();
     this.hammerSlamActive = true;
+    this.swingStartedAt = this.time.now; this.swingVisualKind = 'slam';
     this.swingTimer?.remove(false);
     this.isSwinging = true;
     this.player.setTexture(this.player.getData("hitTexture"));
@@ -2184,6 +2199,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.hammerSlamActive = false;
     this.isSwinging = false;
     this.startSwing();
+    this.swingVisualKind = 'landing';
     // This animation is recovery from the impact, not a second melee hit.
     this.swingReadyAt = Infinity;
     const x = this.player.x;
@@ -2462,7 +2478,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
       this.jumpCount = 0;
     }
     this.wasGrounded = grounded;
-    const speed = 180;
+    const speed = 180 * (this.hammerCharge?.moveFactor ?? 1);
     const now = this.time.now;
     this.updateDashState(now);
     let vx = 0;
@@ -2689,15 +2705,16 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.physics.world.pause();
     this.time.paused = true;
     this.bossHud?.setVisible(false);
-    this.coinsCollected += config.reward;
-    this.hud?.setCoins(this.coinsCollected);
     const save = this.registry.get("saveData") || {};
+    const reward = save.completedLevels?.includes(this.levelId) ? 0 : config.reward;
+    this.coinsCollected += reward;
+    this.hud?.setCoins(this.coinsCollected);
     const completed = new Set(save.completedLevels || []);
     const unlocked = new Set(save.unlockedLevels || []);
     completed.add(this.levelId);
     if (config.unlock) unlocked.add(config.unlock);
     const worlds = new Set(["desert", "underground", ...(save.unlockedWorlds || [])]);
-    if (config.unlockWorld) { worlds.add(config.unlockWorld); unlocked.add("UrwaldShop"); }
+    if (config.unlockWorld) { worlds.add(config.unlockWorld); unlocked.add("Urwaldkronen"); }
     const nextNode = config.unlockWorld ? this.levelId : config.unlock || this.levelId;
     const nextSave = applyInventoryToSave({
       ...save, currentWorld: "underground", unlockedWorlds: Array.from(worlds),
@@ -2709,7 +2726,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     saveProgress(nextSave);
     this.sfx?.success?.play();
     this.victoryScreen = showUndergroundVictory(this, {
-      name: config.name, reward: config.reward, unlocked: config.unlock, unlockedWorld: config.unlockWorld,
+      name: config.name, reward, unlocked: config.unlock, unlockedWorld: config.unlockWorld,
       onContinue: () => {
         this.time.paused = false;
         this.scene.start("UndergroundMapScene");

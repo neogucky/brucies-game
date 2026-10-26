@@ -1,0 +1,6 @@
+Use case: sketch-to-render.
+Edit target: image 1 is the fixed, carefully projected shape of a wooden bed. Image 2 is the style reference only.
+Polish image 1 into the warm, clean outlined children's-game illustration style of image 2. Keep the EXACT bed orientation, proportions, silhouette and all four foot/post positions from image 1. Do not rotate, reframe, enlarge, stretch, center or redesign its projected geometry. The tall headboard stays at the back RIGHT; the broad footboard stays at the front LEFT. The long right side recedes diagonally UP-RIGHT. Retain the nearly shallow projected mattress plane from the sketch, rather than showing extra top surface.
+Only add polished warm wood shading, subtle simple grain, rounded gold knobs, beveled wooden rails, a softly shaded cream mattress and a cozy cream pillow against the headboard. Keep the footboard lower than the headboard. Vertical posts.
+No people or blue blanket, no room, rug, cast shadows, floor, haze, text or labels.
+Output one complete bed on true transparent alpha. Keep the canvas aspect ratio and the bed's padding from image 1. This is a geometry-preserving finish of the sketch, not a new camera angle.
