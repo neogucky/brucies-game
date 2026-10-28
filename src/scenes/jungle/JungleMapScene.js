@@ -1,7 +1,9 @@
 import WorldMapTravel from "../../utils/WorldMapTravel.js";
+import WorldMapDiscovery from '../../utils/WorldMapDiscovery.js';
+import { startPendingDragonClue } from '../../utils/dragonStory.js';
 import { addWorldMapMarker } from "../../utils/worldMapMarkers.js";
 import { drawWorldMapPaths, mapFoot, WORLD_MAP_EXITS, JUNGLE_PATH_PORTS } from "../../utils/worldMapRoutes.js";
-import { saveProgress, normalizeWorldProgress } from "../../saveManager.js";
+import { saveProgress, normalizeWorldProgress, debugLevelUnlocks } from "../../saveManager.js";
 import { playMusic } from "../../soundManager.js";
 import { applyWeaponAppearance } from "../../utils/weapons.js";
 import { applyInventoryToSave, normalizeInventory } from "../../utils/inventory.js";
@@ -12,8 +14,9 @@ import InventoryOverlay from "../../ui/InventoryOverlay.js";
 export const JUNGLE_NODES = [
   { id: "Urwaldkronen", label: "Kokoskronen", x: 245, y: 350, neighbors: ["UrwaldShop", "Urwaldexperte"] },
   { id: "UrwaldShop", label: "Urwald-Shop", x: 485, y: 230, neighbors: ["Urwaldkronen", "Lianenpfad"] },
-  { id: "Lianenpfad", label: "Lianenpfad", x: 760, y: 360, neighbors: ["UrwaldShop"] },
+  { id: "Lianenpfad", label: "Lianenpfad", x: 760, y: 360, neighbors: ["UrwaldShop", 'Wipfelschatz'] },
   { id: "Urwaldexperte", label: "Urwaldexperte", x: 485, y: 450, neighbors: ["Urwaldkronen"] },
+  { id: 'Wipfelschatz', label: 'Goldwipfel', x: 790, y: 165, bonusWorld: 'jungle', neighbors: ['Lianenpfad'] },
 ];
 
 export function jungleMapUnlocks(save, testing = false) {
@@ -22,7 +25,7 @@ export function jungleMapUnlocks(save, testing = false) {
   if (!testing && !save.completedLevels?.includes('Urwaldkronen')) {
     unlocked.delete('UrwaldShop'); unlocked.delete('Lianenpfad');
   } else { unlocked.add('UrwaldShop'); unlocked.add('Lianenpfad'); }
-  return unlocked;
+  return debugLevelUnlocks(save, unlocked);
 }
 const style = { fontFamily: "Trebuchet MS, sans-serif", color: "#fff2c9", stroke: "#183b25", strokeThickness: 4 };
 
@@ -38,17 +41,21 @@ export default class JungleMapScene extends Phaser.Scene {
   create() {
     this.isMoving = false; this.inventoryOpen = false; this.gameMode = GAME_MODES.ISOMETRIC;
     const save = normalizeWorldProgress(this.registry.get("saveData") || {});
-    if (!save.unlockedWorlds.includes("jungle")) { this.scene.start("UndergroundMapScene"); return; }
+    if (!save.unlockedWorlds.includes("jungle")) { this.scene.start("MainMenuScene"); return; }
     this.unlocked = jungleMapUnlocks(save, this.registry.get('unlockAllForTesting') === true);
+    if (!JUNGLE_NODES.some(n => this.unlocked.has(n.id))) { this.scene.start('MainMenuScene'); return; }
+    if (startPendingDragonClue(this, 'jungle')) return;
     const requested = this.entryFromUnderworld ? "Urwaldkronen" : this.entryFromWater ? 'Lianenpfad' : save.mapState?.jungleNode;
-    this.currentNode = JUNGLE_NODES.find(n => n.id === requested && this.unlocked.has(n.id)) || JUNGLE_NODES[0];
+    this.currentNode = JUNGLE_NODES.find(n => n.id === requested && this.unlocked.has(n.id)) || JUNGLE_NODES.find(n => this.unlocked.has(n.id));
     const normalized = normalizeInventory(save);
     this.inventory = normalized.inventory; this.equipped = normalized.equipped;
     this.health = save.health ?? 5; this.maxHealth = 5;
     this.registry.set("saveData", save);
-    this.add.image(480, 300, "worldmap-jungle-bg").setDisplaySize(960, 600).setDepth(-3);
+    this.add.image(480, 300, 'worldmap-jungle-untrodden').setDisplaySize(960, 600).setDepth(-3);
     this.drawPaths(); this.createNodes(); this.createPlayerMarker(); this.createUI(save);
-    if (!this.unlocked.has('UrwaldShop')) this.createCanopyBarrier();
+    this.mapDiscovery = new WorldMapDiscovery(this, 'jungle', JUNGLE_NODES, this.mapExits);
+    this.mapDiscovery.watchExit('@underground', this.underworldExitObjects);
+    if (this.waterExitLabel) this.mapDiscovery.watchExit('@water', [this.waterExitLabel]);
     this.saveLocation(); playMusic(this, "music-world");
     this.cursors = this.input.keyboard.createCursorKeys(); this.wasd = this.input.keyboard.addKeys("W,A,S,D");
     this.input.keyboard.on("keydown-ENTER", () => this.startCurrentLevel());
@@ -74,8 +81,10 @@ export default class JungleMapScene extends Phaser.Scene {
   }
 
   drawPaths() {
-    const exits = [[JUNGLE_NODES[0], WORLD_MAP_EXITS.jungle.underground]];
-    if (this.unlocked.has('Lianenpfad')) exits.push([JUNGLE_NODES[2], WORLD_MAP_EXITS.jungle.water]);
+    const save = normalizeWorldProgress(this.registry.get('saveData') || {});
+    const exits = save.unlockedWorlds.includes('underground') ? [[JUNGLE_NODES[0], WORLD_MAP_EXITS.jungle.underground]] : [];
+    if (save.unlockedWorlds.includes('water') || (this.registry.get('unlockAllForTesting') === true && save.debugProgress?.worlds?.water !== false)) exits.push([JUNGLE_NODES[2], WORLD_MAP_EXITS.jungle.water]);
+    this.mapExits = exits;
     this.pathGraphics = drawWorldMapPaths(this, 'jungle', JUNGLE_NODES, exits);
   }
 
@@ -92,11 +101,11 @@ export default class JungleMapScene extends Phaser.Scene {
   createNodes() {
     this.nodeSprites = new Map();
     const keys = { Urwaldexperte: "map-jungle-expert", UrwaldShop: "map-jungle-shop",
-      Urwaldkronen: "map-jungle-canopy", Lianenpfad: "map-jungle-vines" };
+      Urwaldkronen: "map-jungle-canopy", Lianenpfad: "map-jungle-vines", Wipfelschatz: 'map-jungle-vines' };
     JUNGLE_NODES.forEach(node => {
       const open = this.unlocked.has(node.id);
       const choose = () => {
-        if (this.isMoving || this.inventoryOpen) return;
+        if (this.isRevealingMap || this.isMoving || this.inventoryOpen) return;
         if (!open) { this.showHint("Besiege zuerst den Affenkönig in Kokoskronen."); return; }
         if (this.currentNode.id === node.id) this.startCurrentLevel();
         else if (this.currentNode.neighbors.includes(node.id)) this.walkTo(node);
@@ -105,14 +114,16 @@ export default class JungleMapScene extends Phaser.Scene {
       const marker = addWorldMapMarker(this, "jungle", node, keys[node.id], choose);
       this.nodeSprites.set(node.id, marker);
     });
-    this.add.text(86, 287, "Unterwelt", { ...style, fontSize: "18px" }).setOrigin(.5).setDepth(6)
+    this.underworldExitObjects = [];
+    this.underworldExitObjects.push(this.add.text(86, 287, "Unterwelt", { ...style, fontSize: "18px" }).setOrigin(.5).setDepth(6)
       .setInteractive({ useHandCursor: true }).on("pointerdown", () => {
         if (this.currentNode.id === "Urwaldkronen") this.returnToUnderworld();
         else this.showHint("Der Rückweg beginnt bei Kokoskronen.");
-      });
-    this.add.zone(73, 244, 105, 92).setDepth(6).setInteractive({ useHandCursor: true })
-      .on('pointerdown', () => { if (this.currentNode.id === 'Urwaldkronen') this.returnToUnderworld(); else this.showHint('Der Höhlenweg beginnt bei Kokoskronen.'); });
-    if (this.unlocked.has('Lianenpfad')) this.add.text(877, 443, 'Urwaldsee →', { ...style, fontSize: '19px' })
+      }));
+    this.underworldExitObjects.push(this.add.zone(73, 244, 105, 92).setDepth(6).setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => { if (this.currentNode.id === 'Urwaldkronen') this.returnToUnderworld(); else this.showHint('Der Höhlenweg beginnt bei Kokoskronen.'); }));
+    this.waterExitLabel = null;
+    if (this.mapExits.some(([, exit]) => exit.id === '@water')) this.waterExitLabel = this.add.text(877, 443, 'Urwaldsee →', { ...style, fontSize: '19px' })
       .setOrigin(.5).setDepth(6).setInteractive({ useHandCursor: true }).on('pointerdown', () => {
         if (this.currentNode.id === 'Lianenpfad') this.travelToWater(); else this.showHint('Vom Lianenpfad führt der Weg zum Urwaldsee.');
       });
@@ -156,13 +167,14 @@ export default class JungleMapScene extends Phaser.Scene {
   }
 
   walkTo(node) {
-    if (this.isMoving || this.inventoryOpen || !this.unlocked.has(node.id)) return;
+    if (this.isRevealingMap || this.isMoving || this.inventoryOpen || !this.unlocked.has(node.id)) return;
     this.mapTravel.travel(this.currentNode, node, () => {
       this.currentNode = node; this.saveLocation();
     });
   }
 
   tryMove(direction) {
+    if (this.isRevealingMap) return;
     if (direction.x < 0 && this.currentNode.id === "Urwaldkronen") { this.returnToUnderworld(); return; }
     if (direction.x > 0 && this.currentNode.id === 'Lianenpfad') { this.travelToWater(); return; }
     const directionKey = direction.x > 0 ? 'right' : direction.x < 0 ? 'left' : direction.y > 0 ? 'down' : 'up';
@@ -174,17 +186,19 @@ export default class JungleMapScene extends Phaser.Scene {
   }
 
   startCurrentLevel() {
-    if (this.isMoving || this.inventoryOpen || !this.unlocked.has(this.currentNode.id)) return;
+    if (this.isRevealingMap || this.isMoving || this.inventoryOpen || !this.unlocked.has(this.currentNode.id)) return;
     this.saveLocation();
-    if (this.currentNode.id === "UrwaldShop") this.scene.start("JungleShopScene");
+    if (this.currentNode.id === 'Wipfelschatz') this.scene.start('CoinChallengeScene', { world: 'jungle' });
+    else if (this.currentNode.id === "UrwaldShop") this.scene.start("JungleShopScene");
     else if (this.currentNode.id === "Urwaldexperte") this.scene.start("ExpertScene", { world: "jungle" });
     else this.scene.start("JungleScene", { levelId: this.currentNode.id });
   }
 
   returnToUnderworld() {
-    if (this.isMoving || this.inventoryOpen || this.currentNode.id !== "Urwaldkronen") return;
+    if (this.isRevealingMap || this.isMoving || this.inventoryOpen || this.currentNode.id !== "Urwaldkronen") return;
     this.isMoving = true;
     const save = this.registry.get("saveData") || {};
+    if (save.debugProgress?.worlds?.underground === false) return;
     const next = { ...save, currentWorld: "underground", currentLevel: "Kristalltiefen",
       mapState: { ...save.mapState, undergroundNode: "Kristalltiefen", jungleNode: "Urwaldkronen" } };
     this.registry.set("saveData", next); saveProgress(next);
@@ -194,9 +208,13 @@ export default class JungleMapScene extends Phaser.Scene {
   }
 
   travelToWater() {
-    if (this.isMoving || this.inventoryOpen || this.currentNode.id !== 'Lianenpfad') return;
-    this.isMoving = true;
+    if (this.isRevealingMap || this.isMoving || this.inventoryOpen || this.currentNode.id !== 'Lianenpfad') return;
     const save = this.registry.get('saveData') || {};
+    const preview = this.registry.get('unlockAllForTesting') === true && save.debugProgress?.worlds?.water !== false;
+    if (!normalizeWorldProgress(save).unlockedWorlds.includes('water') && !preview) {
+      this.showHint('Finde zuerst die goldene Kokosnuss am Ende des Lianenpfads.'); return;
+    }
+    this.isMoving = true;
     const next = { ...save, currentWorld: 'water', currentLevel: 'Seeufer',
       unlockedWorlds: [...new Set([...(save.unlockedWorlds || []), 'water'])],
       mapState: { ...save.mapState, jungleNode: 'Lianenpfad', waterNode: 'Seeufer' } };
@@ -227,7 +245,7 @@ export default class JungleMapScene extends Phaser.Scene {
     this.hud.setConsumableEquipped(this.equipped.consumable === "honey"); this.saveLocation();
   }
   update() {
-    if (this.isMoving || this.inventoryOpen || this.inventoryOverlay?.isOpen) return;
+    if (this.isRevealingMap || this.isMoving || this.inventoryOpen || this.inventoryOverlay?.isOpen) return;
     const left = this.cursors.left.isDown || this.wasd.A.isDown, right = this.cursors.right.isDown || this.wasd.D.isDown;
     const up = this.cursors.up.isDown || this.wasd.W.isDown, down = this.cursors.down.isDown || this.wasd.S.isDown;
     if (left) this.tryMove({ x: -1, y: 0 }); else if (right) this.tryMove({ x: 1, y: 0 });

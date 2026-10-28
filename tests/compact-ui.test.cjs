@@ -16,10 +16,11 @@ test('the main action bar stays contextual: two actions on maps, three in play, 
   const play = scene('JungleScene', { player: {}, toggleInventory() {} });
   assert.deepEqual(plain(ctx.controlBarActions(map)), ['inventory', 'back']);
   assert.deepEqual(plain(ctx.controlBarActions(play)), ['inventory', 'pause', 'back']);
-  for (const modal of [{confirmation:{isOpen:true}}, {inventoryOverlay:{isOpen:true}}, {settingsBox:{visible:true}}]) {
+  for (const modal of [{confirmation:{isOpen:true}}, {inventoryOverlay:{isOpen:true}}, {settingsBox:{visible:true}}, {isInteractingWithLever:true}]) {
     assert.equal(ctx.controlBarActions({...play,...modal}).length, 0);
   }
   assert.equal(ctx.controlBarActions(scene('MainMenuScene')).length, 0);
+  assert.equal(ctx.controlBarActions(scene('CinemaScene')).length, 0);
   assert.equal(ctx.controlBarActions(scene('IntroScene',{isIntro:true})).length, 0);
   assert.equal(ctx.controlBarActions(play,true).length,0);
   assert.deepEqual(plain(ctx.controlBarActions({...play,dialog:{container:{visible:true}}})),['back']);

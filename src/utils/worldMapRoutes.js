@@ -5,7 +5,8 @@ export const MAP_TRAVEL_SPEED = 260;
 export const JUNGLE_PATH_PORTS = {
   Urwaldkronen: { UrwaldShop: 'right', Urwaldexperte: 'down', '@underground': 'left' },
   UrwaldShop: { Urwaldkronen: 'left', Lianenpfad: 'right' },
-  Lianenpfad: { UrwaldShop: 'left', '@water': 'right' },
+  Lianenpfad: { UrwaldShop: 'left', '@water': 'right', Wipfelschatz: 'up' },
+  Wipfelschatz: { Lianenpfad: 'down' },
   Urwaldexperte: { Urwaldkronen: 'left' },
 };
 
@@ -27,15 +28,17 @@ const BENDS = {
     ["Taverne", "Fremdweg", [[478, 464], [535, 510], [624, 518]]],
     ["Wuestenruine", "Wuestenexperte", [[150, 466], [135, 410], [171, 365]]],
     ["Fremdweg", "@underground", [[760, 534], [752, 574]]],
+    ['DesertEndless', 'Wuestenschatz', [[704, 283], [765, 252], [792, 225]]],
   ],
   underground: [
     ["UnderShop", "UnderDig", [[412, 163], [330, 153], [256, 145]]],
-    ["UnderShop", "Schluesseltor", [[500, 190], [453, 215], [431, 229]]],
-    ["Schluesseltor", "Schluesselweg", [[348, 311], [309, 355], [264, 391]]],
+    ["UnderShop", "Schluesseltor", [[520, 185], [490, 218]]],
+    ["Schluesseltor", "Schluesselweg", [[385, 268], [348, 311], [309, 355], [264, 391]]],
     ["Schluesselweg", "Kristalltiefen", [[314, 409], [406, 417], [491, 427], [554, 430], [621, 434], [658, 459]]],
     ["UnderShop", "Unterweltexperte", [[625, 167], [695, 158]]],
     ["UnderShop", "@desert", [[530, 142], [488, 113], [466, 89], [467, 43]]],
     ["Kristalltiefen", "@jungle", [[778, 485], [850, 477], [924, 476]]],
+    ['UnderDig', 'Kristallschatz', [[135, 185], [101, 237]]],
   ],
   jungle: [
     ["Urwaldkronen", "UrwaldShop", [[410, 361], [440, 320], [390, 285]]],
@@ -43,12 +46,13 @@ const BENDS = {
     ["Urwaldkronen", "Urwaldexperte", [[292, 510], [342, 482]]],
     ["Urwaldkronen", "@underground", [[132, 352], [149, 322], [173, 300], [119, 288], [90, 275]]],
     ["Lianenpfad", "@water", [[894, 402], [952, 384]]],
+    ['Lianenpfad', 'Wipfelschatz', [[773, 263], [790, 245]]],
   ],
   water: [["Seeufer", "@jungle", [[158, 313], [108, 303], [54, 318]]]],
 };
 
 export function mapFoot(node) {
-  return { x: node.x, y: node.y + MAP_GROUND_OFFSET };
+  return node.walkAnchor ? { ...node.walkAnchor } : { x: node.x, y: node.y + MAP_GROUND_OFFSET };
 }
 
 function smoothPoint(a, b, c, d, t) {
@@ -125,39 +129,55 @@ function jungleTrailPainter(scene) {
   brush.getContext('2d').drawImage(source, source.width * 352 / 1586, source.height * 548 / 992,
     source.width * 92 / 1586, source.height * 56 / 992, 0, 0, 92, 56);
   const soil = ctx.createPattern(brush, 'repeat');
-  scene.add.image(0, 0, key).setOrigin(0).setDepth(-1.1);
+  const image = scene.add.image(0, 0, key).setOrigin(0).setDepth(-1.1);
   return {
+    clear() { ctx.clearRect(0, 0, 960, 600); },
     paint(left, right, opacity) {
       const polygon = [...left, ...right.slice().reverse()];
-      ctx.save(); ctx.globalAlpha = opacity * .94; ctx.fillStyle = soil;
+      ctx.save(); ctx.globalAlpha = opacity * .7; ctx.fillStyle = soil;
+      ctx.shadowColor = 'rgba(167, 137, 79, .65)'; ctx.shadowBlur = 6;
       ctx.beginPath(); polygon.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
       ctx.closePath(); ctx.fill(); ctx.restore();
+      // Let the original painting's ground grain and foliage show through the
+      // worn trail, rather than leaving a flat, sharply cut sandy stripe.
+      ctx.save(); ctx.globalAlpha = opacity * .5;
+      ctx.beginPath(); polygon.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+      ctx.closePath(); ctx.clip(); ctx.drawImage(source, 0, 0, 960, 600); ctx.restore();
     },
     refresh() { texture.refresh(); },
+    destroy() { image.destroy(); },
   };
 }
 
 export function drawWorldMapPaths(scene, world, nodes, exits = []) {
   const graphics = scene.add.graphics().setDepth(-1), palette = PALETTES[world];
   const painter = world === 'jungle' ? jungleTrailPainter(scene) : null;
-  const seen = new Set();
+  let seen;
   const draw = (from, to) => {
     const key = [from.id, to.id].sort().join("/");
     if (seen.has(key)) return;
     seen.add(key);
-    const route = getWorldMapRoute(world, from, to);
-    if (world === 'underground' || world === 'water') {
+    if (!scene.unlocked.has(from.id) || (!to.id.startsWith('@') && !scene.unlocked.has(to.id))) return;
+    const discovery = scene.mapDiscovery;
+    if (discovery && !discovery.visiblePaths.has(key)) return;
+    const reveal = discovery?.progress.get(key);
+    let route = getWorldMapRoute(world, from, to);
+    if (reveal) {
+      if (reveal.from !== from.id) route = reverseMapRoute(route);
+      const length = route.length * reveal.fraction;
+      route = { length, points: [...route.points.filter(p => p.distance < length), { ...pointOnMapRoute(route, length), distance: length }] };
+    }
+    if (world === 'water') {
       // The landscape already contains its trails. Do not paint a second path
       // over it: just leave occasional footprints on the very same walk route.
       for (let d = 18, i = 0; d < route.length - 15; d += 36, i++) {
         const p = pointOnMapRoute(route, d);
-        graphics.fillStyle(palette.marks, .18).fillEllipse(p.x + (i % 2 ? -2 : 2), p.y, 3, 4);
+        graphics.fillStyle(palette.marks, .5).fillEllipse(p.x + (i % 2 ? -2 : 2), p.y, 4, 5);
       }
       return;
     }
     const tunnel = world === 'underground';
-    const jungle = world === 'jungle', open = scene.unlocked.has(from.id) && (to.id.startsWith('@') || scene.unlocked.has(to.id));
-    const opacity = jungle && !open ? .3 : 1;
+    const opacity = 1;
     if (!painter) graphics.lineStyle(tunnel ? 51 : 37, palette.edge, (tunnel ? .45 : .08) * opacity).strokePoints(route.points, false);
     const left = [], right = [];
     for (let d = 0; d <= route.length; d += 3) {
@@ -202,14 +222,20 @@ export function drawWorldMapPaths(scene, world, nodes, exits = []) {
       if (i % 3 === 0) graphics.fillStyle(palette.marks, .45 * opacity).fillEllipse(p.x - nx * 10, p.y - ny * 10, 4, 2);
     }
   };
+  const redraw = () => {
+  seen = new Set(); graphics.clear(); painter?.clear();
   nodes.forEach(node => {
-    if (!scene.unlocked.has(node.id) && world !== 'jungle') return;
+    if (!scene.unlocked.has(node.id)) return;
     Object.values(node.neighbors || {}).forEach(id => {
       const next = nodes.find(n => n.id === id);
-      if (next && (scene.unlocked.has(id) || world === 'jungle')) draw(node, next);
+      if (next && scene.unlocked.has(id)) draw(node, next);
     });
   });
   exits.forEach(([from, to]) => draw(from, to));
   painter?.refresh();
+  };
+  graphics.redraw = redraw;
+  graphics.once('destroy', () => painter?.destroy());
+  redraw();
   return graphics;
 }

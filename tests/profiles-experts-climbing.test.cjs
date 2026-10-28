@@ -15,28 +15,29 @@ test('uncertain hardware always defaults to iPad with keyboard; profile choices 
 for(const profile of ['ipadKeyboard','pc'])test(`${profile}: one key per menu action; WASD and arrows both control movement`,()=>{
  const keys=Object.values(profiles[profile].keys);assert.equal(new Set(keys).size,keys.length);assert.equal(Array.isArray(profiles[profile].keys.confirm),false);assert.equal(Array.isArray(profiles[profile].keys.back),false);
  assert.equal(ctx.actionForKey({code:'KeyE'},profile),null);assert.equal(ctx.actionForKey({code:profile==='pc'?'KeyQ':'Escape'},profile),null);
- for(const code of ['KeyJ','KeyN','Backspace'])assert.equal(ctx.actionForKey({code},profile),null);
+ assert.equal(ctx.actionForKey({code:'Backspace'},profile),null);
+ assert.equal(ctx.actionForKey({code:'KeyJ'},profile),'yes');assert.equal(ctx.actionForKey({code:'KeyN'},profile),'no');
  for(const [letter,arrow,action] of [['KeyW','ArrowUp','up'],['KeyA','ArrowLeft','left'],['KeyS','ArrowDown','down'],['KeyD','ArrowRight','right']]) { assert.equal(ctx.actionForKey({code:letter},profile),action); assert.equal(ctx.actionForKey({code:arrow},profile),action); }
 });
 for(const profile of Object.keys(profiles))test(`${profile}: displayed confirmation keys and real input agree`,()=>{
  let yes=0,no=0;const s={confirmation:{isOpen:true,choose(answer){if(answer)yes++;else no++}}},c=controls(s,profile);
  if(profile==='ipadTouch'){
-  assert.equal(ctx.actionLabel(profile,'confirm','Ja'),'Ja');assert.equal(ctx.actionLabel(profile,'back','Nein'),'Nein');
+  assert.equal(ctx.actionLabel(profile,'yes','Ja'),'Ja');assert.equal(ctx.actionLabel(profile,'no','Nein'),'Nein');
   for(const code of ['Enter','Escape','KeyE','KeyQ','KeyJ','KeyN'])c.onKey(event(code),true);
-  assert.equal(yes+no,0);c.dispatch('confirm');c.dispatch('back');
+  assert.equal(yes+no,0);c.dispatch('yes');c.dispatch('no');
  }else{
-  const yesCode=profiles[profile].keys.confirm,noCode=profiles[profile].keys.back;
+  const yesCode=profiles[profile].keys.yes,noCode=profiles[profile].keys.no;
   c.onKey(event(yesCode),true);c.onKey({...event(yesCode),repeat:true},true);c.onKey(event(yesCode),false);c.onKey(event(noCode),true);
-  assert.equal(ctx.formatControlHint('Ja · {confirm}',profile),ctx.actionLabel(profile,'confirm','Ja'));
-  assert.equal(ctx.formatControlHint('Nein · {back}',profile),ctx.actionLabel(profile,'back','Nein'));
+  assert.equal(ctx.formatControlHint('Ja · {yes}',profile),ctx.actionLabel(profile,'yes','Ja'));
+  assert.equal(ctx.formatControlHint('Nein · {no}',profile),ctx.actionLabel(profile,'no','Nein'));
  }
  assert.equal(yes,1);assert.equal(no,1);
 });
 test('profile change refreshes open UI text and later text changes keep their templates',()=>{
- const text={scene:{},active:true,text:'Ja · {confirm}',setText(v){this.text=v;return this}};
+ const text={scene:{},active:true,text:'Ja · {yes}',setText(v){this.text=v;return this}};
  const s={children:{list:[text]},add:{text:()=>({})}},formatter=new ctx.ControlLabels(s);
- formatter.update('ipadKeyboard');assert.equal(text.text,'Ja · Enter');formatter.update('pc');assert.equal(text.text,'Ja · Enter');formatter.update('ipadTouch');assert.equal(text.text,'Ja');
- text.setText('Nein · {back}');formatter.update('ipadKeyboard');assert.equal(text.text,'Nein · Q');formatter.destroy();
+ formatter.update('ipadKeyboard');assert.equal(text.text,'Ja · J');formatter.update('pc');assert.equal(text.text,'Ja · J');formatter.update('ipadTouch');assert.equal(text.text,'Ja');
+ text.setText('Nein · {no}');formatter.update('ipadKeyboard');assert.equal(text.text,'Nein · N');formatter.destroy();
 });
 test('touch map hints keep the named action instead of leaving empty colons',()=>{
  const text=ctx.formatControlHint('{move}: Bewegen · {confirm}: Betreten · {inventory}: Inventar · {back}: Menü','ipadTouch');
@@ -62,7 +63,7 @@ test('winning screens continue with Confirm only; Back cannot become a duplicate
 for(const [world,expert] of Object.entries(experts))test(`${world}: free professor location is saved in the right world and has enemy and equipment picture cards`,()=>{
  const save=ctx.normalizeWorldProgress({currentWorld:world,currentLevel:expert.id,coins:43,unlockedWorlds:[world],unlockedLevels:[]});
  assert.equal(save.currentWorld,world);assert.equal(save.coins,43);assert.ok(save.unlockedLevels.includes(expert.id));assert.equal(ctx.worldForLevel(expert.id),world);
- const cards=vm.runInContext('EXPERT_CARDS',ctx);for(const kind of ['enemy','equipment'])assert.ok(expert.cards.filter(id=>cards[id].kind===kind).length>=2);assert.ok(expert.cards.every(id=>cards[id].tips.every(tip=>tip.length>30)));
+ const cards=vm.runInContext('EXPERT_CARDS',ctx);for(const kind of ['enemy','equipment'])assert.ok(expert.cards.filter(id=>cards[id].kind===kind).length>=1);assert.ok(expert.cards.every(id=>cards[id].tips.every(tip=>tip.length>30)));
 });
 test('experts unlock with their world, without opening later worlds or boss levels',()=>{
  const a=ctx.normalizeWorldProgress({currentLevel:'Wuestenruine'});assert.ok(a.unlockedLevels.includes('Wuestenexperte'));assert.ok(!a.unlockedLevels.includes('Unterweltexperte'));assert.ok(!a.unlockedWorlds.includes('underground'));
@@ -122,6 +123,7 @@ test('starting a new game preserves the selected device profile',()=>{
  s.startNewGame();assert.equal(save.settings.controlProfile,'pc');assert.equal(target,'CharacterSelectScene');
 });
 
+load('src/utils/ruinRepair.js');
 load('src/scenes/desert/DesertRuinScene.js','DesertRuinScene');
 test('a completed ruin stays playable on revisits: inventory, weapons and leaving remain available',()=>{
  const s=Object.create(ctx.DesertRuinScene.prototype),keyboard=new EventEmitter();let opened=0,exits=0;

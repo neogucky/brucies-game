@@ -1,5 +1,6 @@
 import { stopMusic } from '../soundManager.js';
 import IntroAudio from '../utils/IntroAudio.js';
+import { advanceStoryPreview } from '../utils/storyPreview.js';
 import { INTRO_DURATION, INTRO_FLOOR_LIGHT, INTRO_EXTERIOR_FOREGROUND, getIntroFrame, introCuesBetween } from '../utils/introTimeline.js';
 
 const type = { fontFamily: 'Trebuchet MS, sans-serif', color: '#fff1ce' };
@@ -79,7 +80,10 @@ export default class IntroScene extends Phaser.Scene {
     if (!this.started || this.suspended || this.leaving) return;
     this.suspended = true; this.audio.pause();
   }
-  finish() { if (this.leaving) return; this.leaving = true; this.audio.destroy(); this.scene.start('MainMenuScene'); }
+  finish() {
+    if (this.leaving) return; this.leaving = true; this.audio.destroy();
+    if (!advanceStoryPreview(this)) this.scene.start('MainMenuScene', {});
+  }
   update() {
     if (!this.started || this.suspended || this.leaving) return;
     const now = performance.now(), previous = this.elapsed;

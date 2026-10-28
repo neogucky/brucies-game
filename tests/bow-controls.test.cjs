@@ -148,7 +148,7 @@ for (const [event, profile, action] of [
 ]) test(JSON.stringify(event) + ' maps to ' + profile + ' action ' + action, () => assert.equal(context.actionForKey(event, profile), action));
 test('legacy aliases, shortcuts and composing text do not activate the default iPad profile', () => {
   for (const event of [{ code: 'Enter', ctrlKey: true }, { code: 'KeyQ', metaKey: true }, { key: 'Enter', isComposing: true },
-    { code: 'KeyE' }, { code: 'Escape' }, { code: 'Tab' }, { code: 'Backspace' }, { code: 'KeyJ' }, { code: 'KeyN' }, { metaKey: true, key: '.' }])
+    { code: 'KeyE' }, { code: 'Escape' }, { code: 'Tab' }, { code: 'Backspace' }, { metaKey: true, key: '.' }])
     assert.equal(context.actionForKey(event), null);
 });
 function controls(scene) {
@@ -166,7 +166,18 @@ test('confirm in inventory equips once without starting a level; back closes wit
 });
 test('toolbar confirmation and cancel use the explicit dialog actions once', () => {
   let yes = 0, no = 0; const scene = { confirmation: { isOpen: true, choose(answer) { if(answer) yes++; else no++; } } };
-  const c = controls(scene); c.dispatch('confirm'); c.dispatch('back'); assert.equal(yes, 1); assert.equal(no, 1);
+  const c = controls(scene); c.dispatch('yes'); c.dispatch('no'); assert.equal(yes, 1); assert.equal(no, 1);
+});
+test('the lever animation blocks attacks, menus and movement without opening another dialog', () => {
+  let actions = 0;
+  const scene = { isInteractingWithLever: true, input: { keyboard: new EventEmitter() },
+    toggleInventory() { actions++; }, bow: { tryShoot() { actions++; } },
+    cursors: { right: { onDown() { actions++; } } }, hammerCharge: { press() { actions++; } } };
+  scene.input.keyboard.on('keydown', () => actions++);
+  const c = controls(scene); c.pause = () => actions++;
+  for (const action of ['confirm', 'back', 'inventory', 'attack', 'shoot', 'pause']) c.dispatch(action);
+  c.setHeld('right', true); c.setHeld('attack', true);
+  assert.equal(actions, 0);
 });
 test('confirm advances a dialog page or selects the current shop option without needing Enter', () => {
   let next = 0, selected = 0;

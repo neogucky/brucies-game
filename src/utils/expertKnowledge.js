@@ -43,6 +43,7 @@ export const EXPERT_CARDS = {
   'monkey-brown': { name: 'Brauner Affe', texture: 'monkey-brown', kind: 'enemy', tips: [
     'Die Kokosnuss macht **leichten Schaden**. Sobald der Affe **ausholt**, steht sein Ziel fest. **Weiche dann aus!**',
     'Im Kokossaft **klebst du fest**: Du wirst langsam und kannst **nicht springen**. Die Anzeige verrät, wann du wieder frei bist.',
+    'Dein Helfer **schlürft nahe Kokospfützen auf**. So verschwinden sie **viel schneller**. Bleib in seiner Nähe, wenn überall Saft klebt!',
     monkeyHidingTip,
   ] },
   'monkey-red': { name: 'Roter Affe', texture: 'monkey-red', kind: 'enemy', tips: [
@@ -58,6 +59,7 @@ export const EXPERT_CARDS = {
   'monkey-king': { name: 'Affenkönig', texture: 'monkey-king', kind: 'enemy', tips: [
     'Der König wirft **alle Kokosnussfarben und Steinmonster**! Schau auf seine Warnung und weiche aus, sobald er ausholt.',
     '**Nach dem Wurf** kannst du ihn kurz erwischen. Danach schützt er sich wieder. Warte auf die nächste Gelegenheit!',
+    'Seine **Steinmonster prallen an den Rändern ab**. Schau auch hinter dich! Mit dem **Hammer** kannst du die Brocken besonders gut knacken.',
   ] },
   sword: { name: 'Schwert', texture: 'item-sword', kind: 'equipment', tips: [
     'Das Schwert schlägt **sofort und schnell**. Drücke **{attack}**. Triff wieder, während dein Gegner noch **betäubt** ist!',
@@ -99,8 +101,13 @@ export const EXPERT_CARDS = {
 
 export const EXPERT_WORLDS = {
   desert: { id: 'Wuestenexperte', name: 'Wüstenexperte', map: 'DessertMapScene', mapField: 'desertNode',
-    greeting: 'Einen Drachen? Klar hab ich den gesehen! Der ist nach Osten geflogen!',
-    returnGreeting: 'Hey Ritter, du bist ein echter Abenteurer! Zeig mir, was du entdeckt hast. Ich habe tolle Tipps für dich!',
+    introduction: [
+      'Willkommen, Herr Ritter! Ich bin Professor Knobel, Experte für Monster und Natur.',
+      'Was, du suchst einen grünen Drachen?!',
+      'Ja, ein prächtiges Exemplar! Ich habe ihn gestern über der Wüstenruine gesehen.',
+      'Komm gerne wieder, wenn du Tipps zu Gegnern brauchst!',
+    ],
+    returnGreeting: 'Hey Ritter! Erzähl mir, was du auf deinen Reisen gesehen hast. Ich gebe dir einen tollen Tipp dazu!',
     cards: ['mole-normal', 'mole-red', 'mole-blue', 'mole-boss', 'rolling-rock', 'sword', 'shield', 'shoes', 'honey', 'companion'],
     cardTips: {
       'mole-normal': ['Er kommt **aus dem Sand**! Triffst du zuerst, ist er **kurz betäubt**. Dann kann er dich nicht angreifen!', ...EXPERT_CARDS['mole-normal'].tips.slice(1)],
@@ -112,49 +119,31 @@ export const EXPERT_WORLDS = {
   underground: { id: 'Unterweltexperte', name: 'Unterweltexperte', map: 'UndergroundMapScene', mapField: 'undergroundNode',
     greeting: 'Psst! Hier unten poltert es. Hoffentlich war das nur mein Magen!',
     returnGreeting: 'Hey Höhlenforscher! Was hast du unter der Erde entdeckt? Zeig es mir, dann gebe ich dir Tipps!',
-    cards: ['mole-normal', 'stone', 'stone-guardian', 'stone-titan', 'bat', 'sword', 'powerHammer', 'shield', 'shoes', 'bow', 'honey', 'companion'],
+    cards: ['stone', 'stone-guardian', 'stone-titan', 'bat', 'powerHammer'],
     cardTips: {
-      'mole-normal': ['Der Maulwurf **gräbt sich durch Erde** und läuft durch Gänge. Ein früher Hieb **betäubt ihn** und unterbricht seinen Angriff!', ...EXPERT_CARDS['mole-normal'].tips.slice(1)],
-      sword: [...EXPERT_CARDS.sword.tips,
-        'Dein Schwert **gräbt Erde**, aber keinen Stein. **Geduckt** triffst du nur die untere Blockreihe. Für Felsen brauchst du den **Hammer**!'],
       powerHammer: [...EXPERT_CARDS.powerHammer.tips,
         'Der Hammer **zerbricht Erde und Stein**. **Geduckt** triffst du nur die unteren Blöcke. Die schwarzen Randfelsen bleiben stehen.',
-        'Beim **Sprung-Hammerschlag** zerbricht auch **Erde unter dir**. Pass auf, wo du danach landest!'],
-      shoes: [
-        '**Am Boden** kannst du schneller sprinten: Tippe **links oder rechts zweimal schnell** und halte beim zweiten Mal fest!',
-        'Beim Sprinten kannst du **Erde durchbrechen** und Gegner rammen. An Felsen prallst du ab. Zum Steinknacken nimm lieber den **Hammer**!',
-        EXPERT_CARDS.shoes.tips[1],
-      ],
-      bow: [...EXPERT_CARDS.bow.tips.slice(0, 2),
-        'Auch die **Zielhilfe** hilft beim Bogenschießen. Deine Ziele müssen **sichtbar** sein. Durch Felswände kannst du nicht schießen!'],
-      companion: [
-        'Dein Helfer **greift nahe Maulwürfe, Steinmonster und Fledermäuse an**. Durch Felswände kommt er dabei nicht.',
-        'Er **folgt dir durch die Höhle**. Wird er verletzt, versteckt er sich kurz. **Honigsaft** holt ihn schneller zurück.',
+        'Beim **Sprung-Hammerschlag** zerbricht auch **Erde unter dir**. Pass auf, wo du danach landest!',
+        'Auch ein **Sprint mit Flügelschuhen** kann **Erde durchbrechen**. Stein knackst du dagegen mit dem **Hammer**!',
       ],
     } },
   jungle: { id: 'Urwaldexperte', name: 'Urwaldexperte', map: 'JungleMapScene', mapField: 'jungleNode',
     greeting: 'Willkommen im Urwald! Ein Affe hat meine Brille stibitzt. Zum Glück mag er meine stachelige Frisur nicht!',
     returnGreeting: 'Hey Urwaldforscher! Was hast du zwischen den Lianen entdeckt? Zeig es mir, dann gebe ich dir Tipps!',
-    cards: ['monkey-brown', 'monkey-red', 'monkey-blue', 'monkey-king', 'stone', 'sword', 'powerHammer', 'bow', 'shield', 'jungleShield', 'honey', 'companion'],
-    cardTips: {
-      stone: [
-        'Der Affenkönig wirft auch **Steinmonster**! Sie rollen auf den Ästen und **prallen an den Rändern ab**. Pass auch hinter dir auf!',
-        'Mit dem **Hammer** knackst du die Brocken besonders gut. Sie rollen nur eine Weile und verschwinden dann.',
-      ],
-      sword: [...EXPERT_CARDS.sword.tips,
-        'An der Liane brauchst du **beide Hände zum Klettern**. Erst loslassen, dann wieder zuschlagen!'],
-      honey: [
-        'Fehlen dir Herzen? **Honigsaft heilt dich**. Sind deine Herzen voll, hebst du den Saft für später auf!',
-        EXPERT_CARDS.honey.tips[1],
-      ],
-      companion: [
-        'Dein Helfer **schlürft nahe Kokospfützen auf**. So verschwinden sie **viel schneller**! Die kleine Anzeige zählt mit.',
-        'Er **greift auch nahe Affen an**. Rüste ihn im **Begleiterplatz** aus. Er kann zusammen mit Schild und Bogen mitkommen!',
-      ],
-    } },
+    cards: ['monkey-brown', 'monkey-red', 'monkey-blue', 'monkey-king', 'bow', 'jungleShield'],
+    cardTips: {} },
 };
 
 export function getExpertCard(world, id) {
+  if (!EXPERT_WORLDS[world]?.cards.includes(id)) return null;
   const card = EXPERT_CARDS[id];
   return card ? { ...card, tips: EXPERT_WORLDS[world]?.cardTips?.[id] || card.tips } : null;
+}
+
+export const EXPERT_REWARD_GOLD = 25;
+export function claimExpertReward(save, world) {
+  const cards = EXPERT_WORLDS[world]?.cards, known = new Set(save.discoveries || []);
+  if (!cards?.length || save.expertRewards?.[world] || !cards.every(id => known.has(id))) return save;
+  return { ...save, coins: (save.coins || 0) + EXPERT_REWARD_GOLD,
+    expertRewards: { ...save.expertRewards, [world]: true } };
 }

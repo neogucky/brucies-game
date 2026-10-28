@@ -5,7 +5,7 @@ import { getWeaponTextures } from "../utils/weapons.js";
 const ITEMS = {
   sword: ['Schwert', 'item-sword'], powerHammer: ['Power Hammer', 'item-power-hammer'],
   bow: ['Bogen', 'item-bow'], shield: ['Schild', 'item-shield'], jungleShield: ['Urwaldschild', 'item-jungle-shield'],
-  helmet: ['Ritterhelm', 'item-helmet'], shoes: ['Flügelschuhe', 'item-winged-shoes'], leatherBelt: ['Ledergürtel', 'item-belt'],
+  helmet: ['Ritterhelm', 'item-helmet'], shoes: ['Flügelschuhe', 'item-winged-shoes'],
   honey: ['Honigsaft', 'item-honey'], default: ['Kleiner Helfer', 'item-companion'],
 };
 const STYLE = { fontFamily: 'Trebuchet MS, sans-serif', color: '#fff0ca' };
@@ -40,7 +40,6 @@ export default class InventoryOverlay {
       { key: 'companion', title: 'Begleiter', x: 760, y: 292, options: owned(['default'], i.companions) },
       { key: 'shoes', title: 'Schuhe', x: 760, y: 412, options: owned(['shoes'], i.passives) },
       { key: 'consumable', title: 'Trank 1 · {potion1}', x: 370, y: 468, options: potions() },
-      { key: 'belt', title: 'Gürtel', x: 480, y: 468, options: owned(['leatherBelt'], i.armor) },
       { key: 'consumable2', title: 'Trank 2 · {potion2}', x: 590, y: 468, options: potions() },
     ].map(c => ({ ...c, equipped: e[c.key] ?? null }));
   }
@@ -55,6 +54,9 @@ export default class InventoryOverlay {
     const gender = this.scene.registry.get('saveData')?.playerGender;
     const texture = getWeaponTextures(this.equipped.weapon, gender).standingTexture;
     this.portrait = add(this.scene.add.image(480, 300, texture).setDisplaySize(245, 245));
+    // The belt only groups the two potion pockets; it is not an equipment slot.
+    add(this.scene.add.rectangle(480, 468, 304, 28, 0x6b4b2e).setStrokeStyle(2, 0xa27c4b));
+    add(this.scene.add.text(480, 468, 'Gürtel', { ...STYLE, fontSize: '16px' }).setOrigin(.5));
     this.columns = this.createColumns();
     this.columns.forEach((c, index) => {
       const current = c.options.find(o => o.id === c.equipped) || c.options[0];

@@ -23,6 +23,20 @@ unregelmäßige Sandspuren in der Wüste, erdige Pfade mit Blattwerk im Urwald u
 felsige Gänge mit Kristallen in der Unterwelt. Sie haben keine Mittelstreifen.
 Die Gehgeschwindigkeit bleibt von der Entfernung abhängig.
 
+[gate-closed.svg](gate-closed.svg) und [gate-open.svg](gate-open.svg) ersetzen
+die Torbilder aus dem Unterwelt-Atlas im Spiel. Diese beiden Vektorgrafiken
+wurden direkt für das Spiel gezeichnet. Sie zeigen denselben freistehenden
+Steinrahmen mit geschlossenem beziehungsweise zur Seite geöffnetem Gitter,
+ohne Höhlengang hinter der Öffnung. Der Haltepunkt liegt vor dem rechten
+Pfosten auf der Shopseite. Erst der freigeschaltete Weg zur Mine führt durch
+die Mitte des Tors. Durchgehender Erdboden mit unregelmäßigen Felsrändern
+zeichnet die sichtbaren Untergrundwege.
+
+Die geheimen Münzparcours verwenden passende vorhandene Ortsgrafiken und ein
+zusätzliches Münzzeichen. Wie alle anderen Orte bleiben sie samt Weg bis zur
+Freischaltung verborgen; ein erfolgreicher Schalterfund lässt den Zugang beim
+nächsten Kartenbesuch entstehen.
+
 Die neue Intro-Grafik liegt unter [bed-layers.png](../intro/bed-layers.png);
 der vollständige Prompt unter [bed-layers.txt](../intro/prompts/bed-layers.txt).
 Auch diese Bett- und Deckenebenen wurden mit der integrierten Bildgenerierung
@@ -59,3 +73,12 @@ Die vollständigen Prompts stehen in
 [prompts/underground-terrain.txt](prompts/underground-terrain.txt) und
 [prompts/water-world.txt](prompts/water-world.txt). Die neuen Kletterposen und ihr
 Prompt sind in [mantle-atlas.README.md](../common/characters/mantle-atlas.README.md) dokumentiert.
+
+## Wege erst beim Freischalten
+
+[jungle-untrodden.png](jungle-untrodden.png) ist eine mit integrierter
+Bildbearbeitung erstellte Variante der Urwaldkarte: Die fest gemalten Wege und
+Sandflächen sind durch Gras ersetzt. Bäume, Felsen und Kristallhöhle bleiben am
+gleichen Ort. Das Spiel lädt den kleineren JPEG-Export und zeichnet seine Wege
+erst nach der Freischaltung darüber. Der Sandpinsel stammt weiterhin aus der
+ursprünglichen Karte. [Vollständiger Bildprompt](prompts/jungle-untrodden.txt).

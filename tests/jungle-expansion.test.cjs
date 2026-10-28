@@ -13,8 +13,16 @@ function ticks(switcher,n){for(let i=0;i<n;i++)switcher.update(.05)}
 
 test('old saves migrate owned bow, shoes and shield to simultaneous slots, preserving explicit empty slots',()=>{
  const save={inventory:{passives:{bow:true,shield:true,shoes:true}},equipped:{passive:'bow'}};
- const n=ctx.normalizeInventory(save);assert.equal(n.equipped.secondary,'bow');assert.equal(n.equipped.shield,'shield');assert.equal(n.equipped.shoes,'shoes');assert.equal(n.equipped.helmet,'helmet');assert.equal(n.equipped.belt,'leatherBelt');
+ const n=ctx.normalizeInventory(save);assert.equal(n.equipped.secondary,'bow');assert.equal(n.equipped.shield,'shield');assert.equal(n.equipped.shoes,'shoes');assert.equal(n.equipped.helmet,'helmet');assert.equal(Object.hasOwn(n.equipped,'belt'),false);
  const next=ctx.applyInventoryToSave(save,n.inventory,{...n.equipped,shield:null});assert.equal(next.equipment.shield,false);assert.equal(ctx.normalizeInventory(next).equipped.shield,null);
+});
+test('old belt items are removed without losing either potion selection or the shared supply',()=>{
+ const old={coins:81,inventory:{armor:{helmet:true,leatherBelt:true},consumables:{honey:3}},equipped:{weapon:'sword',belt:'leatherBelt',consumable:'honey',consumable2:'honey'}};
+ const n=ctx.normalizeInventory(old),saved=ctx.applyInventoryToSave(old,n.inventory,n.equipped),loaded=ctx.normalizeInventory(saved);
+ assert.equal(Object.hasOwn(loaded.inventory.armor,'leatherBelt'),false);assert.equal(Object.hasOwn(loaded.equipped,'belt'),false);
+ assert.equal(loaded.inventory.armor.helmet,true);assert.equal(loaded.inventory.consumables.honey,3);
+ assert.equal(loaded.equipped.consumable,'honey');assert.equal(loaded.equipped.consumable2,'honey');assert.equal(saved.coins,81);
+ assert.equal(old.inventory.armor.leatherBelt,true,'loading must not mutate the source save');
 });
 test('switching to bow and back takes exactly 200ms; an already active weapon attacks without switch delay',()=>{
  const s=bowScene();s.weaponSwitch=new ctx.WeaponSwitch(s);s.bow=new ctx.BowManager(s);
@@ -70,7 +78,7 @@ for(const [kind,damage] of [['brown',1],['red',2],['blue',3]])test(`jungle shiel
 });
 test('active-profile keys and toolbar choose the same confirmation exactly once',()=>{
  const s={input:{keyboard:new EventEmitter()},events:new EventEmitter(),time:{},physics:{world:{pause(){},resume(){}}},add:{container:art,rectangle:art,text:art}};let yes=0;ctx.showConfirmation(s,'Verlassen?',()=>yes++);const c=Object.create(ctx.PortableControls.prototype);c.activeScene=()=>s;
- const ev=code=>({code,preventDefault(){},stopImmediatePropagation(){}});c.onKey(ev('KeyQ'),true);assert.equal(yes,0);assert.equal(s.confirmation,null);ctx.showConfirmation(s,'Verlassen?',()=>yes++);c.onKey(ev('Enter'),true);c.onKey(ev('Enter'),false);assert.equal(yes,1);
+ const ev=code=>({code,preventDefault(){},stopImmediatePropagation(){}});c.onKey(ev('KeyN'),true);assert.equal(yes,0);assert.equal(s.confirmation,null);ctx.showConfirmation(s,'Verlassen?',()=>yes++);c.onKey(ev('KeyJ'),true);c.onKey(ev('KeyJ'),false);assert.equal(yes,1);
 });
 test('buying the jungle shield costs 200, equips independently, and duplicate purchases are disabled',()=>{
  const s=Object.create(ctx.ShopSceneBase.prototype);Object.assign(s,{coins:600,...ctx.normalizeInventory({inventory:{passives:{bow:true,shoes:true}},equipped:{passive:'bow'}}),updateHudAfterPurchase(){},saveInventory(){},showPurchaseMessage(){}});const item=ctx.JungleShopScene.prototype.getShopConfig().items.find(i=>i.id==='jungleShield');s.buyItem(item);assert.equal(s.coins,400);assert.equal(s.equipped.shield,'jungleShield');assert.equal(s.equipped.secondary,'bow');assert.equal(s.equipped.shoes,'shoes');assert.equal(s.canShowItem(item),false);s.buyItem(item);assert.equal(s.coins,400);
@@ -78,7 +86,7 @@ test('buying the jungle shield costs 200, equips independently, and duplicate pu
 
 test('an open confirmation ignores inventory, shooting and pause actions',()=>{
  let choose=0,inventory=0;const s={confirmation:{isOpen:true,choose(){choose++}},toggleInventory(){inventory++}};
- const c=Object.create(ctx.PortableControls.prototype);c.activeScene=()=>s;c.dispatch('inventory');c.dispatch('shoot');c.dispatch('pause');assert.equal(choose,0);assert.equal(inventory,0);c.dispatch('confirm');assert.equal(choose,1);
+ const c=Object.create(ctx.PortableControls.prototype);c.activeScene=()=>s;c.dispatch('inventory');c.dispatch('shoot');c.dispatch('pause');c.dispatch('confirm');c.dispatch('back');assert.equal(choose,0);assert.equal(inventory,0);c.dispatch('yes');assert.equal(choose,1);
 });
 load('src/utils/UndergroundBats.js','UndergroundBats');
 test('the jungle shield also returns underground poison berries without player damage',()=>{

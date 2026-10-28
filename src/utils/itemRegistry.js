@@ -8,7 +8,6 @@ export const ITEM_DEFS = {
   powerHammer: { supportedModes: [GAME_MODES.ISOMETRIC, GAME_MODES.JUMP] },
   shield: { supportedModes: [GAME_MODES.ISOMETRIC, GAME_MODES.JUMP] },
   jungleShield: { supportedModes: [GAME_MODES.ISOMETRIC, GAME_MODES.JUMP] },
-  leatherBelt: { supportedModes: [GAME_MODES.ISOMETRIC, GAME_MODES.JUMP] },
   bow: { supportedModes: [GAME_MODES.ISOMETRIC, GAME_MODES.JUMP] },
   shoes: { supportedModes: [GAME_MODES.ISOMETRIC, GAME_MODES.JUMP] },
   honey: { supportedModes: [GAME_MODES.ISOMETRIC, GAME_MODES.JUMP] },

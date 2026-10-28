@@ -12,7 +12,7 @@ export default class TavernScene extends ShopSceneBase {
       backgroundKey: "tavern-bg",
       loadingKey: "tavern-loading",
       locationText: "Taverne",
-      greetingText: "Willkommen in meiner Taverne, Sir Ritter!",
+      greetingText: "Willkommen in meiner Taverne!\nEine kleine Pause tut jedem Abenteuer gut.",
       promptText: "Was möchtest du kaufen?",
       items: [
         {
@@ -25,7 +25,7 @@ export default class TavernScene extends ShopSceneBase {
           id: "shield",
           label: "Schild",
           price: 100,
-          successText: "Hier ist mein alter Schild\nHoffentlich wird er dich beschützen!",
+          successText: "Der Schild fängt einen Treffer ab.\nDanach braucht er eine kleine Pause.",
         },
       ],
     };

@@ -1,6 +1,7 @@
 import { canHelperDrink, companionDrinkTexture } from "../../utils/companionDrinking.js";
 import { showExitConfirmation } from "../../ui/ConfirmationDialog.js";
 import { saveProgress } from "../../saveManager.js";
+import { queueDragonClue } from '../../utils/dragonStory.js';
 import { playMusic } from "../../soundManager.js";
 import TopHud from "../../ui/topHud.js";
 import InventoryOverlay from "../../ui/InventoryOverlay.js";
@@ -11,6 +12,7 @@ import { applyItemModeSupport, GAME_MODES } from "../../utils/itemRegistry.js";
 import { JUNGLE_LEVELS, JUNGLE_BRANCHES, JUNGLE_PHYSICS, MONKEY_TYPES, MONKEY_KING_THROWS,
   canLandOnBranch, circleTouchesRect, secondsLeft, planMonkeyClimb, advanceMonkeyClimb } from "../../utils/jungleRules.js";
 import JungleHazards from "../../utils/JungleHazards.js";
+import SecretSwitch from '../../utils/SecretSwitch.js';
 
 const textStyle = { fontFamily: "Trebuchet MS, sans-serif", color: "#fff4ce",
   stroke: "#173d2c", strokeThickness: 4 };
@@ -53,6 +55,7 @@ export default class JungleScene extends Phaser.Scene {
       .setDisplaySize(42, 42).setDepth(18);
     this.helper.setVisible(Boolean(this.equipped.companion));
     this.createVines();
+    if (this.levelId === 'Lianenpfad') this.secretSwitch = new SecretSwitch(this, 'jungle');
     this.saveState();
     playMusic(this, "music-world");
     this.events.once("shutdown", () => {
@@ -123,6 +126,9 @@ export default class JungleScene extends Phaser.Scene {
         nextClimbAt: 7000, chargeUntil: 0, stunnedUntil: 0,
         throwCount: 0, vulnerableUntil: 0, hitsLeft: 0 };
     } else {
+      const halo = this.add.circle(this.config.goal.x, this.config.goal.y, 27, 0xffd34b, .18)
+        .setStrokeStyle(2, 0xffecaa, .9).setDepth(9);
+      this.tweens.add({ targets: halo, scale: 1.15, alpha: .5, duration: 850, yoyo: true, repeat: -1 });
       this.goal = this.add.image(this.config.goal.x, this.config.goal.y, "coconut-brown").setDisplaySize(38, 38)
         .setTint(0xffe787).setDepth(10);
     }
@@ -225,6 +231,7 @@ export default class JungleScene extends Phaser.Scene {
     this.invulnerableUntil = this.worldTime + 1100;
     if (this.shield.tryBlockHit()) return false;
     this.health = Math.max(0, this.health - damage);
+    this.events?.emit?.('player-hurt', { amount: damage, health: this.health });
     this.hud.setHealth(this.health, 5); this.cameras.main.shake(100, .004);
     this.saveState();
     if (!this.health) this.finish(false);
@@ -351,7 +358,7 @@ export default class JungleScene extends Phaser.Scene {
     if (!m.hp) {
       m.active = false; this.cancelCharge(m); m.sprite.destroy();
       if (m.isBoss) { this.finish(true); return true; }
-      this.coins += 15; this.hud.setCoins(this.coins); this.saveState();
+      this.coins += 15; this.hud.setCoins(this.coins); this.playJungleSound('sfx-coin'); this.saveState();
     }
     return true;
   }
@@ -465,7 +472,14 @@ export default class JungleScene extends Phaser.Scene {
       if (this.config.boss) { unlocked.add("UrwaldShop"); unlocked.add("Lianenpfad"); }
       this.coins += reward;
       this.hud.setCoins(this.coins);
-      this.saveState({ completedLevels: [...completed], unlockedLevels: [...unlocked] });
+      if (reward) this.playJungleSound('sfx-coin');
+      const progress = { completedLevels: [...completed], unlockedLevels: [...unlocked] };
+      if (this.levelId === 'Lianenpfad') {
+        const clue = queueDragonClue(save, 'jungle');
+        progress.pendingDragonClues = clue.pendingDragonClues || [];
+        progress.unlockedWorlds = [...new Set([...(save.unlockedWorlds || []), 'water'])];
+      }
+      this.saveState(progress);
     } else { this.health = 5; this.saveState(); }
     const panel = this.add.container(0, 0).setDepth(300).setScrollFactor(0);
     panel.add(this.add.rectangle(480, 300, 960, 600, 0x102e23, .86));

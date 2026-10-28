@@ -3,7 +3,7 @@ const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const root=path.join(__dirname,'..'),ctx={Promise,Map,Set,globalThis:null,Phaser:{Scene:class{}},performance:{now:()=>1}};
 ctx.globalThis=ctx;vm.createContext(ctx);
 function load(file,name){let code=fs.readFileSync(path.join(root,file),'utf8').replace(/^import[\s\S]*?;\n/gm,'');if(name)code=code.replace(/export default class \w+/,`globalThis.${name}=class ${name}`);vm.runInContext(code.replace(/export /g,''),ctx)}
-load('src/utils/introTimeline.js');load('src/utils/IntroAudio.js','IntroAudio');load('src/scenes/IntroScene.js','IntroScene');load('src/utils/controlProfiles.js');load('src/utils/PortableControls.js','PortableControls');
+load('src/utils/introTimeline.js');load('src/utils/IntroAudio.js','IntroAudio');load('src/utils/storyPreview.js');load('src/scenes/IntroScene.js','IntroScene');load('src/utils/controlProfiles.js');load('src/utils/PortableControls.js','PortableControls');
 
 test('the story follows sleep, shadow, window, treasure dragon, bouncing, yawn and ready beats',()=>{
  for(const [time,beat] of [[0,'sleep'],[2700,'shadow'],[5200,'window'],[8500,'dragon'],[13700,'return'],[16300,'wake'],[18900,'yawn'],[22000,'ready']])assert.equal(ctx.getIntroFrame(time).beat,beat);
@@ -96,6 +96,59 @@ test('losing focus releases pressed keys even when the browser never sends their
  c.autoPause();assert.equal(c.pressedKeys.size,0);
 });
 
+function introFocusFixture(lateCanvas=false){
+ const previous={document:ctx.document,window:ctx.window};
+ const windowListeners={},documentListeners={};let focuses=0,skips=0,resumes=0,active;
+ const doc={activeElement:{tagName:'BUTTON',id:'browser-reload'},getElementById(){return null},
+  addEventListener(type,fn){documentListeners[type]=fn},removeEventListener(){}};
+ const win={addEventListener(type,fn){windowListeners[type]=fn},removeEventListener(){}};
+ ctx.document=doc;ctx.window=win;
+ const canvas={tagName:'CANVAS',addEventListener(){},removeEventListener(){},
+  focus(options){focuses++;doc.activeElement=this;assert.equal(options.preventScroll,true)}};
+ const menu={sys:{settings:{key:'MainMenuScene'}}};
+ const intro={isIntro:true,started:true,sys:{settings:{key:'IntroScene'}},
+  finish(){skips++;active=menu},suspendIntro(){this.suspended=true},startIntro(){this.suspended=false;resumes++}};
+ active=intro;
+ const game={canvas:lateCanvas?null:canvas,scene:{getScenes(){return [active]}}};
+ const controls=new ctx.PortableControls(game);
+ return {controls,game,canvas,intro,menu,doc,windowListeners,documentListeners,
+  focuses:()=>focuses,skips:()=>skips,resumes:()=>resumes,
+  restore(){controls.destroy();ctx.document=previous.document;ctx.window=previous.window}};
+}
+
+test('autoplay moves focus from Reload to the game before the first Space press, without requiring a click',()=>{
+ const f=introFocusFixture();
+ try{
+  assert.equal(f.doc.activeElement.id,'browser-reload');f.controls.update();
+  assert.equal(f.doc.activeElement,f.canvas);assert.equal(f.focuses(),1);
+  const event={code:'Space',target:f.doc.activeElement,preventDefault(){this.prevented=true},stopImmediatePropagation(){}};
+  f.windowListeners.keydown(event);assert.equal(f.skips(),1);assert.equal(event.prevented,true);
+  f.controls.update();assert.equal(f.doc.activeElement,f.canvas);
+  // Scene changes still retain the held-key latch from the original skip fix.
+  assert.ok(f.controls.pressedKeys.has('Space'));
+  f.windowListeners.keyup(event);assert.equal(f.controls.pressedKeys.has('Space'),false);
+ }finally{f.restore()}
+});
+
+test('a canvas attached after the cinematic starts still receives startup keyboard focus',()=>{
+ const f=introFocusFixture(true);
+ try{
+  f.controls.update();assert.equal(f.focuses(),0);
+  f.game.canvas=f.canvas;f.controls.update();assert.equal(f.focuses(),1);assert.equal(f.doc.activeElement,f.canvas);
+  f.controls.update();assert.equal(f.focuses(),1,'normal animation frames do not steal focus repeatedly');
+ }finally{f.restore()}
+});
+
+test('returning to an autoplaying cinematic restores both game focus and playback',()=>{
+ const f=introFocusFixture();
+ try{
+  f.controls.update();f.windowListeners.blur();assert.equal(f.intro.suspended,true);
+  f.doc.activeElement={tagName:'BUTTON',id:'browser-reload'};
+  f.windowListeners.focus();assert.equal(f.doc.activeElement,f.canvas);assert.equal(f.resumes(),1);
+  assert.equal(f.intro.suspended,false);
+ }finally{f.restore()}
+});
+
 function audioFixture(){
  let instances=0;const voices=[];
  class Context{
@@ -120,7 +173,7 @@ test('missing audio remains silent without blocking Start, Skip or cleanup',asyn
  const a=new ctx.IntroAudio(undefined,undefined);await a.ready;assert.doesNotThrow(()=>{a.start();a.pause();a.resume();a.mute(true);a.destroy()});
 });
 test('every generated audio file is valid, audible PCM with safe peak headroom',()=>{
- for(const name of ['music','snore','whoosh','hop','boing','yawn','chime']){
+ for(const name of ['music','snore','whoosh','hop','boing','yawn','chime','paper','splash']){
   const wav=fs.readFileSync(path.join(root,'assets/intro/sounds',name+'.wav'));assert.equal(wav.toString('ascii',0,4),'RIFF');assert.equal(wav.toString('ascii',8,12),'WAVE');assert.equal(wav.readUInt32LE(24),22050);let peak=0;for(let i=44;i<wav.length;i+=2)peak=Math.max(peak,Math.abs(wav.readInt16LE(i)));assert.ok(peak>1000&&peak<30000,name);
  }
 });

@@ -63,6 +63,7 @@ export default class EnemyContacts {
   canPlace(bounds) {
     const s = this.scene, world = s.physics?.world?.bounds;
     if (world && (bounds.x < world.x || right(bounds) > right(world) || bounds.y < world.y || bottom(bounds) > bottom(world))) return false;
+    if (s.solidScenery?.some(solid => overlaps(bounds, solid))) return false;
     if (s.blockMap && s.tileSize) {
       const tile = s.tileSize;
       for (let y = Math.floor(bounds.y / tile); y <= Math.floor((bottom(bounds) - .01) / tile); y++) {

@@ -9,6 +9,7 @@ import ShieldManager from "../../utils/ShieldManager.js";
 import CoordinateDebugger from "../../utils/coordinateDebugger.js";
 import { applyInventoryToSave, normalizeInventory } from "../../utils/inventory.js";
 import { applyItemModeSupport, GAME_MODES } from "../../utils/itemRegistry.js";
+import SecretSwitch from '../../utils/SecretSwitch.js';
 
 export default class DesertEndlessScene extends Phaser.Scene {
   constructor() {
@@ -68,6 +69,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
     this.createSword();
     this.createRespawnTimers();
     this.createAudio();
+    this.secretSwitch = new SecretSwitch(this, 'desert');
     playMusic(this, "music-desert");
     this.durationMs = null;
     this.showStartScreen();
@@ -132,11 +134,8 @@ export default class DesertEndlessScene extends Phaser.Scene {
     this.player.setDepth(5);
     this.physics.add.existing(this.player);
     this.player.body.setCollideWorldBounds(true);
-    this.player.body.setSize(this.player.width * 0.24, this.player.height * 0.7, true);
-    this.player.body.setOffset(
-      (this.player.width - this.player.body.width) * 0.5,
-      (this.player.height - this.player.body.height) * 0.6
-    );
+    this.player.body.setSize(this.player.width * .24, this.player.height * .7, false);
+    this.player.body.setOffset(this.player.width * .38, this.player.height * .29);
     this.player.setData("standingTexture", standingTexture);
     this.player.setData("hitTexture", hittingTexture);
 
@@ -259,8 +258,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
     this.fruitSlots = [];
 
     bushes.forEach((bush) => {
-      this.add.circle(bush.x, bush.y + 4, 18, 0x3d4f26).setAlpha(0.9);
-      this.add.circle(bush.x, bush.y - 6, 16, 0x4f6a2f).setAlpha(0.95);
+      this.add.image(bush.x, bush.y - 3, 'desert-shrub').setDisplaySize(86, 64);
       if (bush.hasFruit) {
         this.fruitSpots.push({ x: bush.x + 10, y: bush.y - 12 });
       }
@@ -339,7 +337,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
     this.hud.setItemDisabled("active", !isMeleeWeapon(this.equipped?.weapon));
 
     this.add
-      .text(14, 575, "Pfeiltasten zum bewegen, Früchte heilen, Schlag Truhen für Münzen", {
+      .text(14, 575, "{move}: Bewegen · {attack}: Truhen öffnen · Beeren heilen", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "14px",
         color: "#ffffff",
@@ -718,7 +716,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
     const elapsed = Math.max(0, Math.floor((this.time.now - this.endlessStartAt) / 1000));
     const minutes = String(Math.floor(elapsed / 60)).padStart(2, "0");
     const seconds = String(elapsed % 60).padStart(2, "0");
-    this.playtimeText.setText(`Zeit: ${minutes}:${seconds}`);
+    this.playtimeText.setText(`Zeit: ${minutes}:${seconds} · ${this.bossSpawned ? 'Besiege den Maulwurf-Boss!' : 'Halte durch – später kommt der Maulwurf-Boss!'}`);
   }
 
   spawnMonster(type = "normal", locationMode = "random", fixedPosition = null) {
@@ -862,7 +860,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
 
     const spotIndex = Phaser.Math.RND.pick(available);
     const spot = this.fruitSpots[spotIndex];
-    const fruit = this.add.circle(spot.x, spot.y, 5, 0xc23a2c);
+    const fruit = this.add.circle(spot.x, spot.y, 6, 0xc23a2c).setStrokeStyle(1, 0xffc07d).setDepth(2);
     fruit.setData("slot", spotIndex);
     this.physics.add.existing(fruit, true);
     this.fruits.add(fruit);
@@ -1279,10 +1277,14 @@ export default class DesertEndlessScene extends Phaser.Scene {
 
   damagePlayer(amount) {
     if (this.isGameOver || this.isPaused || this.isComplete) return;
+    const now = this.time.now;
+    if (now < (this.player.getData('invulnerableUntil') || 0)) return;
+    this.player.setData('invulnerableUntil', now + 1000);
     if (this.shield?.tryBlockHit()) {
       return;
     }
     this.health = Math.max(0, this.health - amount);
+    this.events?.emit?.('player-hurt', { amount, health: this.health });
     this.updateHearts();
     this.flashDamage();
     this.saveInventory();

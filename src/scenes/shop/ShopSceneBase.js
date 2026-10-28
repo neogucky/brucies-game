@@ -18,6 +18,7 @@ export default class ShopSceneBase extends Phaser.Scene {
   create() {
     this.gameMode = GAME_MODES.ISOMETRIC;
     this.isLoading = true;
+    this.shelfObjects = [];
     this.shopConfig = this.getShopConfig();
     this.addBackground();
     this.addUI();
@@ -163,6 +164,7 @@ export default class ShopSceneBase extends Phaser.Scene {
   }
 
   createShelf() {
+    const previous = new Set(this.children.list);
     recordDiscoveries(this, this.shopConfig.items.map(item => item.id));
     this.selectedIndex = 0; this.buyButtons = [];
     this.add.text(662, 108, this.shopConfig.locationText.toUpperCase(), {
@@ -208,6 +210,12 @@ export default class ShopSceneBase extends Phaser.Scene {
         });
     }
     this.refreshShelf();
+    this.shelfObjects = this.children.list.filter(child => !previous.has(child));
+  }
+
+  update() {
+    const visible = !this.dialog?.container?.visible;
+    this.shelfObjects?.forEach(object => object.setVisible(visible));
   }
 
   refreshShelf() {

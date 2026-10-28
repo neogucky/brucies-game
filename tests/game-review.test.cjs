@@ -22,7 +22,7 @@ function loadScene(name, file = 'scenes/desert/' + name + '.js') {
       : code.replace(/export /g, '');
     vm.runInContext(code, context);
   };
-  load('utils/inventory.js'); load('utils/ShieldManager.js', 'ShieldManager');
+  load('utils/inventory.js'); load('utils/ShieldManager.js', 'ShieldManager'); load('utils/ruinRepair.js');
   const saveCode = fs.readFileSync(path.join(__dirname, '../src/saveManager.js'), 'utf8')
     .replace(/^import .*;\n/gm, '').replace(/export /g, '');
   context.normalizeWorldProgress = vm.runInNewContext(saveCode + '\nnormalizeWorldProgress;');

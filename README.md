@@ -32,10 +32,15 @@ freundlichen Drachen mit Schätzen und die Credits „Spielidee von Brucy“ /
 Der Drachenschatten erscheint bereits nach etwa zwei Sekunden. Schlaf-„z“ steigen
 vom Ritter auf; Bett und Ritter sind getrennt, sodass das Bett beim animierten
 Absprung und der Landung an seinem Platz bleibt.
-Dort lässt sich die Geschichte mit **Intro ansehen** erneut abspielen.
+Dort lassen sich die freigespielten Filme im **Kino** erneut abspielen.
 Überspringen funktioniert mit **Leertaste**, **Enter** oder dem dezenten
 Overlay unten rechts. Ein gehaltener Tastendruck löst im folgenden Menü keine
 weitere Aktion aus; erst nach dem Loslassen reagiert die Taste wieder. Im Touch-Profil trägt das Overlay keinen Tastaturhinweis.
+Die Spielfläche übernimmt schon während des Ladens den Tastaturfokus. Eine dabei
+gedrückte Leertaste oder Enter-Taste wird als einmaliger Überspringwunsch gemerkt.
+Die Eingabe wird am Browserfenster abgefangen, bevor sie Knöpfe oder Phaser
+erreichen kann. „Weiterspielen“ startet ausschließlich die gespeicherte Welt,
+verwirft abgebrochene Kino-Aufträge und ist gegen doppelte Aktivierung geschützt.
 Beim Tabwechsel pausiert die Geschichte und läuft bei der Rückkehr automatisch
 weiter. Der Ton versucht automatisch zu starten und wird, falls nötig, bei einer
 normalen Berührung oder Taste freigegeben; verpasste Geräusche werden nicht nachgeholt.
@@ -68,8 +73,10 @@ Weltkarten und Menüs werden dort direkt angetippt.
 
 | Aktion | iPad mit Tastatur (Standard) | PC | iPad ohne Tastatur |
 | --- | --- | --- | --- |
-| Bestätigen / Ja / Gespräch weiter | Enter | Enter | Bestätigen / Ja antippen |
-| Zurück / Nein / Inventar schließen | Q | Esc | Zurück / Nein antippen |
+| Bestätigen / Gespräch weiter | Enter | Enter | Bestätigen antippen |
+| Zurück / Inventar schließen | Q | Esc | Zurück antippen |
+| Ja in Ja/Nein-Dialogen | J | J | Ja antippen |
+| Nein in Ja/Nein-Dialogen | N | N | Nein antippen |
 | Inventar öffnen | I | Tab | Inventar antippen |
 | Bewegen / Auswahl | WASD / Pfeile | WASD / Pfeile | Richtungsknöpfe |
 | Springen | ↑ | ↑ | Springen antippen |
@@ -79,8 +86,10 @@ Weltkarten und Menüs werden dort direkt angetippt.
 | Trankslots 1 und 2 | T und G | T und G | Trank 1 / Trank 2 antippen |
 
 Menüaktionen haben pro Tastaturprofil genau eine Taste. Bewegen funktioniert
-mit WASD und Pfeilen. Andere Profile und frühere Alternativen (E, J/N,
-Rückschritt, Esc beim iPad-Profil) lösen keine Menüaktionen aus. Offene Dialoge und Inventarhinweise wechseln sofort mit
+mit WASD und Pfeilen. Ja/Nein-Fragen verwenden in beiden Tastaturprofilen
+ausschließlich J für Ja und N für Nein. Enter, Q und Esc beantworten diese Fragen
+nicht. Frühere Alternativen (E, Rückschritt, Esc beim iPad-Profil) lösen keine
+Menüaktionen aus. Offene Dialoge und Inventarhinweise wechseln sofort mit
 dem Profil. Im Touchprofil stehen an den Knöpfen keine Tastaturkürzel.
 
 Im Inventar schließt nur die Zurück-Aktion; die Inventartaste öffnet es. Ein
@@ -105,8 +114,11 @@ das Bewegungstempo bei 80 %. Das Schwert schlägt weiterhin sofort zu.
 Im Touch-Profil wird der Angriffsknopf entsprechend gehalten und losgelassen.
 
 Beim ersten Kauf führt **Meister Muck** fünf kurze Übungen vor: normaler Schlag,
-gelbe, rote und blaue Ladung sowie Sprung-Landungsschlag. Der Spieler macht sie
-nach; falsche Versuche bekommen passende Hinweise und eine neue Vorführung.
+gelbe, rote und blaue Ladung sowie Sprung-Landungsschlag. Der Spieler kann schon
+während der Vorführung laufen, springen und mitüben. Ein gelungener Versuch zählt
+sofort und beendet die Vorführung; nach dem Lob folgt die nächste Übung. Ein
+Fehlversuch während der Vorführung gibt einen Hinweis, ohne den Spieler anzuhalten.
+Spätere Fehlversuche bekommen passende Hinweise und eine neue Vorführung.
 Vorhandene Hammerbesitzer erhalten die Einführung beim nächsten Level mit Hammer.
 Das Training lässt sich mit „Später“ verlassen und im Unterwelt-Shop über
 „Hammer üben“ jederzeit kostenlos wiederholen. Grafiken und vollständige Prompts:
@@ -234,7 +246,8 @@ Einzelstücke sind ausgegraut und deaktiviert. Der Urwaldhändler erkennt den Ri
 wieder und erzählt, wie er den Schild gegen die Affen entwickelt hat.
 
 Im Inventar umgeben unabhängige Plätze das Ritterbild: Primärwaffe, Sekundärwaffe,
-Rückenschild, Schuhe, Helm, Gürtel mit zwei Trankslots (T/G) und Begleiter. Bogen,
+Rückenschild, Schuhe, Helm und Begleiter. Der feste Gürtel fasst die beiden
+Trankplätze (T/G) zusammen und ist kein ausrüstbarer Gegenstand. Bogen,
 Schild und Schuhe können gleichzeitig angelegt werden. Beide Trankslots nutzen
 den gemeinsamen Honigvorrat. Vorhandene Spielstände übernehmen die Ausrüstung;
 ausdrücklich geleerte Plätze bleiben leer.
@@ -262,7 +275,8 @@ Die Bedienleiste bietet dieselben Aktionen als große klickbare Knöpfe. Das
 Touchprofil ergänzt Richtungen, Springen, Angriff und beide Trankslots. Auch
 Heldenauswahl, alle Weltkarten, Shops, Experten, Dialoge und Inventar lassen sich
 antippen. WASD und Pfeiltasten funktionieren in beiden Tastaturprofilen parallel.
-Bestätigen bleibt Enter; die übrigen Tasten richten sich nach dem Profil in den
+Bestätigen bleibt Enter; Ja/Nein-Fragen werden ausschließlich mit J/N beantwortet.
+Die übrigen Tasten richten sich nach dem Profil in den
 Einstellungen. Bei unbekanntem Gerät gilt ohne zusätzliche Anzeige das
 iPad-Tastaturprofil.
 
@@ -280,8 +294,9 @@ Fliege wiederzuerkennen. Die drei kostenlosen Orte sind mit ihrer Welt verfügba
 - **Unterweltexperte:** vom Unterwelt-Shop nach rechts.
 - **Urwaldexperte:** von den Kokoskronen nach unten.
 
-Beim ersten Besuch in der Wüste erzählt der Professor, dass der Drache nach
-Osten geflogen ist. Danach und bei jedem weiteren Besuch fragt er nach deinen
+Neue Abenteuer beginnen beim Wüstenexperten. Er hat den Drachen über der alten
+Ruine gesehen. Erst nach diesem Gespräch wird die Ruine freigeschaltet.
+Danach und bei jedem weiteren Besuch fragt er nach deinen
 Entdeckungen. Erst nach der kurzen Begrüßung erscheint die Tafel.
 
 Auf der Tafel stehen **alle Bildkarten gleichzeitig**. Es gibt keine Rubriken,
@@ -290,10 +305,13 @@ eine Karte; mit **Enter** oder einem Klick holst du dir einen Tipp. Unbekannte
 Karten bleiben grau und bieten noch keinen Tipp. Wichtige Wörter sind fett.
 Ein ausgewähltes Thema besteht aus kurzen Abschnitten; **Enter** liest weiter,
 **Zurück** führt zu den Karten und von dort zur Weltkarte. Beides geht auch per
-Klick. Die Tipps passen zur jeweiligen Welt: Der Helfer sammelt in der Wüste
-heilende Beeren, bekämpft unter Tage Höhlengegner und trinkt im Urwald Kokossaft.
-Die Flügelschuhe erklären das tatsächliche Sprinten, der Hammer auch Aufladen,
-Druckwelle, Landung und das Graben in der Unterwelt.
+Klick. Jede Karte gehört nur zu ihrer Ursprungswelt: In der Wüste stehen
+Maulwürfe, rollende Felsen, Schwert, Schild, Flügelschuhe, Honigsaft und der
+Beeren sammelnde Helfer. Unter Tage kommen Steinmonster, Steinwächter,
+Obsidian-Titan, Fledermaus und Power Hammer hinzu. Im Urwald erklärt der Professor
+die drei Affenfarben, den Affenkönig, den Bogen und den Urwaldschild. Dort gehört
+das Aufschlürfen von Kokossaft durch den Helfer zum Tipp über braune Affen.
+Der Hammer erklärt auch Aufladen, Druckwelle, Landung und das Graben.
 
 Die Sammlung enthält Gegner und Ausrüstung, keine Levelbeschreibungen. Jede
 Gegnerfarbe wird einzeln erfasst, sobald der Gegner im sichtbaren Spielbereich
@@ -303,6 +321,87 @@ bleiben im Spielstand, auch wenn ein Honigsaft später getrunken wird. Ältere
 Spielstände übernehmen vorhandene Ausrüstung und erhalten einmal die neue
 Begrüßung. Der Testmodus schaltet Wege frei, ohne Begegnungen zu erfinden.
 Tipps kosten kein Gold und ändern keine Ausrüstung.
+
+Wer alle Karten einer Welt entdeckt hat, erhält beim nächsten Expertenbesuch
+ein **Forscherabzeichen und 25 Gold**. Jede Welt vergibt diese Belohnung nur
+einmal; das Abzeichen bleibt auf ihrer Tafel sichtbar.
+
+### Versteckte Münzjagden
+
+Jede der drei spielbaren Welten hat einen geheimen Parcours ohne Gegner:
+
+- **Goldoase:** Sandsteinsäulen und Münzbögen auf einer langen Wüstenstrecke.
+- **Funkelkammer:** Vierzehn Felssimse mit sichtbaren, animierten Sprungfedern und Boing-Ton.
+- **Goldwipfel:** Lianen und Äste zwischen hohen Urwaldbäumen.
+
+Ein versteckter Bodenschalter schaltet den jeweiligen Ort frei. Die Schalter
+liegen im Wüstenendlos-Level, im Erdgang und im Lianenpfad. Im Erdgang verbirgt
+ein anders getönter Erdblock im oberen mittleren Bereich den Hebel. In Wüste
+und Urwald muss eine auffällig gefärbte Pflanze weggeschlagen werden. Ein
+freigelegter Hebel bleibt auch aus der Entfernung sichtbar. In der Wüste hebt sich
+der helle Busch durch seine gelblichen Blätter ab. Hebel und Busch stehen auf
+dem freien Sandstreifen am unteren Kartenrand, abseits von Palmen, Felsen und
+Truhen. Der Busch überdeckt den Mechanismus; dieser schimmert durch die Blätter.
+Der Hebel bleibt bis zum Wegschlagen des Buschs gesperrt. Im Level ist der bemalte Hebelarm kräftiger
+als in der unveränderten Nahaufnahme. Bemalte Hebel aus Sandstein,
+Höhlenfels bzw. bemoostem Stein passen zum jeweiligen Hintergrund und stehen
+hinter dem Ritter. Eine kreisförmige Bodenmarkierung entfällt. Grafiken und
+vollständige Bildprompts liegen in [assets/common/scenery](assets/common/scenery/README.md).
+Das Freilegen allein öffnet den Gang noch nicht: Neben dem Hebel wird **Enter**
+gedrückt oder der Hebel angetippt. Eine kurze Nahaufnahme zeigt, wie der Ritter
+ohne Waffe den Griff fasst und den Hebel umlegt. Ober- und Unterarm behalten
+dabei ihre Länge und beugen sich am Ellenbogen. Breite Rüstungsstücke und der
+dazu passende Handschuh entsprechen den Körperproportionen der Nahaufnahme.
+Gegner, Geschosse und Spielzeit
+stehen dabei still. Danach bebt die Umgebung mit einem Steinplatten-Schaben; erst
+dann erscheint die Freischaltmeldung. Nach der Sequenz wird die gemeinsame
+Animationspause aufgehoben, sodass auch halb ausgegrabene Maulwürfe ihre Bewegung
+beenden können. Erst beim nächsten
+Kartenbesuch erscheint der neue Ort mit seinem wachsenden Weg.
+
+Goldoase und Goldwipfel enthalten je 90 Münzen, die Funkelkammer nach zwei
+zusätzlichen oberen Ebenen 102. Jeder Parcours bietet **einen Versuch mit 60 Sekunden**.
+Die Zeit beginnt nach einem kurzen Start-Countdown. Nur tatsächlich gesammelte
+Münzen geben Gold; es gibt keinen zusätzlichen Abschlussbonus. Pause und
+Bestätigungsdialog halten die Zeit an. Nach einem Appwechsel oder Neuladen
+bleiben Münzen, Position und Restzeit erhalten. Ein beendeter Versuch bleibt
+auch im Testmodus verbraucht; der Ort zeigt dann das Ergebnis. Wer vorzeitig
+aufhören möchte, bestätigt ausdrücklich das Ende seines einzigen Versuchs.
+Alle Münzen haben denselben hellen Pling-Ton. Zweimal schnell nach unten
+(Pfeiltaste, S oder die Touch-Steuerung) lässt den Ritter durch den aktuellen
+Sims fallen; der Boden bleibt fest. Sind alle Münzen eingesammelt, endet der
+Versuch sofort und zeigt die gespeicherte benötigte Zeit als Rekord an.
+
+Gesperrte Orte bleiben auf den Weltkarten vollständig unsichtbar, einschließlich
+Namen und Schatten. Beim ersten Kartenbesuch nach einer Freischaltung wächst
+der Weg vom bekannten Ort zum neuen Ziel; erst dann erscheint dessen Marker.
+Aufgedeckte Wege werden gespeichert. Ein unterbrochener Aufbau wird beim
+nächsten Besuch erneut gezeigt. Im Testmodus sind alle Orte sofort sichtbar.
+Bestehende Spielstände behalten ihre Freischaltungen.
+
+Nach dem Fremdweg, den Kristalltiefen und dem Lianenpfad folgt jeweils eine kurze
+animierte Drachenspur, bevor es zur Weltkarte zurückgeht: Spuren führen zum
+Tunnel, ein drachenförmiges Loch samt Urlaubswerbung weist in den Urwald,
+weitere Spuren führen zum See. Der Drache selbst bleibt außer Sicht. Jede Szene
+läuft einmal und kann mit Leertaste, Enter oder Antippen übersprungen werden.
+In der Wüste liegen die dezenten Spuren von Anfang an entfernt im Sand. Der
+Helfer bemerkt sie mit einem roten Ausrufezeichen und hüpft hin. Eine Nahaufnahme
+zeigt den Fund mit beiden Figuren, dann folgt der Ritter ihm in der Totalen
+bis in die Höhle. Beim Schnitt behalten Figuren und Spuren ihre Position.
+[Schauplätze und Bildprompts](assets/story/README.md).
+
+`?story=all` spielt Intro, Wüstenspur, Unterwelthinweis und Urwaldspur direkt
+hintereinander ab und endet im Hauptmenü. Überspringen geht jeweils zur nächsten
+Szene. Die Vorschau verändert keinen Fortschritt und markiert keine Hinweise als
+angesehen; Neuladen startet die Vorführung erneut.
+
+Im Hauptmenü öffnet „Kino“ die Filmauswahl. Das Intro ist immer verfügbar;
+Wüstenspur, Drachenloch und Seespur erscheinen nach dem jeweiligen Levelabschluss.
+Auch ältere Abschlüsse sowie bereits gesehene oder noch anstehende Hinweise
+zählen. Alle freigespielten Filme bleiben gleichzeitig sichtbar und lassen sich
+einzeln oder mit „Alle ansehen“ in Reihenfolge abspielen. Danach geht es zurück
+ins Kino mit derselben Auswahl. Wiederholungen ändern keinen Spielfortschritt.
+Der Testmodus `?unlockAll=1` zeigt alle Filme, ohne sie im Spielstand freizuschalten.
 
 [Grafiken und Bildbeschreibungen](assets/common/experts/README.md).
 
@@ -349,21 +448,74 @@ Spielstände sowie Neustarts, Niederlagen und Kartenwechsel. Weitere Prüfungen
 decken Auto-Anvisieren, Fledermaus-Flugwege, unterbrochene Abwürfe sowie
 Beerenkollisionen mit Spieler, Schild, Boden und Plattformen ab.
 
+`tests/intro-navigation.test.cjs` prüft den gesamten Eingabeweg von Laden und
+Intro bis zum verzögerten Menüwechsel und „Weiterspielen“ in jeder Welt.
+Zusätzlich unter dem laufenden Webserver
+[tests/browser-regressions.html](tests/browser-regressions.html) öffnen und
+**Intro-Tests starten** drücken. Diese Prüfungen laden die aktuelle Spielseite
+mit echtem Phaser, Assets und Szenen: frühe und gehaltene Tasten, Überspringen,
+wiederholte Kino-Besuche, automatisches Ende und Fortsetzen per Enter oder Klick.
+Der Testspielstand liegt ausschließlich im Arbeitsspeicher. **Hebel prüfen**
+zeigt außerdem die drei Nahaufnahmen für Ritter und Ritterin an; Greifen,
+Mitte und Ende lassen sich einzeln betrachten. Die normalen Tests sichern neben
+den Armlängen auch die Rüstungs- und Handschuhbreite anhand der Atlasmaße ab.
+
+### Levelziele und Lesbarkeit
+
+| Level | Ziel und geprüfte Klarheit |
+| --- | --- |
+| Wüstenruine | 100 Münzen zum Aufbau beitragen. Ein sichtbarer Münzplatz vor dem Tor leuchtet grün, sobald eine Abgabe möglich ist. Auch einzelne Münzen zählen. Fortschritt und bezahltes Gold werden gemeinsam gespeichert; feste Wände halten Ritter und Gegner aus dem Gemäuer. |
+| Wüstenendlos | Durchhalten und den später auftauchenden Maulwurf-Boss besiegen. Der Zeittext nennt dieses Ziel, damit der Spieler nicht vergeblich einen Ausgang sucht. |
+| Fremdweg | 200 Steine sammeln und den Boss besiegen. Die Zielanzeige sagt auch nach dem Bosskampf, ob noch Steine fehlen. Die kurze Ansage erklärt das Zerschlagen und Einsammeln. |
+| Erdgang | Den Schlüssel suchen und damit zum Tor links zurückkehren. Die Zielzeile ändert sich nach dem Fund; der Abschlusstext unterscheidet den Ausgang vom großen Schlüsseltor auf der Karte. |
+| Steinwächtermine | Bis zum Steinwächter vordringen. In der Arena weicht das Wegziel der vorhandenen Anzeige für Ausweichen und verwundbare Phasen. |
+| Kristalltiefen | Den Obsidian-Titan bezwingen, unterwegs optionale Truhen suchen. Truhen geben wie im Erdgang 25 Gold und bleiben nach dem Öffnen dauerhaft geleert. |
+| Kokoskronen | Nach oben zum Affenkönig gelangen. Sein Sieg öffnet Shop und Lianenpfad; die Anzeige verspricht keinen Sieg über alle normalen Affen. |
+| Lianenpfad | Die Lianen hinauf zur goldenen Kokosnuss. Ein leuchtender Ring macht das Ziel zwischen anderen Kokosnüssen erkennbar. |
+| Goldoase, Funkelkammer, Goldwipfel | Je eine feindfreie Münzjagd mit eigener Landschaft, sichtbarer Restzeit und gespeichertem einzigen Versuch. |
+
+Alle Wüstenlevel verwenden gemalte Büsche mit separat sammelbaren Beeren.
+Die Ruine steht mit passenden Schatten, Maßstab und freier Vorfläche im
+Spielfeld; Sammelobjekte verstecken sich nicht dahinter.
+[Neue Wüstengrafiken und Bildprompts](assets/desert/README.md).
+
+Shopgespräche verdecken das Warenangebot vollständig, bis das Gespräch zu Ende
+ist. Danach erscheinen wieder die klickbaren Waren. Begrüßungen und Kauftexte
+nennen die tatsächlichen Funktionen von Schild, Hammer und Bogen. Die
+Expertentipps bleiben auf die jeweilige Welt begrenzt, der Hammertrainer erklärt
+weiterhin Antippen, gelbes, rotes und blaues Aufladen anhand der tatsächlichen
+Spielereingabe.
+
+Die Drachenspur-Filme erzählen durch Bewegungen, Gesten und Kameraschnitte statt
+durch Untertitel. Unter Tage zeigt eine echte Aufnahme über der Schulter den
+Ritter mit dem Prospekt in den Händen. Im Urwald führen nasse Spuren, ein
+kleiner Wasserschreck und ein verlorener Schatz zum See.
+[Neue Filmassets, Ablauf und vollständige Bildprompts](assets/story/README.md).
+
+Offener Vorschlag zur Balance: Im Wüstenendlos-Level erscheint der Boss erst
+nach drei Minuten. Für kürzere Runden mit jüngeren Kindern ließe sich dieser
+Vorlauf später verkürzen; die Kampfwerte bleiben bei dieser Überarbeitung
+unverändert. Die Wasserwelt ist weiterhin nur ein Ufer ohne spielbare Level.
+
 ## Projektstruktur
 
 - `index.html`: Einstiegspunkt
 - `style.css`: Grund-Layout
 - `src/main.js`: Phaser-Konfiguration
-- `src/scenes`: Szenen für Menü, Levelauswahl, Level 1
+- `src/scenes`: Hauptmenü, Kino, Weltkarten, Level, Shops und Hammertraining
 - `src/saveManager.js`: Spielstand in `localStorage`
 
 ## Karten, Urwaldsee und faire Kokoswürfe
 
 Die Unterwelt hat nun einen Hintergrund ohne doppelte, fest eingezeichnete
 Höhleneingänge. Erdgang, Händler, Tor, Steinwächtermine, Kristalltiefen und
-Expertenhütte stehen auf den passenden Felssimsen. Das Schlüsseltor versperrt
-den einzigen Zugang zur Mine; beim Aufschließen ändern sich Grafik und Wege
-sofort. Die internen Level-IDs bleiben für alte Spielstände erhalten.
+Expertenhütte stehen auf den passenden Felssimsen. Durchgehende felsige Wege
+machen die Laufstrecken sichtbar. Der Laden heißt auf der Karte Untergrundshop.
+Das Schlüsseltor versperrt den einzigen Zugang zur Mine: Der Ritter hält auf der
+Shopseite an, bis er es aufschließt. Das offene Tor besteht aus Pfosten und
+aufgeschwenkten Gitterflügeln; der Ritter läuft durch den Engpass der Karte statt
+in einen gemalten Tunnel. Die internen Level-IDs bleiben für alte Spielstände
+erhalten.
 
 Auf der Urwaldkarte folgen die Laufstrecken den vorhandenen gemalten Pfaden,
 auch zur Kristallhöhle zurück in die Unterwelt. Vom rechten Rand des Lianenpfads
@@ -387,3 +539,22 @@ Angriffsanimationen für Ritter und Ritterin, auch geduckt. Die sichtbare Waffe
 zeigt die tatsächliche Reichweite; die rechteckige Angriffsmarkierung entfällt.
 Grafiken, vollständige Bildprompts und Details zur Animation liegen in
 [assets/common/characters/melee](assets/common/characters/melee/README.md).
+
+## Geheimer Testmodus
+
+Die nicht im Spiel beworbene Taste `3` öffnet die Freischaltungen im Hauptmenü,
+auf Weltkarten und in Leveln. Sie funktioniert auch im iPad-Tastaturprofil.
+Welten sowie einzelne Orte lassen sich sperren und freischalten; mit „Alle Orte
+freischalten“ öffnet man die normalen Orte einer Welt auf einmal. Die geheimen
+Schalter haben eigene Einstellungen. Im Erdgang ist hier außerdem der vorhandene
+Level-Editor erreichbar; `2` und `4` behalten ihre bisherigen Debugfunktionen.
+
+„Übernehmen“ speichert die Änderungen und kehrt ins Hauptmenü zurück. „Abbrechen“
+oder erneut `3` verwirft den Entwurf. Während das Menü offen ist, pausiert das Spiel.
+Die manuellen Einstellungen bleiben beim Neuladen und auch mit `?unlockAll=1`
+erhalten. Eine Weltsperre behält deren Level-Fortschritt, Inventar und Gold.
+
+Ein Schalter-Reset versteckt den Geheimort wieder und entfernt seinen verbrauchten
+Versuch, Zwischenstand, gesammelte Levelmünzen und Rekord. Bereits verdientes Gold
+bleibt erhalten. Der Hebel kann danach im Level erneut umgelegt werden; alternativ
+lässt sich das Geheimlevel über seine Schalter-Einstellung sofort wieder freischalten.

@@ -1,8 +1,11 @@
 import ExpertScene from "./scenes/ExpertScene.js";
 import HammerTrainingScene from "./scenes/HammerTrainingScene.js";
 import IntroScene from "./scenes/IntroScene.js";
+import DragonClueScene from './scenes/DragonClueScene.js';
 import BootScene from "./scenes/BootScene.js";
 import MainMenuScene from "./scenes/MainMenuScene.js";
+import CinemaScene from './scenes/CinemaScene.js';
+import CoinChallengeScene from './scenes/CoinChallengeScene.js';
 import CharacterSelectScene from "./scenes/CharacterSelectScene.js";
 import DesertRuinScene from "./scenes/desert/DesertRuinScene.js";
 import DesertEndlessScene from "./scenes/desert/DesertEndlessScene.js";
@@ -47,7 +50,10 @@ const config = {
   scene: [
     BootScene,
     IntroScene,
+    DragonClueScene,
     MainMenuScene,
+    CinemaScene,
+    CoinChallengeScene,
     CharacterSelectScene,
     DessertMapScene,
     UndergroundMapScene,

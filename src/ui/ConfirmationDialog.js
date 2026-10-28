@@ -19,7 +19,7 @@ export function showConfirmation(scene, message, onYes, { pause = true, onClose 
     if (pause) { scene.isPaused = previous.paused || false; scene.time.paused = previous.clock || false; if (!previous.paused) scene.physics?.world?.resume(); }
     onClose?.(); if (yes) onYes();
   } };
-  for (const [yes, x, label] of [[true, 340, 'Ja · {confirm}'], [false, 620, 'Nein · {back}']]) {
+  for (const [yes, x, label] of [[true, 340, 'Ja · {yes}'], [false, 620, 'Nein · {no}']]) {
     const button = scene.add.text(x, 350, label, { fontFamily: 'Trebuchet MS, sans-serif', fontSize: '22px',
       color: '#fff1c5', backgroundColor: yes ? '#6a5635' : '#345540', padding: { x: 20, y: 14 } })
       .setOrigin(.5).setInteractive({ useHandCursor: true }).on('pointerdown', () => dialog.choose(yes));

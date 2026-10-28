@@ -137,6 +137,7 @@ export default class CharacterSelectScene extends Phaser.Scene {
     const nextSave = {
       ...saveData,
       playerGender: choice,
+      lastPlayed: new Date().toISOString(),
     };
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);

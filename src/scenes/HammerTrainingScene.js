@@ -94,7 +94,7 @@ export default class HammerTrainingScene extends Phaser.Scene {
     if (this.drillIndex >= HAMMER_DRILLS.length) { this.completeTraining(); return; }
     const drill = HAMMER_DRILLS[this.drillIndex];
     this.hammerCharge?.cancel(); this.isSwinging = false; this.hammerSlamActive = false;
-    this.attackInputLocked = true; this.phase = 'demo'; this.phaseStartedAt = this.worldTime; this.demoReleased = false; this.demoLanded = false;
+    this.attackInputLocked = false; this.phase = 'demo'; this.phaseStartedAt = this.worldTime; this.demoReleased = false; this.demoLanded = false;
     // reset() also resets Arcade's previous position. Resyncing the body again
     // during update would add the hitbox offset as movement in postUpdate and
     // push the hero through the floor on the next drill.
@@ -103,15 +103,24 @@ export default class HammerTrainingScene extends Phaser.Scene {
     this.lessonTitle.setText((this.drillIndex + 1) + ' / ' + HAMMER_DRILLS.length + ' · ' + drill.title);
     this.lessonText.setText(this.retryMessage || (this.drillIndex === 0 ? 'Ich bin Meister Muck. Ein guter Hammer braucht Gefühl!\n' : '') + drill.text);
     this.retryMessage = null;
-    this.turnText.setText('Meister Muck macht es vor …').setColor('#ffd184');
+    this.turnText.setText('Mach mit! Meister Muck zeigt es dir.').setColor('#ffd184');
     this.progressDots.forEach((dot, i) => dot.setFillStyle(i < this.drillIndex ? 0x88de9c : i === this.drillIndex ? 0xffd871 : 0x60717a));
     const m = this.mentor; m.hammerCharge.cancel(); m.isSwinging = false; m.hammerSlamActive = false; m.player.setPosition(675, FLOOR + 1.8);
     m.worldTime = this.worldTime;
     if (drill.id === 'slam') { m.isSwinging = true; m.hammerSlamActive = true; m.swingStartedAt = this.worldTime; m.swingVisualKind = 'slam'; }
     else m.hammerCharge.press();
   }
+  stopDemonstration() {
+    const m = this.mentor; if (!m) return;
+    m.hammerCharge.cancel(); m.hammerCharge.pendingWave = null;
+    m.isSwinging = false; m.hammerSlamActive = false; m.hammerAttack = null;
+    m.impactDone = true; m.swingReadyAt = Infinity; m.swingUntil = 0;
+    m.player.setPosition(675, FLOOR + 1.8);
+    m.meleeAnimation.state = null; m.meleeAnimation.lastPose = null; m.meleeAnimation.restore();
+  }
   beginPractice() {
-    this.phase = 'practice'; this.attackInputLocked = false; resetSceneKeys(this);
+    this.stopDemonstration();
+    this.phase = 'practice'; this.attackInputLocked = false;
     this.turnText.setText('Jetzt bist du dran!').setColor('#a7f1b4');
   }
   hitDummy(dummy, attack) {
@@ -124,8 +133,13 @@ export default class HammerTrainingScene extends Phaser.Scene {
     this.tweens.add({ targets: word, y: word.y - 20, alpha: 0, duration: 550, onComplete: () => word.destroy() });
   }
   resolvePractice(id, hit) {
-    if (this.phase !== 'practice') return;
+    if (this.phase !== 'practice' && this.phase !== 'demo') return;
     const feedback = hammerTrainingFeedback(HAMMER_DRILLS[this.drillIndex].id, id, hit);
+    if (this.phase === 'demo' && feedback) {
+      // Trying along must not interrupt the demonstration or lock the player.
+      this.lessonText.setText(feedback); return;
+    }
+    this.stopDemonstration();
     this.retryMessage = feedback;
     this.phase = feedback ? 'retry' : 'success'; this.phaseStartedAt = this.worldTime; this.attackInputLocked = true;
     this.hammerCharge?.cancel(); resetSceneKeys(this);
@@ -178,7 +192,7 @@ export default class HammerTrainingScene extends Phaser.Scene {
     }
     m.meleeAnimation.update(); m.hammerCharge.drawEffects();
     const b = this.player.body, grounded = b.blocked.down || b.touching.down;
-    if (this.phase === 'practice') {
+    if (this.phase === 'practice' || this.phase === 'demo') {
       const direction = (this.cursors.right.isDown || this.wasd.D.isDown ? 1 : 0) - (this.cursors.left.isDown || this.wasd.A.isDown ? 1 : 0);
       b.setVelocityX(direction * 180 * (this.hammerCharge?.moveFactor ?? 1));
       if (direction && !this.isSwinging) { this.facingX = direction; this.player.setFlipX(direction > 0); }

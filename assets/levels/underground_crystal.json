@@ -11,7 +11,7 @@
     "col": 3,
     "row": 14
   },
-  "coinsPerChest": 100,
+  "coinsPerChest": 25,
   "bossArena": {
     "triggerCol": 76,
     "wallCol": 75,

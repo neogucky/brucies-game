@@ -32,12 +32,14 @@ export function registerWorldMapMarkers(scene) {
 export function addWorldMapMarker(scene, world, node, key, onChoose) {
   const save = scene.registry.get('saveData') || {}, open = scene.unlocked.has(node.id);
   const completed = save.completedLevels?.includes(node.id);
-  scene.add.ellipse(node.x, node.y + 21, 106, 16, world === 'desert' ? 0x8b6337 : 0x121d19, open ? .2 : .1).setDepth(0);
-  const icon = scene.add.image(node.x, node.y + 24, key).setOrigin(.5, 1).setDepth(2).setAlpha(open ? 1 : .38);
-  const label = scene.add.text(node.x, node.y + 49, node.label + (completed ? ' ✓' : ''), {
-    fontFamily: 'Trebuchet MS, sans-serif', fontSize: '18px', color: open ? '#fff1cb' : '#c3b99b',
+  const baseY = node.y + (node.markerOffsetY ?? 24);
+  const shadow = scene.add.ellipse(node.x, baseY - 3, 106, 16, world === 'desert' ? 0x8b6337 : 0x121d19, .2).setDepth(0).setVisible(open);
+  const icon = scene.add.image(node.x, baseY, key).setOrigin(.5, 1).setDepth(2).setVisible(open);
+  const label = scene.add.text(node.x, node.y + (node.labelOffsetY ?? 49), node.label + (completed ? ' ✓' : ''), {
+    fontFamily: 'Trebuchet MS, sans-serif', fontSize: '18px', color: '#fff1cb',
     stroke: world === 'jungle' ? '#1f3826' : '#3b2b20', strokeThickness: 4,
-  }).setOrigin(.5).setDepth(6);
+  }).setOrigin(.5).setDepth(6).setVisible(open);
   for (const object of [icon, label]) object.setInteractive({ useHandCursor: true }).on('pointerdown', onChoose);
-  return { icon, label };
+  const extras = node.bonusWorld ? [scene.add.image(node.x + 43, node.y - 43, 'ui-coin').setDisplaySize(33, 33).setDepth(3).setVisible(open)] : [];
+  return { icon, label, shadow, extras };
 }

@@ -9,6 +9,7 @@ import CoordinateDebugger from "../../utils/coordinateDebugger.js";
 import ShieldManager from "../../utils/ShieldManager.js";
 import { applyInventoryToSave, normalizeInventory } from "../../utils/inventory.js";
 import { applyItemModeSupport, GAME_MODES } from "../../utils/itemRegistry.js";
+import { RUIN_REPAIR_PAD, ruinRepairState, feetOnRepairPad } from '../../utils/ruinRepair.js';
 
 export default class DesertRuinScene extends Phaser.Scene {
   constructor() {
@@ -116,21 +117,18 @@ export default class DesertRuinScene extends Phaser.Scene {
     const saveData = this.registry.get("saveData") || {};
     const isFemale = saveData.playerGender === "female";
     const { standingTexture, hitTexture: hittingTexture } = getWeaponTextures(saveData.equipped?.weapon, saveData.playerGender);
-    this.player = this.add.image(480, 360, standingTexture).setOrigin(0.5);
+    this.player = this.add.image(480, 440, standingTexture).setOrigin(0.5);
     this.player.setScale(0.5);
     this.player.setDepth(5);
     this.physics.add.existing(this.player);
     this.player.body.setCollideWorldBounds(true);
-    this.player.body.setSize(this.player.width * 0.24, this.player.height * 0.7, true);
-    this.player.body.setOffset(
-      (this.player.width - this.player.body.width) * 0.5,
-      (this.player.height - this.player.body.height) * 0.6
-    );
+    this.player.body.setSize(this.player.width * .24, this.player.height * .7, false);
+    this.player.body.setOffset(this.player.width * .38, this.player.height * .29);
     this.player.setData("standingTexture", standingTexture);
     this.player.setData("hitTexture", hittingTexture);
 
     this.companion = this.add
-      .image(480 + 24, 360 + 16, "companion-running")
+      .image(480 + 24, 440 + 16, "companion-running")
       .setOrigin(0.5);
     this.companion.setScale(0.545);
     this.companion.setDepth(5);
@@ -197,7 +195,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.shield.setHud(null);
     this.shield.initFromSave(normalizedSave);
     this.ruinPreviouslyCompleted = (saveData.completedLevels || []).includes("Wuestenruine");
-    this.ruinStoredCoins = 0;
+    this.ruinStoredCoins = ruinRepairState(this.coinsCollected, saveData.ruinRepairCoins, this.ruinPreviouslyCompleted).paid;
     this.ruinTransferAt = 0;
     this.lastAttackAt = 0;
     this.swordDidHit = false;
@@ -237,10 +235,10 @@ export default class DesertRuinScene extends Phaser.Scene {
     const bushes = [
       { x: 180, y: 360, hasFruit: true },
       { x: 260, y: 220, hasFruit: false },
-      { x: 740, y: 300, hasFruit: true },
-      { x: 620, y: 200, hasFruit: false },
-      { x: 420, y: 280, hasFruit: true },
-      { x: 540, y: 360, hasFruit: false },
+      { x: 790, y: 230, hasFruit: true },
+      { x: 680, y: 180, hasFruit: false },
+      { x: 310, y: 280, hasFruit: true },
+      { x: 570, y: 470, hasFruit: false },
     ];
 
     this.fruits = this.physics.add.staticGroup();
@@ -248,8 +246,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.fruitSlots = [];
 
     bushes.forEach((bush) => {
-      this.add.circle(bush.x, bush.y + 4, 18, 0x3d4f26).setAlpha(0.9);
-      this.add.circle(bush.x, bush.y - 6, 16, 0x4f6a2f).setAlpha(0.95);
+      this.add.image(bush.x, bush.y - 3, 'desert-shrub').setDisplaySize(86, 64);
       if (bush.hasFruit) {
         this.fruitSpots.push({ x: bush.x + 10, y: bush.y - 12 });
       }
@@ -283,8 +280,8 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.chestSpots = [
       { x: 160, y: 280 },
       { x: 300, y: 420 },
-      { x: 430, y: 210 },
-      { x: 560, y: 320 },
+      { x: 290, y: 170 },
+      { x: 655, y: 440 },
       { x: 700, y: 420 },
       { x: 800, y: 260 },
     ];
@@ -297,6 +294,7 @@ export default class DesertRuinScene extends Phaser.Scene {
 
   createMonsters() {
     this.monsters = this.physics.add.group();
+    this.physics.add.collider(this.monsters, this.ruinObstacle);
     this.monsterSpawnEvent = this.time.addEvent({
       delay: 8000,
       loop: true,
@@ -339,7 +337,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.hud.setConsumableEquipped(this.equipped?.consumable === "honey");
 
     this.add
-      .text(14, 575, "Pfeiltasten zum bewegen, Früchte heilen, Schlag Truhen für Münzen", {
+      .text(14, 575, "{move}: Bewegen · {attack}: Truhen öffnen · Beeren heilen", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "14px",
         color: "#ffffff",
@@ -451,6 +449,11 @@ export default class DesertRuinScene extends Phaser.Scene {
       this.startBarLabel = null;
     }
     this.canPromptRuin = true;
+    if (this.ruinStoredCoins >= this.ruinCost && !this.ruinPreviouslyCompleted) {
+      this.time.paused = false;
+      this.completeRuinRepair();
+      return;
+    }
     if (this.ruinPreviouslyCompleted) {
       this.isPaused = false;
       this.physics.world.resume();
@@ -533,41 +536,26 @@ export default class DesertRuinScene extends Phaser.Scene {
   }
 
   createRuin() {
-    this.ruinSprite = this.add.image(480, 600, "desert-ruin").setOrigin(0.5, 1);
-    const targetWidth = 600;
-    const scale = (targetWidth / this.ruinSprite.width) * 0.5;
-    this.ruinSprite.setScale(scale);
-    if (this.ruinPreviouslyCompleted) {
-      this.ruinSprite.setTexture("desert-ruin-repaired");
-    }
-
-    const entranceWidth = this.ruinSprite.displayWidth * 0.36;
-    const entranceHeight = this.ruinSprite.displayHeight * 0.72;
-    this.ruinEntrance = this.add.rectangle(
-      480,
-      600 - entranceHeight / 2,
-      entranceWidth,
-      entranceHeight,
-      0x000000,
-      0
-    );
-    this.physics.add.existing(this.ruinEntrance, true);
-    this.ruinCounter = this.add
-      .text(480, 600 - entranceHeight - 8, "Ruine: 0/100", {
-        fontFamily: "Trebuchet MS, sans-serif",
-        fontSize: "14px",
-        color: "#ffffff",
-      })
-      .setOrigin(0.5, 1)
-      .setStroke("#3b2a17", 2)
-      .setDepth(6);
+    this.add.ellipse(480, 298, 252, 33, 0x705129, .18).setDepth(1);
+    const state = ruinRepairState(this.coinsCollected, this.ruinStoredCoins, this.ruinPreviouslyCompleted);
+    this.ruinSprite = this.add.image(480, 312, state.texture)
+      .setOrigin(.5, 1).setScale(.87).setDepth(4);
+    this.ruinObstacle = this.add.rectangle(480, 263, 242, 92, 0, 0);
+    this.physics.add.existing(this.ruinObstacle, true);
+    this.solidScenery = [this.ruinObstacle.body];
+    this.physics.add.collider(this.player, this.ruinObstacle);
+    this.repairPad = this.add.graphics().setDepth(2);
+    this.repairCoin = this.add.image(480, RUIN_REPAIR_PAD.y - 17, 'ui-coin').setDisplaySize(23, 23).setDepth(6);
+    this.updateRepairGuide();
   }
 
   spawnMonster() {
     if (this.isGameOver || this.isPaused) return;
     const margin = 60;
-    const x = Phaser.Math.Between(margin, 960 - margin);
-    const y = Phaser.Math.Between(120, 430);
+    let x = Phaser.Math.Between(margin, 960 - margin);
+    let y = Phaser.Math.Between(120, 430);
+    if (x > 325 && x < 635 && y < 310) y = 445;
+    if (Math.hypot(x - this.player.x, y - this.player.y) < 160) x = this.player.x < 480 ? 840 : 120;
 
     const monster = this.add.image(x, y, "desert-mole-digging").setOrigin(0.5);
     monster.setDepth(5);
@@ -645,7 +633,7 @@ export default class DesertRuinScene extends Phaser.Scene {
 
     const spotIndex = Phaser.Math.RND.pick(available);
     const spot = this.fruitSpots[spotIndex];
-    const fruit = this.add.circle(spot.x, spot.y, 5, 0xc23a2c);
+    const fruit = this.add.circle(spot.x, spot.y, 6, 0xc23a2c).setStrokeStyle(1, 0xffc07d).setDepth(2);
     fruit.setData("slot", spotIndex);
     this.physics.add.existing(fruit, true);
     this.fruits.add(fruit);
@@ -711,6 +699,7 @@ export default class DesertRuinScene extends Phaser.Scene {
         ...saveData,
         health: this.health,
         coins: this.coinsCollected,
+        ruinRepairCoins: this.ruinStoredCoins,
       },
       this.inventory,
       this.equipped
@@ -965,10 +954,14 @@ export default class DesertRuinScene extends Phaser.Scene {
 
   damagePlayer(amount) {
     if (this.isGameOver || this.isPaused || this.isComplete) return;
+    const now = this.time.now;
+    if (now < (this.player.getData('invulnerableUntil') || 0)) return;
+    this.player.setData('invulnerableUntil', now + 1000);
     if (this.shield?.tryBlockHit()) {
       return;
     }
     this.health = Math.max(0, this.health - amount);
+    this.events?.emit?.('player-hurt', { amount, health: this.health });
     this.updateHearts();
     this.flashDamage();
     this.saveInventory();
@@ -1176,8 +1169,8 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.time.paused = true;
     this.dialog.show(
       [
-        { text: "Der Ritter hat eine alte Ruine gefunden!" },
-        { text: "Bringe 100 Münzen um sie zu reparieren." },
+        { text: "Da ist die alte Ruine! Vielleicht war der Drache hier.\nAber das Tor ist eingestürzt." },
+        { text: "Schlag Truhen auf und sammle Münzen.\nStell dich dann auf den Münzplatz vor dem Tor.\nDort wird gebaut – jede Münze hilft!" },
       ],
       "bottom",
       {
@@ -1191,30 +1184,49 @@ export default class DesertRuinScene extends Phaser.Scene {
   }
 
   tryDepositRuinCoins() {
-    if (this.ruinPreviouslyCompleted || this.isPaused) return;
+    if (this.ruinPreviouslyCompleted || this.ruinRepaired || this.isPaused || this.isComplete) return;
     if (this.time.now < this.ruinTransferAt) return;
-    if (this.ruinStoredCoins >= this.ruinCost) {
-      this.showEndScreen();
-      return;
-    }
-    if (this.coinsCollected < 10) return;
-    const amount = Math.min(10, this.coinsCollected, this.ruinCost - this.ruinStoredCoins);
+    const amount = ruinRepairState(this.coinsCollected, this.ruinStoredCoins).amount;
     if (amount <= 0) return;
     this.coinsCollected -= amount;
     this.ruinStoredCoins += amount;
-    this.ruinTransferAt = this.time.now + 250;
+    this.ruinTransferAt = this.time.now + 180;
     this.hud?.setCoins(this.coinsCollected);
+    this.saveInventory();
     if (this.sfx?.coin) {
       this.sfx.coin.play();
     }
-    if (this.ruinCounter) {
-      this.ruinCounter.setText(`Ruine: ${this.ruinStoredCoins}/${this.ruinCost}`);
-    }
+    const coin = this.add.image(this.player.x, this.player.body.bottom - 14, 'ui-coin').setDisplaySize(18, 18).setDepth(8);
+    this.tweens.add({ targets: coin, x: 480, y: 259, scale: .06, alpha: .15, duration: 340,
+      ease: 'Sine.easeOut', onComplete: () => coin.destroy() });
+    this.updateRepairGuide();
     if (this.ruinStoredCoins >= this.ruinCost) {
-      this.ruinRepaired = true;
-      this.ruinSprite.setTexture("desert-ruin-repaired");
-      this.showEndScreen();
+      this.completeRuinRepair();
     }
+  }
+
+  updateRepairGuide() {
+    if (!this.repairPad) return;
+    const state = ruinRepairState(this.coinsCollected, this.ruinStoredCoins, this.ruinPreviouslyCompleted);
+    const { x, y, width, height } = RUIN_REPAIR_PAD;
+    const near = feetOnRepairPad(this.player.body), pulse = .5 + .5 * Math.sin(this.time.now / 240);
+    const color = state.complete ? 0x99cb87 : state.ready ? 0x9cdb75 : 0xd6ae65;
+    this.repairPad.clear().fillStyle(0x4f3921, .16).fillEllipse(x, y, width, height)
+      .lineStyle(state.ready ? 3 : 2, color, state.ready ? .65 + pulse * .35 : .6).strokeEllipse(x, y, width, height)
+      .lineStyle(5, 0x63492b, .8).lineBetween(410, y + 25, 550, y + 25)
+      .lineStyle(5, color).lineBetween(410, y + 25, 410 + 140 * state.paid / this.ruinCost, y + 25);
+    if (this.ruinSprite.texture.key !== state.texture) this.ruinSprite.setTexture(state.texture);
+    this.repairCoin.setVisible(!state.complete).setY(y - 17 - (near ? 0 : pulse * (state.ready ? 5 : 0))).setAlpha(state.ready ? 1 : .45);
+    this.ruinSprite.setDepth(this.player.body.bottom < 287 ? 6 : 4);
+  }
+
+  completeRuinRepair() {
+    if (this.ruinRepaired) return;
+    this.ruinRepaired = true; this.isPaused = true; this.physics.world.pause(); this.player.body.setVelocity(0, 0);
+    this.ruinSprite.setTexture('desert-ruin-repaired-v2').setAlpha(.35);
+    this.tweens.add({ targets: this.ruinSprite, alpha: 1, duration: 650 });
+    this.repairCoin.setVisible(false);
+    this.time.delayedCall(1100, () => this.showEndScreen());
   }
 
   openExitPrompt() { return showExitConfirmation(this, "DessertMapScene"); }
@@ -1263,10 +1275,8 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.shield?.update();
     this.checkDashBlocked();
 
-    const isOnRuin = Phaser.Geom.Intersects.RectangleToRectangle(
-      this.player.getBounds(),
-      this.ruinEntrance.getBounds()
-    );
+    this.updateRepairGuide();
+    const isOnRuin = feetOnRepairPad(this.player.body);
     if (isOnRuin && !this.ruinRepaired) {
       this.tryDepositRuinCoins();
     }

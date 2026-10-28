@@ -11,8 +11,8 @@ export default class UndergroundShopScene extends ShopSceneBase {
       returnSceneKey: "UndergroundMapScene",
       backgroundKey: "underground-shop",
       loadingKey: "underground-shop-loading",
-      locationText: "Unterwelt-Shop",
-      greetingText: "Huch! Was hat dich denn nach hier unten verschlagen?",
+      locationText: "Untergrundshop",
+      greetingText: "Da bist du wieder! Hier unten rumpelt es ganz schön.\nFür harte Brocken habe ich einen starken Hammer!",
       promptText: "Was möchtest du kaufen?",
       items: [
         {
@@ -31,7 +31,7 @@ export default class UndergroundShopScene extends ShopSceneBase {
           id: "shield",
           label: "Schild",
           price: 100,
-          successText: "Hier ist mein alter Schild\nHoffentlich wird er dich beschützen!",
+          successText: "Der Schild fängt einen Treffer ab.\nDanach braucht er eine kleine Pause.",
         },
         {
           id: "shoes",

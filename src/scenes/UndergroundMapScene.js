@@ -1,4 +1,6 @@
 import WorldMapTravel from "../utils/WorldMapTravel.js";
+import WorldMapDiscovery from '../utils/WorldMapDiscovery.js';
+import { startPendingDragonClue } from '../utils/dragonStory.js';
 import { addWorldMapMarker } from "../utils/worldMapMarkers.js";
 import { drawWorldMapPaths, mapFoot, WORLD_MAP_EXITS } from "../utils/worldMapRoutes.js";
 import { applyWeaponAppearance } from "../utils/weapons.js";
@@ -14,7 +16,7 @@ import { applyInventoryToSave, normalizeInventory } from "../utils/inventory.js"
 const NODES = [
   {
     id: "UnderShop",
-    label: "Händlerin",
+    label: "Untergrundshop",
     x: 570,
     y: 130,
     neighbors: { left: "UnderDig", downLeft: "Schluesseltor", right: "Unterweltexperte" },
@@ -24,13 +26,14 @@ const NODES = [
     label: "Erdgang",
     x: 185,
     y: 130,
-    neighbors: { right: "UnderShop" },
+    neighbors: { right: "UnderShop", down: 'Kristallschatz' },
   },
   {
     id: "Schluesseltor",
     label: "Schlüsseltor",
     x: 385,
     y: 236,
+    walkAnchor: { x: 470, y: 242 }, markerOffsetY: 54, labelOffsetY: 82,
     neighbors: { upRight: "UnderShop", downLeft: "Schluesselweg" },
   },
   {
@@ -48,6 +51,7 @@ const NODES = [
     neighbors: { left: "Schluesselweg" },
   },
   { id: "Unterweltexperte", label: "Unterweltexperte", x: 755, y: 125, neighbors: { left: "UnderShop" } },
+  { id: 'Kristallschatz', label: 'Funkelkammer', x: 100, y: 270, bonusWorld: 'underground', neighbors: { up: 'UnderDig' } },
 ];
 
 export default class UndergroundMapScene extends Phaser.Scene {
@@ -68,12 +72,16 @@ export default class UndergroundMapScene extends Phaser.Scene {
   }
 
   create() {
+    const progress = normalizeWorldProgress(this.registry.get('saveData') || {});
+    if (!progress.unlockedWorlds.includes('underground')) { this.scene.start('MainMenuScene'); return; }
+    if (startPendingDragonClue(this, 'underground')) return;
     this.isMoving = false;
     this.inventoryOpen = false;
     this.isDialogOpen = false;
     this.gameMode = GAME_MODES.ISOMETRIC;
     this.addBackground();
     this.ensureUnlocks();
+    if (!NODES.some(n => this.registry.get('saveData').unlockedLevels.includes(n.id))) { this.scene.start('MainMenuScene'); return; }
     this.equipped = normalizeInventory(this.registry.get("saveData") || {}).equipped;
     this.createNodes();
     this.drawPaths();
@@ -150,6 +158,9 @@ export default class UndergroundMapScene extends Phaser.Scene {
     this.coordDebugger = new CoordinateDebugger(this);
     this.input.keyboard.on("keydown-F", () => this.toggleFullscreen());
     this.dialog = new DialogManager(this);
+    this.mapDiscovery = new WorldMapDiscovery(this, 'underground', NODES, this.mapExits);
+    this.mapDiscovery.watchExit('@desert', [this.desertExitLabel]);
+    if (this.jungleExitLabel) this.mapDiscovery.watchExit('@jungle', [this.jungleExitLabel]);
     this.events.once("shutdown", () => {
       if (this.handleKeyDown) {
         this.input.keyboard.off("keydown", this.handleKeyDown);
@@ -163,7 +174,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
     unlocked.add("UnderShop"); unlocked.add("Unterweltexperte"); unlocked.add("UnderDig"); unlocked.add("Schluesseltor");
     if (saveData.completedLevels?.includes("Schluesselweg")) unlocked.add("Kristalltiefen");
     const worlds = new Set(saveData.unlockedWorlds); worlds.add("underground");
-    const nextSave = { ...saveData, unlockedLevels: [...unlocked], unlockedWorlds: [...worlds] };
+    const nextSave = normalizeWorldProgress({ ...saveData, unlockedLevels: [...unlocked], unlockedWorlds: [...worlds] });
     this.registry.set("saveData", nextSave); saveProgress(nextSave);
   }
 
@@ -179,27 +190,29 @@ export default class UndergroundMapScene extends Phaser.Scene {
     const keys = { UnderShop: "map-underground-shop", UnderDig: "map-underground-dig",
       Schluesseltor: this.unlocked.has("Schluesselweg") ? "map-underground-open-gate" : "map-underground-gate",
       Schluesselweg: "map-underground-dig", Kristalltiefen: "map-underground-depths",
-      Unterweltexperte: "map-underground-expert" };
+      Unterweltexperte: "map-underground-expert", Kristallschatz: 'map-underground-depths' };
     NODES.forEach(node => {
       const marker = addWorldMapMarker(this, "underground", node, keys[node.id], () => this.chooseNode(node));
       if (node.id === "Schluesselweg") {
-        this.add.image(node.x + 45, node.y - 46, "underground-stonemonster-standing")
-          .setDisplaySize(51, 51).setDepth(3).setAlpha(this.unlocked.has(node.id) ? 1 : .38);
+        marker.extras.push(this.add.image(node.x + 45, node.y - 46, "underground-stonemonster-standing")
+          .setDisplaySize(51, 51).setDepth(3).setVisible(this.unlocked.has(node.id)));
       }
       this.nodeSprites.set(node.id, marker);
     });
   }
 
   drawPaths() {
-    const exits = [[NODES[0], WORLD_MAP_EXITS.underground.desert]];
-    if (normalizeWorldProgress(this.registry.get("saveData") || {}).unlockedWorlds.includes("jungle")) {
+    const save = normalizeWorldProgress(this.registry.get('saveData') || {});
+    const exits = save.unlockedWorlds.includes('desert') ? [[NODES[0], WORLD_MAP_EXITS.underground.desert]] : [];
+    if (save.unlockedWorlds.includes("jungle")) {
       exits.push([NODES.find(n => n.id === "Kristalltiefen"), WORLD_MAP_EXITS.underground.jungle]);
     }
+    this.mapExits = exits;
     this.pathGraphics = drawWorldMapPaths(this, "underground", NODES, exits);
   }
 
   travelToJungle() {
-    if (this.currentNode?.id !== "Kristalltiefen" || this.isMoving || this.inventoryOpen || this.isDialogOpen) return;
+    if (this.isRevealingMap || this.currentNode?.id !== "Kristalltiefen" || this.isMoving || this.inventoryOpen || this.isDialogOpen) return;
     const save = normalizeWorldProgress(this.registry.get("saveData") || {});
     if (!save.unlockedWorlds.includes("jungle")) {
       this.lockText.setText("Besiege zuerst den Obsidian-Titan in den Kristalltiefen.");
@@ -218,9 +231,9 @@ export default class UndergroundMapScene extends Phaser.Scene {
   createPlayerMarker() {
     const saveData = this.registry.get("saveData") || {};
     const currentId = saveData.mapState?.undergroundNode || saveData.currentLevel || "UnderShop";
-    let startNode = NODES.find(node => node.id === currentId) || NODES[0];
-    if (this.entryFromDesert) startNode = NODES.find(n => n.id === "UnderShop");
-    if (this.entryFromJungle) startNode = NODES.find(n => n.id === "Kristalltiefen");
+    let startNode = NODES.find(node => node.id === currentId && this.unlocked.has(node.id)) || NODES.find(node => this.unlocked.has(node.id));
+    if (this.entryFromDesert && this.unlocked.has('UnderShop')) startNode = NODES.find(n => n.id === "UnderShop");
+    if (this.entryFromJungle && this.unlocked.has('Kristalltiefen')) startNode = NODES.find(n => n.id === "Kristalltiefen");
     this.currentNode = startNode;
     const foot = mapFoot(startNode);
     const standingTexture = saveData.playerGender === "female" ? "knight-female-standing" : "knight-standing";
@@ -240,11 +253,11 @@ export default class UndergroundMapScene extends Phaser.Scene {
   }
 
   createUI() {
-    this.add.text(464, 95, "↑ Wüste", { fontFamily: "Trebuchet MS, sans-serif", fontSize: "19px",
+    this.desertExitLabel = this.add.text(464, 95, "↑ Wüste", { fontFamily: "Trebuchet MS, sans-serif", fontSize: "19px",
       color: "#fff0c0", stroke: "#38291e", strokeThickness: 4 }).setOrigin(.5).setDepth(6)
       .setInteractive({ useHandCursor: true }).on("pointerdown", () => {
         if (this.currentNode?.id === "UnderShop") this.returnToDesert();
-        else this.lockText.setText("Der Weg zur Wüste beginnt bei der Händlerin.");
+        else this.lockText.setText("Der Weg zur Wüste beginnt beim Untergrundshop.");
       });
     this.hintText = this.add
       .text(14, 585, "{confirm} = Betreten · {move} = Bewegen · {back} = Menü", {
@@ -264,8 +277,9 @@ export default class UndergroundMapScene extends Phaser.Scene {
       .setOrigin(1, 1)
       .setStroke("#3b2a17", 2);
     const jungleOpen = this.registry.get("saveData")?.unlockedWorlds?.includes("jungle");
+    this.jungleExitLabel = null;
     if (jungleOpen) {
-      this.add.text(850, 430, "Urwaldwelt →", { fontFamily: "Trebuchet MS, sans-serif",
+      this.jungleExitLabel = this.add.text(850, 430, "Urwaldwelt →", { fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "20px", color: "#dbf5ae", stroke: "#173d29", strokeThickness: 4 })
         .setOrigin(.5).setDepth(6).setInteractive({ useHandCursor: true })
         .on("pointerdown", () => {
@@ -283,13 +297,16 @@ export default class UndergroundMapScene extends Phaser.Scene {
   }
 
   startCurrentLevel() {
-    if (this.isMoving || this.inventoryOpen || this.isDialogOpen) return;
+    if (this.isRevealingMap || this.isMoving || this.inventoryOpen || this.isDialogOpen) return;
     if (!this.currentNode) return;
     const saveData = this.registry.get("saveData") || {};
     if (!this.unlocked.has(this.currentNode.id)) {
       return;
     }
     if (this.currentNode.id === "Schluesseltor") {
+      if (saveData.unlockedLevels?.includes('Schluesselweg')) {
+        this.showDialog('Das Tor ist offen. Folge dem Weg zur Mine.'); return;
+      }
       if (!saveData.undergroundKeyCollected) {
         this.showDialog("Verschlossen!");
         return;
@@ -305,11 +322,8 @@ export default class UndergroundMapScene extends Phaser.Scene {
         saveProgress(nextSave);
         this.unlocked = unlocked;
         this.nodeSprites?.get('Schluesseltor')?.icon.setTexture('map-underground-open-gate');
-        const mine = this.nodeSprites?.get('Schluesselweg');
-        mine?.icon.setAlpha(1); mine?.label.setColor('#fff1cb');
-        if (this.pathGraphics) { this.pathGraphics.destroy(); this.drawPaths(); }
         this.sound.play("sfx-key-open");
-        this.showDialog("Du hast das Tor aufgeschlossen!");
+        this.showDialog("Du hast das Tor aufgeschlossen!", () => this.mapDiscovery?.refresh());
       } else {
         this.showDialog("Das Schlüsseltor ist bereits geöffnet!");
       }
@@ -325,7 +339,9 @@ export default class UndergroundMapScene extends Phaser.Scene {
     };
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);
-    if (this.currentNode.id === "Unterweltexperte") {
+    if (this.currentNode.id === 'Kristallschatz') {
+      this.scene.start('CoinChallengeScene', { world: 'underground' });
+    } else if (this.currentNode.id === "Unterweltexperte") {
       this.scene.start("ExpertScene", { world: "underground" });
     } else if (this.currentNode.id === "UnderShop") {
       this.scene.start("UndergroundShopScene");
@@ -349,7 +365,9 @@ export default class UndergroundMapScene extends Phaser.Scene {
   }
 
   returnToDesert() {
+    if (this.isRevealingMap) return;
     if (!this.currentNode || this.isMoving || this.inventoryOpen || this.isDialogOpen) return;
+    if (this.registry.get('saveData')?.debugProgress?.worlds?.desert === false) return;
     this.isMoving = true;
     const saveData = this.registry.get("saveData") || {};
     const desertNode = "Fremdweg";
@@ -465,7 +483,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
 
 
   update() {
-    if (this.isMoving || this.isDialogOpen || this.inventoryOpen || this.inventoryOverlay?.isOpen) return;
+    if (this.isRevealingMap || this.isMoving || this.isDialogOpen || this.inventoryOpen || this.inventoryOverlay?.isOpen) return;
     const left = this.cursors.left.isDown || this.wasd.A.isDown;
     const right = this.cursors.right.isDown || this.wasd.D.isDown;
     const up = this.cursors.up.isDown || this.wasd.W.isDown;
@@ -502,6 +520,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
   }
 
   tryMove(direction) {
+    if (this.isRevealingMap) return;
     const nextId = this.getNeighborForDirection(direction);
     if (!nextId) return;
     if (!this.unlocked.has(nextId)) {
@@ -515,7 +534,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
   }
 
   chooseNode(node) {
-    if (this.isMoving || this.inventoryOpen || this.isDialogOpen) return;
+    if (this.isRevealingMap || this.isMoving || this.inventoryOpen || this.isDialogOpen) return;
     if (this.currentNode.id === node.id) { this.startCurrentLevel(); return; }
     if (!Object.values(this.currentNode.neighbors || {}).includes(node.id)) return;
     const dx = node.x - this.currentNode.x, dy = node.y - this.currentNode.y, length = Math.hypot(dx, dy);

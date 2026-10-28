@@ -1,6 +1,7 @@
 import { showExitConfirmation } from "../../ui/ConfirmationDialog.js";
 import { getWeaponStats, isMeleeWeapon, getWeaponTextures, applyWeaponAppearance, getWeaponDamage, getAttackStats, getMeleeDamage } from "../../utils/weapons.js";
 import { saveProgress } from "../../saveManager.js";
+import { queueDragonClue } from '../../utils/dragonStory.js';
 import { bumpMusicRate, playMusic } from "../../soundManager.js";
 import TopHud from "../../ui/topHud.js";
 import InventoryOverlay from "../../ui/InventoryOverlay.js";
@@ -12,6 +13,7 @@ import { applyItemModeSupport, GAME_MODES } from "../../utils/itemRegistry.js";
 import { UNDERGROUND_BOSSES, getBossStageFloor } from "../../utils/undergroundBoss.js";
 import showUndergroundVictory from "../../ui/UndergroundVictoryScreen.js";
 import UndergroundBats from "../../utils/UndergroundBats.js";
+import SecretSwitch from '../../utils/SecretSwitch.js';
 
 export default class UndergroundDigScene extends Phaser.Scene {
   constructor() {
@@ -85,7 +87,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this._shutdownHandled = false;
     this.dangerText = null;
     this.chests = null;
-    this.coinsPerChest = 500;
+    this.coinsPerChest = 25;
     this.companion = null;
     this.shield = null;
     this.helperHideDuration = 10000;
@@ -147,7 +149,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.gameMode = GAME_MODES.JUMP;
     this.resetSceneState();
     this.loadLevelMap();
-    this.coinsPerChest = this.levelMap?.coinsPerChest ?? 500;
+    this.coinsPerChest = this.levelMap?.coinsPerChest ?? 25;
     this.addBackground();
     if (this.levelMap?.theme === "crystal") this.addCrystalDecorations();
     this.createPlayer();
@@ -159,6 +161,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.createAudio();
     playMusic(this, "music-underground", { rate: 1 });
     this.ensureSaveState();
+    if (this.levelId === 'UnderDig') this.secretSwitch = new SecretSwitch(this, 'underground');
     this.inventoryOverlay = new InventoryOverlay(this, {
       onEquip: (slot, itemId) => this.handleInventoryEquip(slot, itemId),
       onClose: () => this.closeInventory(),
@@ -169,7 +172,6 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys("W,A,S,D");
     this.input.keyboard.on("keydown-SPACE", event => { if (this.hammerCharge) this.hammerCharge.press(event); else this.digBlock(); });
-    this.input.keyboard.on("keydown-THREE", () => this.toggleEditorMode());
     this.input.keyboard.on("keydown-FOUR", () => this.toggleHitboxEditor());
     this.input.keyboard.on("keydown-ESC", () => this.openExitPrompt());
     this.input.keyboard.on("keydown-T", () => this.useConsumable());
@@ -1829,8 +1831,10 @@ export default class UndergroundDigScene extends Phaser.Scene {
     if (now < (this.player.getData("invulnerableUntil") || 0) ||
       now < (this.player.getData("flyingEnemyInvulnerableUntil") || 0)) return false;
     this.player.setData("flyingEnemyInvulnerableUntil", now + 1000);
+    this.player.setData("invulnerableUntil", now + 1000);
     if (this.shield?.tryBlockHit()) return false;
     this.health = Math.max(0, this.health - amount);
+    this.events?.emit?.('player-hurt', { amount, health: this.health });
     this.hud?.setHealth(this.health, this.maxHealth);
     this.cameras?.main?.shake(100, .003);
     this.saveInventory();
@@ -1839,6 +1843,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
   }
 
   applyMoleAttack(mole) {
+    if (this.isPaused || this.isGameOver || this.levelCompleted || this.health <= 0) return;
     if (!mole?.active || !this.player?.active) return;
     const now = this.time.now;
     if (now < (mole.getData("stunnedUntil") || 0)) return;
@@ -1852,11 +1857,13 @@ export default class UndergroundDigScene extends Phaser.Scene {
       return;
     }
     if (now < (this.player.getData("invulnerableUntil") || 0)) return;
+    this.player.setData("invulnerableUntil", now + 1000);
     if (this.shield?.tryBlockHit()) {
       return;
     }
     if (this.health <= 0 || this.isGameOver) return;
     this.health = Math.max(0, this.health - 1);
+    this.events?.emit?.('player-hurt', { amount: 1, health: this.health });
     if (this.hud) {
       this.hud.setHealth(this.health, this.maxHealth);
     }
@@ -2391,6 +2398,10 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.applyCompanionEnabled();
     this.updateCompanionUI();
 
+    this.levelObjective = this.add.text(18, 80, '', { fontFamily: 'Trebuchet MS, sans-serif', fontSize: '16px',
+      color: '#fff0cf', stroke: '#282016', strokeThickness: 3 }).setDepth(60).setScrollFactor(0);
+    this.updateLevelObjective();
+
     this.hintText = this.add
       .text(14, 585, "{move}: Bewegen · {jump}: Springen · {attack}: Graben · {back}: Menü", {
         fontFamily: "Trebuchet MS, sans-serif",
@@ -2465,6 +2476,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
   }
 
   update() {
+    this.updateLevelObjective();
     if (this.isPaused || this.isEditorMode || this.isHitboxEditMode) {
       this.player.body.setVelocity(0, 0);
       if (this.companion?.body) {
@@ -2585,7 +2597,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
       facets.fillStyle(0x9bdce9, 0.9).fillTriangle(x + 23, 570, x + 29, 540, x + 40, 570);
       facets.fillStyle(0x437ca1, 0.9).fillTriangle(x + 29, 540, x + 40, 570, x + 31, 570);
     });
-    this.add.text(5 * tile, 405, "KRISTALLTIEFEN\n5 Schatztruhen · 1 Obsidian-Titan", {
+    this.add.text(5 * tile, 405, "KRISTALLTIEFEN", {
       fontFamily: "Trebuchet MS, sans-serif", fontSize: "18px", color: "#ccecff",
       stroke: "#142331", strokeThickness: 4,
     }).setDepth(0);
@@ -2715,13 +2727,15 @@ export default class UndergroundDigScene extends Phaser.Scene {
     if (config.unlock) unlocked.add(config.unlock);
     const worlds = new Set(["desert", "underground", ...(save.unlockedWorlds || [])]);
     if (config.unlockWorld) { worlds.add(config.unlockWorld); unlocked.add("Urwaldkronen"); }
-    const nextNode = config.unlockWorld ? this.levelId : config.unlock || this.levelId;
-    const nextSave = applyInventoryToSave({
+    // Stay at the completed level while the trail to the next place appears.
+    const nextNode = this.levelId;
+    let nextSave = applyInventoryToSave({
       ...save, currentWorld: "underground", unlockedWorlds: Array.from(worlds),
       completedLevels: Array.from(completed), unlockedLevels: Array.from(unlocked),
       coins: this.coinsCollected, health: this.health, currentLevel: nextNode,
       mapState: { ...save.mapState, undergroundNode: nextNode },
     }, this.inventory, this.equipped);
+    if (this.levelId === 'Kristalltiefen') nextSave = queueDragonClue(nextSave, 'underground');
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);
     this.sfx?.success?.play();
@@ -2982,7 +2996,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
             monster.setData("stoneState", "perched");
             monster.setTexture("underground-stonemonster-standing");
           } else if (resumeState === "dropping") {
-            this.beginStoneMonsterDrop(monster);
+            this.beginStoneMonsterDrop(monster, true);
           } else {
             this.resumeStoneMonsterRoll(monster);
           }
@@ -3024,11 +3038,11 @@ export default class UndergroundDigScene extends Phaser.Scene {
     });
   }
 
-  beginStoneMonsterDrop(monster) {
+  beginStoneMonsterDrop(monster, resuming = false) {
     if (!monster?.active) return;
     monster.setData("stoneState", "dropping");
     monster.setTexture("underground-stonemonster-rolledup");
-    monster.setData("fallHitDone", false);
+    if (!resuming) monster.setData("fallHitDone", false);
     const bounds = this.getStoneMonsterHitbox(monster);
     const lastRow = Math.floor((bounds.bottom - 1) / this.tileSize);
     monster.setData("dropLastRow", lastRow);
@@ -3107,7 +3121,6 @@ export default class UndergroundDigScene extends Phaser.Scene {
       !monster.getData("fallHitDone") &&
       Phaser.Geom.Intersects.RectangleToRectangle(bounds, playerRect)
     ) {
-      monster.setData("fallHitDone", true);
       this.applyStoneMonsterPlayerHit(monster, monster.getData("isStoneBoss") ? 3 : 1, false);
     }
     const rowEnd = Phaser.Math.Clamp(
@@ -3310,12 +3323,17 @@ export default class UndergroundDigScene extends Phaser.Scene {
     monster.setData("stoneState", "stunned");
     monster.setData("stateUntil", Math.max(monster.getData("stateUntil") || 0, this.time.now + duration));
     monster.setData("dropLastRow", null);
-    monster.setData("fallHitDone", false);
   }
 
   applyStoneMonsterPlayerHit(monster, damage = 1, shouldStun = true) {
-    if (!monster?.active || !this.player?.active || this.isGameOver) return;
+    if (!monster?.active || !this.player?.active || this.isGameOver || this.isPaused || this.levelCompleted || this.health <= 0) return;
     if (monster.getData("stoneState") === "stunned") return;
+    if (monster.getData("stoneState") === "dropping") {
+      if (monster.getData("fallHitDone")) return;
+      // Both body contact and the falling update can detect this impact. A
+      // resumed fall keeps this marker until a genuinely new drop begins.
+      monster.setData("fallHitDone", true);
+    }
     if (shouldStun) {
       this.stunStoneMonster(monster, false, false);
     }
@@ -3324,9 +3342,11 @@ export default class UndergroundDigScene extends Phaser.Scene {
     if (now < (this.player.getData("stoneInvulnerableUntil") || 0)) return;
     // Protect against chained falling/rolling hits, including hits from other stones.
     this.player.setData("stoneInvulnerableUntil", now + 1500);
+    this.player.setData("invulnerableUntil", now + 1500);
     if (this.shield?.tryBlockHit()) return;
     this.playStoneMonsterHitSound();
     this.health = Math.max(0, this.health - damage);
+    this.events?.emit?.('player-hurt', { amount: damage, health: this.health });
     if (this.hud) {
       this.hud.setHealth(this.health, this.maxHealth);
     }
@@ -3865,6 +3885,12 @@ export default class UndergroundDigScene extends Phaser.Scene {
     saveProgress(nextSave);
   }
 
+  updateLevelObjective() {
+    this.levelObjective?.setVisible(!this.keyPathArenaTriggered).setText(this.levelId === 'UnderDig'
+      ? this.keyCollected ? 'Schlüssel gefunden! Zurück zum Tor links.' : 'Finde den Schlüssel · Öffne dann das Tor links.'
+      : this.levelId === 'Kristalltiefen' ? 'Suche die Schätze und den Obsidian-Titan am Ende der Höhle.' : 'Finde den Steinwächter am Ende der Mine.');
+  }
+
   checkGateUnlock() {
     if (this.disableGate) return;
     if (!this.keyCollected || this.levelCompleted || !this.player?.body) return;
@@ -3905,7 +3931,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     if (this.sfx?.keyOpen) {
       this.sfx.keyOpen.play();
     }
-    this.promptText.setText("Du hast das Tor geoeffnet!");
+    this.promptText.setText("Geschafft! Mit dem Schlüssel kannst du\ndas große Schlüsseltor auf der Karte öffnen.");
     this.promptHint.setText("Zur Karte · {confirm}");
 
     this.input.keyboard.once("keydown-ENTER", () => {

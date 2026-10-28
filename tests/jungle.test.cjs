@@ -13,6 +13,7 @@ const context = { Phaser: { Scene: class {}, Geom: { Rectangle, Intersects: {
   RectangleToRectangle: (a, b) => a.x < b.right && a.right > b.x && a.y < b.bottom && a.bottom > b.y,
 } }, Input: { Keyboard: { JustDown: key => Boolean(key.justDown) } } } };
 vm.createContext(context);
+context.queueDragonClue = vm.runInNewContext(fs.readFileSync(path.join(root, 'src/utils/dragonStory.js'), 'utf8').replace(/export /g, '') + '\nqueueDragonClue;');
 function load(file, replacement = '') {
   let code = fs.readFileSync(path.join(root, file), 'utf8').replace(/^import[\s\S]*?;\n/gm, '');
   if (replacement) code = code.replace(/export default class \w+/, 'globalThis.' + replacement + ' = class ' + replacement);

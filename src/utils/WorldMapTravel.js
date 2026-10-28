@@ -68,7 +68,7 @@ export default class WorldMapTravel {
 
   placeInLandscape(actor, ground, shadow) {
     const behind = [...(this.scene.nodeSprites?.values() || [])].some(({ icon }) =>
-      ground.y < icon.y - 8 && ground.y > icon.y - icon.displayHeight - 8 &&
+      icon.visible !== false && ground.y < icon.y - 8 && ground.y > icon.y - icon.displayHeight - 8 &&
       Math.abs(ground.x - icon.x) < icon.displayWidth * .4);
     actor.setDepth(behind ? 1 : 5); shadow.setDepth(behind ? 0 : 4);
   }
@@ -79,7 +79,9 @@ export default class WorldMapTravel {
     const point = pointOnMapRoute(this.route, this.route.length);
     player.setPosition(point.x, point.y).setTexture(player.getData("standingTexture") || "knight-standing").setDepth(5);
     this.shadow.setDepth(4);
+    this.placeInLandscape(player, point, this.shadow);
     if (scene.companionMarker.visible && this.helperGround) scene.companionMarker.setPosition(this.helperGround.x, this.helperGround.y);
+    if (scene.companionMarker.visible) this.placeInLandscape(scene.companionMarker, scene.companionMarker, this.helperShadow);
     scene.isMoving = false;
     this.updateShadows();
     const callback = this.onComplete; this.onComplete = null;

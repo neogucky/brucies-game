@@ -38,6 +38,18 @@ test('relative sweep catches an enemy moving through a stationary hero', () => {
 test('different elevations do not block horizontal movement', () => {
   assert.equal(separate(box(140, 400), box(48, 104, 44, 54), box(0, 400)), null);
 });
+
+test('enemy separation cannot push the knight through a solid castle wall', () => {
+  const { scene, body, contacts } = setup();
+  scene.solidScenery = [box(0, 70, 80, 30)];
+  scene.physics = { world: { bounds: box(0, 0, 960, 600) } };
+  assert.equal(contacts.canPlace(box(5, 75, 30, 60)), false);
+  assert.equal(contacts.canPlace(box(90, 100, 30, 60)), true);
+  scene.enemyBounds = () => box(0, 140, 50, 35);
+  contacts.update();
+  assert.equal(body.y, 100); assert.ok(body.x >= 50);
+  assert.equal(intersects(body, scene.solidScenery[0]), false);
+});
 test('a jump crossing underneath an enemy stops at its underside', () => {
   assert.deepEqual(separate(box(52, 130), box(48, 104, 44, 54), box(52, 170)), { x: 0, y: 29 });
 });

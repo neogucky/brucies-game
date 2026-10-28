@@ -23,7 +23,7 @@ export default class WaterMapScene extends JungleMapScene {
   create() {
     this.isMoving = false; this.inventoryOpen = false; this.gameMode = GAME_MODES.ISOMETRIC;
     const save = normalizeWorldProgress(this.registry.get('saveData') || {});
-    if (!save.unlockedWorlds.includes('water')) { this.scene.start('JungleMapScene'); return; }
+    if (!save.unlockedWorlds.includes('water') || !save.unlockedLevels.includes('Seeufer')) { this.scene.start('MainMenuScene'); return; }
     const normalized = normalizeInventory(save);
     this.inventory = normalized.inventory; this.equipped = normalized.equipped;
     this.health = save.health ?? 5; this.maxHealth = 5;
@@ -31,10 +31,11 @@ export default class WaterMapScene extends JungleMapScene {
     this.unlocked = new Set(WATER_SHORE.map(n => n.id));
     this.currentNode = WATER_SHORE.find(n => n.id === (!this.entryFromJungle && save.mapState?.waterNode)) || WATER_SHORE[0];
     this.add.image(480, 300, 'worldmap-water-bg').setDisplaySize(960, 600).setDepth(-3);
-    drawWorldMapPaths(this, 'water', WATER_SHORE, [[WATER_SHORE[0], WORLD_MAP_EXITS.water.jungle]]);
+    const jungleOpen = save.unlockedWorlds.includes('jungle');
+    drawWorldMapPaths(this, 'water', WATER_SHORE, jungleOpen ? [[WATER_SHORE[0], WORLD_MAP_EXITS.water.jungle]] : []);
     this.createPlayerMarker(); this.createUI(save); this.locationText.setText('Wasserwelt · Urwaldsee');
     this.createSnorkelSign();
-    this.add.text(68, 359, '← Urwald', labelStyle).setOrigin(.5).setDepth(6)
+    if (jungleOpen) this.add.text(68, 359, '← Urwald', labelStyle).setOrigin(.5).setDepth(6)
       .setInteractive({ useHandCursor: true }).on('pointerdown', () => this.returnToJungle());
     this.add.zone(285, 355, 130, 60).setDepth(3).setInteractive({ useHandCursor: true })
       .on('pointerdown', () => this.startCurrentLevel());
@@ -107,6 +108,7 @@ export default class WaterMapScene extends JungleMapScene {
   }
   returnToJungle() {
     if (this.isMoving || this.inventoryOpen) return;
+    if (this.registry.get('saveData')?.debugProgress?.worlds?.jungle === false) return;
     const leave = () => {
       const save = this.registry.get('saveData') || {};
       const next = { ...save, currentWorld: 'jungle', currentLevel: 'Lianenpfad',

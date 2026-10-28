@@ -1,9 +1,10 @@
 import ShopSceneBase from './shop/ShopSceneBase.js';
-import { EXPERT_WORLDS, getExpertCard } from '../utils/expertKnowledge.js';
+import { EXPERT_WORLDS, getExpertCard, claimExpertReward, EXPERT_REWARD_GOLD } from '../utils/expertKnowledge.js';
 import { knownDiscoveryIds, ownedDiscoveryIds, recordDiscoveries } from '../utils/expertDiscovery.js';
 import { saveProgress } from '../saveManager.js';
 import { addEmphasizedText } from '../ui/emphasizedText.js';
 import { formatControlHint, profileForScene } from '../utils/controlProfiles.js';
+import { finishExpertIntroduction } from '../utils/mapDiscovery.js';
 
 const style = { fontFamily: 'Trebuchet MS, sans-serif', color: '#fff1c7' };
 const CARD_COLUMNS = 4;
@@ -20,7 +21,8 @@ export default class ExpertScene extends ShopSceneBase {
     this.studyBackdrop.setScale(this.studyScale);
   }
   create() {
-    this.expert = EXPERT_WORLDS[this.expertWorld]; this.cardIndex = 0; this.showingTip = false; this.tipIndex = 0;
+    this.expert = EXPERT_WORLDS[this.expertWorld]; this.cardColumns = this.expert.cards.length <= 6 ? 3 : CARD_COLUMNS;
+    this.cardIndex = 0; this.showingTip = false; this.tipIndex = 0;
     super.create();
     const save = this.getSaveData(), next = { ...save, currentWorld: this.expertWorld, currentLevel: this.expert.id,
       mapState: { ...save.mapState, [this.expert.mapField]: this.expert.id },
@@ -39,16 +41,24 @@ export default class ExpertScene extends ShopSceneBase {
     this.studyBackdrop.setOrigin(0, 1).setPosition(0, 600).setScale(960 / (this.studyBackdrop.width * .48));
     // A separate flag lets existing adventurers hear the new dragon story once, too.
     const introduced = this.getSaveData().expertIntroductions?.[this.expertWorld];
-    const pages = [...(!introduced ? [{ text: this.expert.greeting }] : []), { text: this.expert.returnGreeting }];
+    const beforeReward = this.getSaveData(), rewarded = claimExpertReward(beforeReward, this.expertWorld);
+    const earnedReward = rewarded !== beforeReward;
+    if (earnedReward) { this.registry.set('saveData', rewarded); saveProgress(rewarded); this.hud?.setCoins?.(rewarded.coins); }
+    const welcome = introduced ? [this.expert.returnGreeting]
+      : (this.expert.introduction || [this.expert.greeting, this.expert.returnGreeting]);
+    const pages = [...welcome.map(text => ({ text })),
+      ...(earnedReward ? [{ text: 'Du hast alles entdeckt! Hier sind dein Forscherabzeichen und ' + EXPERT_REWARD_GOLD + ' Gold. Das hast du dir verdient!' }] : [])];
     this.dialog.show(pages, 'bottom', { portraitKey: 'professor-portrait', portraitZoom: 1.2,
       onClose: () => {
-        const save = this.getSaveData(), next = { ...save, expertIntroductions: { ...save.expertIntroductions, [this.expertWorld]: true } };
+        const next = finishExpertIntroduction(this.getSaveData(), this.expertWorld);
         this.registry.set('saveData', next); saveProgress(next);
         this.studyBackdrop.setOrigin(.5).setPosition(480, 300).setScale(this.studyScale);
+        if (earnedReward) this.renderKnowledge();
         this.knowledgeBoard.setVisible(true);
       } });
   }
   createExpertBoard() {
+    this.cardColumns ||= this.expert.cards.length <= 6 ? 3 : CARD_COLUMNS;
     this.mapReturnHint?.setVisible(false);
     this.add.ellipse(158, 510, 144, 18, 0x291c10, .18).setDepth(9);
     this.professorFigure = this.add.image(158, 515, 'professor-' + this.expertWorld).setOrigin(.5, 1).setScale(1.12).setDepth(10);
@@ -56,7 +66,7 @@ export default class ExpertScene extends ShopSceneBase {
     this.knowledgeBoard = this.add.container(0, 0).setDepth(15).setVisible(false);
     this.knowledgeBoard.add(this.add.rectangle(628, 326, 636, 470, 0x183d2c, .98).setStrokeStyle(2, 0xc4a86b));
     this.board = this.add.container(0, 0); this.knowledgeBoard.add(this.board);
-    for (const [key, delta] of [['LEFT', -1], ['A', -1], ['RIGHT', 1], ['D', 1], ['UP', -CARD_COLUMNS], ['W', -CARD_COLUMNS], ['DOWN', CARD_COLUMNS], ['S', CARD_COLUMNS]]) {
+    for (const [key, delta] of [['LEFT', -1], ['A', -1], ['RIGHT', 1], ['D', 1], ['UP', -this.cardColumns], ['W', -this.cardColumns], ['DOWN', this.cardColumns], ['S', this.cardColumns]]) {
       this.input.keyboard.on('keydown-' + key, () => { if (this.canBrowseKnowledge()) this.chooseCard(delta); });
     }
     this.input.keyboard.on('keydown-ENTER', () => {
@@ -138,20 +148,23 @@ export default class ExpertScene extends ShopSceneBase {
     }
     heading('Deine Entdeckungen');
     const seen = this.expert.cards.filter(id => this.knownCards.has(id)).length;
-    add(this.add.text(628, 148, seen + ' von ' + this.expert.cards.length + ' entdeckt', { ...style, fontSize: '15px', color: '#c5d4b6' }).setOrigin(.5));
-    const rows = Math.ceil(this.expert.cards.length / CARD_COLUMNS), cardHeight = rows > 2 ? 116 : 166;
+    add(this.add.text(628, 148, seen + ' von ' + this.expert.cards.length + ' entdeckt' +
+      (this.getSaveData().expertRewards?.[this.expertWorld] ? ' · Forscherabzeichen ★' : ''), { ...style, fontSize: '15px', color: '#c5d4b6' }).setOrigin(.5));
+    const columns = this.cardColumns || (this.expert.cards.length <= 6 ? 3 : CARD_COLUMNS);
+    const rows = Math.ceil(this.expert.cards.length / columns), cardHeight = rows > 2 ? 116 : 166;
+    const spacing = 624 / columns, cardWidth = spacing - 10;
     // Every card is on this one board. There are no categories, pages or hidden rows.
     this.expert.cards.forEach((id, index) => {
       const card = getExpertCard(this.expertWorld, id), known = this.knownCards.has(id);
-      const x = 394 + (index % CARD_COLUMNS) * 156, top = 170 + Math.floor(index / CARD_COLUMNS) * (cardHeight + 10);
+      const x = 316 + spacing / 2 + (index % columns) * spacing, top = 170 + Math.floor(index / columns) * (cardHeight + 10);
       const view = this.add.container(0, 0), selected = index === this.cardIndex, imageHeight = cardHeight - 52;
-      view.add(this.add.rectangle(x, top + cardHeight / 2, 146, cardHeight, known ? 0xf1e4bd : 0x66736a)
+      view.add(this.add.rectangle(x, top + cardHeight / 2, cardWidth, cardHeight, known ? 0xf1e4bd : 0x66736a)
         .setStrokeStyle(selected ? 3 : 1, selected ? 0xffd37d : 0xa6b3a0));
       view.add(this.add.text(x, top + 15, known ? card.name : '???', { ...style, color: known ? '#3e3322' : '#d3d9d0',
-        fontSize: '16px', fontStyle: 'bold', align: 'center', wordWrap: { width: 138 } }).setOrigin(.5));
+        fontSize: '16px', fontStyle: 'bold', align: 'center', wordWrap: { width: cardWidth - 8 } }).setOrigin(.5));
       view.add(this.cardImage(card, known, x, top + 30 + imageHeight / 2, 124, imageHeight));
       view.add(this.add.text(x, top + cardHeight - 13, known ? '✓ Gesehen' : 'Nicht entdeckt', { ...style, fontSize: '13px', color: known ? '#335a32' : '#d3d9d0' }).setOrigin(.5));
-      view.add(this.add.zone(x, top + cardHeight / 2, 146, cardHeight).setInteractive({ useHandCursor: true })
+      view.add(this.add.zone(x, top + cardHeight / 2, cardWidth, cardHeight).setInteractive({ useHandCursor: true })
         .on('pointerdown', () => this.openCard(index)));
       this.cardViews.push({ id, known, selected, view }); add(view);
     });

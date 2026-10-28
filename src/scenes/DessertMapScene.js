@@ -1,8 +1,10 @@
 import WorldMapTravel from "../utils/WorldMapTravel.js";
+import WorldMapDiscovery from '../utils/WorldMapDiscovery.js';
+import { startPendingDragonClue } from '../utils/dragonStory.js';
 import { addWorldMapMarker } from "../utils/worldMapMarkers.js";
 import { drawWorldMapPaths, mapFoot, WORLD_MAP_EXITS } from "../utils/worldMapRoutes.js";
 import { applyWeaponAppearance } from "../utils/weapons.js";
-import { saveProgress, isWorldUnlocked } from "../saveManager.js";
+import { saveProgress, isWorldUnlocked, normalizeWorldProgress } from "../saveManager.js";
 import { playMusic } from "../soundManager.js";
 import TopHud from "../ui/topHud.js";
 import { applyItemModeSupport, GAME_MODES } from "../utils/itemRegistry.js";
@@ -30,7 +32,7 @@ const NODES = [
     label: "Wüstenendlos",
     x: 620,
     y: 250,
-    neighbors: { down: "Taverne" },
+    neighbors: { down: "Taverne", right: 'Wuestenschatz' },
   },
   {
     id: "Fremdweg",
@@ -40,6 +42,7 @@ const NODES = [
     neighbors: { up: "Taverne" },
   },
   { id: "Wuestenexperte", label: "Wüstenexperte", x: 195, y: 290, neighbors: { down: "Wuestenruine" } },
+  { id: 'Wuestenschatz', label: 'Goldoase', x: 820, y: 180, bonusWorld: 'desert', neighbors: { left: 'DesertEndless' } },
 ];
 
 export default class DessertMapScene extends Phaser.Scene {
@@ -58,6 +61,11 @@ export default class DessertMapScene extends Phaser.Scene {
   }
 
   create() {
+    const progress = normalizeWorldProgress(this.registry.get('saveData') || {});
+    if (!progress.unlockedWorlds.includes('desert') || !NODES.some(n => progress.unlockedLevels.includes(n.id))) {
+      this.scene.start('MainMenuScene'); return;
+    }
+    if (startPendingDragonClue(this, 'desert')) return;
     this.isMoving = false;
     this.inventoryOpen = false;
     this.gameMode = GAME_MODES.ISOMETRIC;
@@ -68,6 +76,8 @@ export default class DessertMapScene extends Phaser.Scene {
     this.drawPaths();
     this.createPlayerMarker();
     this.createUI();
+    this.mapDiscovery = new WorldMapDiscovery(this, 'desert', NODES, this.mapExits);
+    if (this.underworldExitLabel) this.mapDiscovery.watchExit('@underground', [this.underworldExitLabel]);
     playMusic(this, "music-world");
     const saveData = { ...this.registry.get("saveData"), currentWorld: "desert", currentLevel: this.currentNode.id };
     this.registry.set("saveData", saveData); saveProgress(saveData);
@@ -145,11 +155,9 @@ export default class DessertMapScene extends Phaser.Scene {
       unlocked.add("Fremdweg");
     }
     unlocked.add("Wuestenexperte");
-    if (unlocked.size !== (saveData.unlockedLevels || []).length) {
-      const nextSave = { ...saveData, unlockedLevels: Array.from(unlocked) };
-      this.registry.set("saveData", nextSave);
-      saveProgress(nextSave);
-    }
+    const nextSave = normalizeWorldProgress({ ...saveData, unlockedLevels: Array.from(unlocked) });
+    this.registry.set("saveData", nextSave);
+    saveProgress(nextSave);
   }
 
   addBackground() {
@@ -164,6 +172,7 @@ export default class DessertMapScene extends Phaser.Scene {
     const exit = NODES.find(n => n.id === "Fremdweg");
     const exits = this.unlocked.has(exit.id) && isWorldUnlocked(save, "underground")
       ? [[exit, WORLD_MAP_EXITS.desert.underground]] : [];
+    this.mapExits = exits;
     this.pathGraphics = drawWorldMapPaths(this, "desert", NODES, exits);
   }
 
@@ -172,7 +181,7 @@ export default class DessertMapScene extends Phaser.Scene {
     this.unlocked = new Set(saveData.unlockedLevels || []);
     this.nodeSprites = new Map();
     const keys = { Wuestenruine: "map-desert-ruin", Taverne: "map-desert-shop",
-      DesertEndless: "map-desert-oasis", Wuestenexperte: "map-desert-expert",
+      DesertEndless: "map-desert-oasis", Wuestenexperte: "map-desert-expert", Wuestenschatz: 'map-desert-tunnel',
       Fremdweg: isWorldUnlocked(saveData, "underground") ? "map-desert-tunnel" : "map-desert-quarry" };
     NODES.forEach(node => {
       const marker = addWorldMapMarker(this, "desert", node, keys[node.id], () => this.chooseNode(node));
@@ -187,8 +196,8 @@ export default class DessertMapScene extends Phaser.Scene {
 
   createPlayerMarker() {
     const saveData = this.registry.get("saveData") || {};
-    const currentId = saveData.mapState?.desertNode || saveData.currentLevel || "Wuestenruine";
-    let startNode = NODES.find(node => node.id === currentId) || NODES[0];
+    const currentId = saveData.mapState?.desertNode || saveData.currentLevel;
+    const startNode = NODES.find(node => node.id === currentId && this.unlocked.has(node.id)) || NODES.find(node => this.unlocked.has(node.id));
     this.currentNode = startNode;
     const foot = mapFoot(startNode);
     const standingTexture = saveData.playerGender === "female" ? "knight-female-standing" : "knight-standing";
@@ -206,8 +215,9 @@ export default class DessertMapScene extends Phaser.Scene {
   }
 
   createUI() {
+    this.underworldExitLabel = null;
     if (isWorldUnlocked(this.registry.get("saveData") || {}, "underground")) {
-      this.add.text(835, 548, "Unterwelt ↓", { fontFamily: "Trebuchet MS, sans-serif", fontSize: "19px",
+      this.underworldExitLabel = this.add.text(835, 548, "Unterwelt ↓", { fontFamily: "Trebuchet MS, sans-serif", fontSize: "19px",
         color: "#fff0c0", stroke: "#49301d", strokeThickness: 4 }).setOrigin(.5).setDepth(6)
         .setInteractive({ useHandCursor: true }).on("pointerdown", () => this.travelToUnderground());
     }
@@ -252,7 +262,7 @@ export default class DessertMapScene extends Phaser.Scene {
   }
 
   update() {
-    if (this.isMoving || this.inventoryOpen || this.inventoryOverlay?.isOpen) return;
+    if (this.isRevealingMap || this.isMoving || this.inventoryOpen || this.inventoryOverlay?.isOpen) return;
     const left = this.cursors.left.isDown || this.wasd.A.isDown;
     const right = this.cursors.right.isDown || this.wasd.D.isDown;
     const up = this.cursors.up.isDown || this.wasd.W.isDown;
@@ -271,7 +281,7 @@ export default class DessertMapScene extends Phaser.Scene {
   }
 
   travelToUnderground() {
-    if (this.isMoving || this.inventoryOpen || this.inventoryOverlay?.isOpen) return;
+    if (this.isRevealingMap || this.isMoving || this.inventoryOpen || this.inventoryOverlay?.isOpen) return;
     if (this.currentNode?.id !== "Fremdweg") {
       this.lockText.setText("Der Weg zur Unterwelt beginnt beim Fremdweg."); return;
     }
@@ -289,6 +299,7 @@ export default class DessertMapScene extends Phaser.Scene {
   }
 
   tryMove(direction) {
+    if (this.isRevealingMap) return;
     const nextId = this.getNeighborForDirection(direction);
     if (!nextId) return;
     if (!this.unlocked.has(nextId)) {
@@ -305,7 +316,7 @@ export default class DessertMapScene extends Phaser.Scene {
   }
 
   chooseNode(node) {
-    if (this.isMoving || this.inventoryOpen || this.isDialogOpen) return;
+    if (this.isRevealingMap || this.isMoving || this.inventoryOpen || this.isDialogOpen) return;
     if (this.currentNode.id === node.id) { this.startCurrentLevel(); return; }
     if (!Object.values(this.currentNode.neighbors || {}).includes(node.id)) return;
     const dx = node.x - this.currentNode.x, dy = node.y - this.currentNode.y, length = Math.hypot(dx, dy);
@@ -334,7 +345,7 @@ export default class DessertMapScene extends Phaser.Scene {
   }
 
   startCurrentLevel() {
-    if (this.isMoving || this.inventoryOpen) return;
+    if (this.isRevealingMap || this.isMoving || this.inventoryOpen) return;
     if (!this.currentNode || !this.unlocked.has(this.currentNode.id)) return;
     const saveData = this.registry.get("saveData");
     if (
@@ -356,7 +367,9 @@ export default class DessertMapScene extends Phaser.Scene {
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);
 
-    if (this.currentNode.id === "Wuestenexperte") {
+    if (this.currentNode.id === 'Wuestenschatz') {
+      this.scene.start('CoinChallengeScene', { world: 'desert' });
+    } else if (this.currentNode.id === "Wuestenexperte") {
       this.scene.start("ExpertScene", { world: "desert" });
     } else if (this.currentNode.id === "Wuestenruine") {
       this.scene.start("DesertRuinScene");

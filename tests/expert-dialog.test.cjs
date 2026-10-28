@@ -8,6 +8,7 @@ function load(file, name) {
   vm.runInContext(code.replace(/export /g, ''), ctx);
 }
 load('src/utils/controlProfiles.js'); load('src/ui/emphasizedText.js'); load('src/utils/expertKnowledge.js'); load('src/utils/expertDiscovery.js');
+load('src/utils/mapDiscovery.js');
 load('src/dialogManager.js', 'DialogManager'); load('src/scenes/shop/ShopSceneBase.js', 'ShopSceneBase');
 load('src/scenes/ExpertScene.js', 'ExpertScene'); load('src/utils/PortableControls.js', 'PortableControls');
 const {experts,cards} = vm.runInContext('({experts:EXPERT_WORLDS,cards:EXPERT_CARDS})', ctx);
@@ -41,17 +42,17 @@ function fixture(world, visited = false, discoveries = []) {
 }
 
 for (const world of Object.keys(experts)) for (const visited of [false, true]) {
-  test(`${world}, ${visited ? 'return' : 'first'} visit: the board waits for the short greeting`, () => {
+  test(`${world}, ${visited ? 'return' : 'first'} visit: the board waits for the complete welcome`, () => {
     const { s, controls } = fixture(world, visited);
     assert.equal(s.knowledgeBoard.visible, false); assert.equal(s.canBrowseKnowledge(), false);
     assert.ok(960 / s.studyBackdrop.scale < s.studyBackdrop.width / 2);
-    assert.equal(s.dialog.text.text, visited ? experts[world].returnGreeting : experts[world].greeting);
+    const welcome = visited ? [experts[world].returnGreeting]
+      : (experts[world].introduction || [experts[world].greeting, experts[world].returnGreeting]);
     s.input.keyboard.emit('keydown-RIGHT'); assert.equal(s.cardIndex, 0);
-    if (!visited) {
+    for (const text of welcome) {
+      assert.equal(s.dialog.text.text, text); assert.equal(s.knowledgeBoard.visible, false);
       controls.dispatch('confirm');
-      assert.equal(s.dialog.text.text, experts[world].returnGreeting); assert.equal(s.knowledgeBoard.visible, false);
     }
-    controls.dispatch('confirm');
     assert.equal(s.dialog.container.visible, false); assert.equal(s.knowledgeBoard.visible, true);
     assert.equal(s.studyBackdrop.scale, s.studyScale); assert.equal(s.studyBackdrop.x, 480);
     assert.equal(s.cardIndex, 0); assert.equal(s.canBrowseKnowledge(), true);
@@ -61,12 +62,31 @@ for (const world of Object.keys(experts)) for (const visited of [false, true]) {
   });
 }
 
-test('the first desert conversation follows the intro dragon, then offers discovery tips',()=>{
+test('the first desert conversation is a complete introduction without the return greeting',()=>{
   const {s,controls}=fixture('desert');
-  assert.match(s.dialog.text.text,/Drachen.*Osten/);
-  controls.dispatch('confirm'); assert.match(s.dialog.text.text,/Abenteurer.*entdeckt.*Tipps/);
+  assert.equal(s.dialog.pages.length,4);
+  assert.match(s.dialog.text.text,/Willkommen.*Professor Knobel.*Monster und Natur/);
+  controls.dispatch('confirm'); assert.match(s.dialog.text.text,/grünen Drachen/);
+  controls.dispatch('confirm'); assert.match(s.dialog.text.text,/gestern.*über der Wüstenruine/);
+  controls.dispatch('confirm'); assert.match(s.dialog.text.text,/Komm gerne wieder.*Tipps zu Gegnern/);
+  assert.ok(s.dialog.pages.every(page=>page.text!==experts.desert.returnGreeting));
+  controls.dispatch('confirm'); assert.equal(s.dialog.container.visible,false);
   const returning=fixture('desert',true); assert.equal(returning.s.dialog.pages.length,1);
+  assert.match(returning.s.dialog.text.text,/Reisen gesehen.*Tipp/);
   assert.doesNotMatch(returning.s.dialog.text.text,/Drachen/);
+});
+
+test('the first desert conversation opens the ruin only after its dialog closes',()=>{
+  const {s,controls}=fixture('desert');
+  assert.equal(s.getSaveData().unlockedLevels?.includes('Wuestenruine') || false,false);
+  for (let page=1;page<4;page++) {
+    controls.dispatch('confirm');
+    assert.equal(s.getSaveData().unlockedLevels?.includes('Wuestenruine') || false,false);
+    assert.equal(s.getSaveData().expertIntroductions.desert,false);
+  }
+  controls.dispatch('confirm');
+  assert.equal(s.getSaveData().unlockedLevels.includes('Wuestenruine'),true);
+  assert.equal(s.getSaveData().expertIntroductions.desert,true);
 });
 
 test('only a known card opens a short tip, by Enter or by clicking its picture',()=>{
@@ -134,7 +154,7 @@ test('all world-appropriate cards are visible together, with no page or category
     const {s,controls}=fixture(world,true);controls.dispatch('confirm');
     assert.equal(s.cardViews.length,experts[world].cards.length);assert.equal(s.categories,undefined);
     for(const card of s.cardViews){const r=card.view.list[0];assert.ok(r.x-r.width/2>=310&&r.x+r.width/2<=946);assert.ok(r.y-r.height/2>=170&&r.y+r.height/2<=539)}
-    s.input.keyboard.emit('keydown-DOWN');assert.equal(s.cardIndex,4);
+    s.input.keyboard.emit('keydown-DOWN');assert.equal(s.cardIndex,experts[world].cards.length<=6?3:4);
     s.input.keyboard.emit('keydown-UP');assert.equal(s.cardIndex,0);
   }
 });
@@ -153,29 +173,35 @@ test('picture cards give one short emphasized idea at a time, without damage or 
   assert.ok(cards['monkey-brown'].tips[1].includes('**klebst du fest**'));
 });
 
-test('helper descriptions match each world and explain gathering, fighting, and recovery where implemented',()=>{
-  const tips=world=>ctx.getExpertCard(world,'companion').tips.join(' ');
-  assert.match(tips('desert'),/sammelt nahe Beeren/);assert.match(tips('desert'),/bringt sie zu dir/);assert.match(tips('desert'),/Herzen/);
-  assert.doesNotMatch(tips('desert'),/Urwald|Kokos|Lianen|Fledermäuse/);
-  assert.match(tips('underground'),/Maulwürfe, Steinmonster und Fledermäuse/);assert.match(tips('underground'),/Felswände/);assert.match(tips('underground'),/Honigsaft/);
-  assert.doesNotMatch(tips('underground'),/Kokos|Beeren|Urwald|Lianen/);
-  assert.match(tips('jungle'),/Kokospfützen/);assert.match(tips('jungle'),/nahe Affen/);assert.doesNotMatch(tips('jungle'),/Beeren|versteckt|Fledermäuse/);
-  for(const world of Object.keys(experts))assert.ok(experts[world].cards.includes('companion'));
+test('each discovery belongs to exactly one professor; common gear stays in the desert',()=>{
+  const tips=ctx.getExpertCard('desert','companion').tips.join(' ');
+  assert.match(tips,/sammelt nahe Beeren/);assert.match(tips,/bringt sie zu dir/);assert.match(tips,/Herzen/);
+  assert.doesNotMatch(tips,/Urwald|Kokos|Lianen|Fledermäuse/);
+  const all=Object.values(experts).flatMap(expert=>expert.cards);
+  assert.equal(new Set(all).size,all.length);assert.deepEqual([...all].sort(),Object.keys(cards).sort());
+  for(const world of ['underground','jungle'])for(const id of ['sword','shield','honey','shoes','companion'])assert.equal(ctx.getExpertCard(world,id),null);
+  assert.match(ctx.getExpertCard('jungle','monkey-brown').tips.join(' '),/schlürft nahe Kokospfützen/);
 });
 
 test('reviewed tips cover actual equipment controls, digging and enemy counterplay',()=>{
   const tips=(world,id)=>ctx.getExpertCard(world,id).tips.join(' ');
   assert.match(tips('desert','shoes'),/Sprinten.*zweimal schnell/);assert.doesNotMatch(tips('desert','shoes'),/Schweben|Springen/);
-  assert.match(tips('underground','shoes'),/Am Boden.*links oder rechts zweimal/);assert.match(tips('underground','shoes'),/Erde durchbrechen/);
   assert.match(tips('underground','powerHammer'),/Gelbe Blitze.*Rote Blitze.*blauen Blitzen/);assert.match(tips('underground','powerHammer'),/Druckwelle/);
   assert.match(tips('underground','powerHammer'),/Erde unter dir/);assert.match(tips('underground','powerHammer'),/Geduckt/);
-  assert.match(tips('underground','sword'),/gräbt Erde/);assert.match(tips('underground','sword'),/keinen Stein/);
-  assert.doesNotMatch(tips('jungle','powerHammer'),/Randfelsen|Blockreihe|Erde unter/);
-  assert.doesNotMatch(tips('underground','bow'),/Liane|Klettern/);assert.match(tips('jungle','bow'),/Klettern/);
+  assert.equal(ctx.getExpertCard('jungle','powerHammer'),null);assert.equal(ctx.getExpertCard('underground','bow'),null);
+  assert.match(tips('jungle','bow'),/Klettern/);
   assert.match(tips('underground','bat'),/sind giftig/);assert.match(tips('underground','bat'),/keine Pfütze/);
   for(const id of ['monkey-brown','monkey-red','monkey-blue']){assert.match(tips('jungle',id),/ausholt/);assert.match(tips('jungle',id),/Weiche|Bewege/)}
-  assert.match(tips('jungle','stone'),/prallen an den Rändern ab/);assert.doesNotMatch(tips('jungle','stone'),/Maulwurf/);
+  assert.match(tips('jungle','monkey-king'),/prallen an den Rändern ab/);
   assert.match(tips('jungle','jungleShield'),/Steinmonster wirft er aber nicht zurück/);
+});
+
+for(const world of Object.keys(experts))test(world+': the complete collection awards a badge and modest gold only once',()=>{
+  const save={coins:31,discoveries:experts[world].cards.slice(1),expertRewards:{}};
+  assert.equal(ctx.claimExpertReward(save,world),save);
+  const complete={...save,discoveries:[...experts[world].cards]},next=ctx.claimExpertReward(complete,world);
+  assert.equal(next.coins,56);assert.equal(next.expertRewards[world],true);assert.equal(complete.coins,31);
+  assert.equal(ctx.claimExpertReward(next,world),next);
 });
 
 test('mixed-weight text uses whole-run measurements without accumulating rounding gaps', () => {

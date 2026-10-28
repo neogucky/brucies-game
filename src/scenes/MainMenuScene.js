@@ -14,12 +14,17 @@ export default class MainMenuScene extends Phaser.Scene {
     this.pendingSettings = null;
   }
 
+  init(data) { this.returnSelection = data?.selectedMenu; }
+
   create() {
     this.menuItems = [];
+    this.leaving = false;
     this.isDialogOpen = false;
-    const saveData = this.registry.get("saveData");
-    this.hasSave = Boolean(saveData && saveData.lastPlayed);
-    this.selectedIndex = this.hasSave ? 0 : 1;
+    const rawSave = this.registry.get("saveData");
+    const saveData = rawSave ? normalizeWorldProgress(rawSave) : null;
+    this.hasSave = Boolean(saveData?.lastPlayed);
+    this.canContinue = Boolean(this.hasSave && saveData.currentLevel && saveData.unlockedWorlds.includes(saveData.currentWorld));
+    this.selectedIndex = this.returnSelection === 'cinema' ? 3 : this.canContinue ? 0 : 1;
     this.addBackground();
     this.addTitle();
     this.addMenu();
@@ -65,7 +70,7 @@ export default class MainMenuScene extends Phaser.Scene {
       {
         label: "Weiterspielen",
         action: () => this.loadGame(),
-        enabled: this.hasSave,
+        enabled: this.canContinue,
       },
       {
         label: "Neues Spiel",
@@ -78,8 +83,8 @@ export default class MainMenuScene extends Phaser.Scene {
         enabled: true,
       },
       {
-        label: 'Intro ansehen',
-        action: () => this.scene.start('IntroScene'),
+        label: 'Kino',
+        action: () => this.scene.start('CinemaScene'),
         enabled: true,
       },
     ];
@@ -143,7 +148,7 @@ export default class MainMenuScene extends Phaser.Scene {
   }
 
   activateSelection() {
-    if (this.isDialogOpen) return;
+    if (this.isDialogOpen || this.leaving) return;
     const item = this.menuItems[this.selectedIndex];
     if (item) {
       if (item.enabled) {
@@ -162,8 +167,13 @@ export default class MainMenuScene extends Phaser.Scene {
   }
 
   loadGame() {
+    if (this.leaving) return;
     const rawSave = this.registry.get("saveData");
     const saveData = rawSave ? normalizeWorldProgress(rawSave) : null;
+    if (!saveData?.currentLevel || !saveData.unlockedWorlds.includes(saveData.currentWorld)) return;
+    this.leaving = true;
+    // Continue belongs to gameplay, even after an interrupted cinema playlist.
+    this.registry.set('storyPreview', null);
     if (saveData) {
       const nextSave = {
         ...saveData,

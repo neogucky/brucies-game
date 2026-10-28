@@ -7,6 +7,12 @@ load('src/scenes/UndergroundMapScene.js','UndergroundMapScene');load('src/scenes
 load('src/scenes/water/WaterMapScene.js','WaterMapScene');load('src/scenes/jungle/JungleScene.js','JungleScene');
 const levels=vm.runInContext('JUNGLE_LEVELS',ctx),nodes=vm.runInContext('NODES',ctx),shore=vm.runInContext('WATER_SHORE',ctx);
 const plain=value=>JSON.parse(JSON.stringify(value));
+test('the closed gate approach ends on the shop side, and the opened passage actually crosses the threshold',()=>{
+ const shop=nodes.find(n=>n.id==='UnderShop'),gate=nodes.find(n=>n.id==='Schluesseltor'),mine=nodes.find(n=>n.id==='Schluesselweg');
+ const approach=ctx.getWorldMapRoute('underground',shop,gate),crossing=ctx.getWorldMapRoute('underground',gate,mine);
+ assert.ok(approach.points.every(p=>p.x>=465));assert.equal(approach.points.at(-1).x,470);
+ assert.ok(crossing.points.some(p=>Math.hypot(p.x-385,p.y-268)<2));
+});
 function vector(){return{x:0,y:0,copy(p){this.x=p.x;this.y=p.y;}};}
 function climber(gender='male',y=1850){
  const s=Object.create(ctx.JungleScene.prototype),p={x:350,y,texture:'knight-hammer-standing',setTexture(k){this.texture=k;return this;},setPosition(x,y){this.x=x;this.y=y;return this;},getData(){return gender==='female'?'knight-female-hammer-standing':'knight-hammer-standing';}};
@@ -99,7 +105,7 @@ test('the closed key gate is on every route from the shop to the mine and crysta
 test('the water preview preserves world progression without inventing completed levels',()=>{
  const save=ctx.normalizeWorldProgress({currentLevel:'Lianenpfad',unlockedWorlds:['jungle'],completedLevels:['Urwaldkronen'],coins:321});
  const s=Object.create(ctx.JungleMapScene.prototype);let current=save,trip;
- Object.assign(s,{currentNode:{id:'Lianenpfad'},registry:{get:()=>current,set(_k,v){current=v;}},
+ Object.assign(s,{currentNode:{id:'Lianenpfad'},registry:{get:key=>key==='unlockAllForTesting'?true:current,set(_k,v){current=v;}},
   mapTravel:{travel(from,to,done){trip={from,to,done};}},scene:{start(key){s.started=key;}}});
  ctx.saveProgress=()=>{};s.travelToWater();
  assert.equal(current.currentWorld,'water');assert.equal(current.currentLevel,'Seeufer');assert.equal(current.coins,321);

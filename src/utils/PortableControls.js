@@ -20,11 +20,11 @@ export function resetSceneKeys(scene) {
 }
 
 export function controlBarActions(scene, paused = false) {
-  if (!scene || paused || scene.isIntro || scene.confirmation?.isOpen || scene.settingsBox?.visible || scene.inventoryOverlay?.isOpen) return [];
+  if (!scene || paused || scene.isIntro || scene.isInteractingWithLever || scene.confirmation?.isOpen || scene.settingsBox?.visible || scene.inventoryOverlay?.isOpen) return [];
   if (scene.dialog?.container?.visible) return ['back'];
   if (scene.isGameOver) return ['confirm', 'back'];
   if (scene.levelCompleted || scene.isComplete) return ['confirm'];
-  if (scene.sys.settings.key === 'MainMenuScene') return [];
+  if (['MainMenuScene', 'CinemaScene'].includes(scene.sys.settings.key)) return [];
   const actions = [];
   if (scene.toggleInventory) actions.push('inventory');
   if (scene.player) actions.push('pause');
@@ -51,9 +51,17 @@ export default class PortableControls {
     this.buildToolbar();
     this.down = event => this.onKey(event, true); this.up = event => this.onKey(event, false);
     this.blur = () => this.autoPause();
-    this.focusIn = () => { const scene = this.activeScene(); if (scene?.isIntro && scene.suspended) scene.startIntro(); };
+    this.focusIn = () => {
+      const scene = this.activeScene();
+      if (scene?.isIntro) {
+        this.focus();
+        if (scene.suspended) scene.startIntro();
+      }
+    };
     this.visibility = () => { if (document.hidden) this.autoPause(); else this.focusIn(); };
-    document.addEventListener('keydown', this.down, true); document.addEventListener('keyup', this.up, true);
+    // Capture at the window, before Phaser and before a focused DOM button.
+    // This also handles keyboard-cover events targeted directly at the window.
+    window.addEventListener('keydown', this.down, { capture: true }); window.addEventListener('keyup', this.up, { capture: true });
     window.addEventListener('blur', this.blur); window.addEventListener('focus', this.focusIn); document.addEventListener('visibilitychange', this.visibility);
     this.focusPointer = () => this.focus(); this.canvas?.addEventListener('pointerdown', this.focusPointer);
     if (this.canvas) this.canvas.tabIndex = 0;
@@ -66,6 +74,7 @@ export default class PortableControls {
     this.game.registry.set('saveData', next); saveProgress(next); this.update(); this.focus();
   }
   activeScene() {
+    if (this.game.debugMenu?.isOpen) return this.game.debugMenu.scene;
     const scenes = this.game.scene.getScenes(true).filter(s => s.sys.settings.key !== 'BootScene');
     return this.pausedScene || scenes[scenes.length - 1];
   }
@@ -75,7 +84,10 @@ export default class PortableControls {
     const titles = { confirm: 'Bestätigen', inventory: 'Inventar', pause: 'Pause', back: 'Zurück' };
     Object.entries(titles).forEach(([action, title]) => {
       const button = document.createElement('button'); button.type = 'button'; button.textContent = title; button.dataset.action = action;
-      button.addEventListener('click', () => { this.dispatch(action); this.focus(); });
+      button.addEventListener('click', () => {
+        const answer = this.activeScene()?.confirmation?.isOpen ? { confirm: 'yes', back: 'no' }[action] : null;
+        this.dispatch(answer || action); this.focus();
+      });
       this.toolbar.appendChild(button); this.buttons[action] = button;
     });
     this.touchPad = document.createElement('nav'); this.touchPad.id = 'touch-controls'; this.touchPad.hidden = true; this.touchPad.setAttribute('aria-label', 'Touchsteuerung');
@@ -107,12 +119,34 @@ export default class PortableControls {
     this.overlay.append(title, this.resumeButton, exit); document.getElementById('play-shell')?.appendChild(this.overlay);
   }
   update() {
-    if (!this.canvas && this.game.canvas) { this.canvas = this.game.canvas; this.canvas.tabIndex = 0; this.canvas.addEventListener('pointerdown', this.focusPointer); }
+    if (this.game.debugMenu?.isOpen) {
+      if (this.toolbar) this.toolbar.hidden = true;
+      if (this.touchPad) this.touchPad.hidden = true;
+      document.body.classList.remove('has-action-bar', 'touch-profile');
+      return;
+    }
+    let attachedCanvas = false;
+    if (!this.canvas && this.game.canvas) {
+      this.canvas = this.game.canvas; this.canvas.tabIndex = 0;
+      this.canvas.addEventListener('pointerdown', this.focusPointer); attachedCanvas = true;
+    }
+    // Focus the canvas as soon as it exists, including the loading scene.
+    // Waiting until the intro's first rendered frame leaves a startup gap.
+    let focusedCanvas = false;
+    if (this.canvas && (attachedCanvas || !this.hasFocusedCanvas)) { this.focus(); this.hasFocusedCanvas = true; focusedCanvas = true; }
     const scene = this.activeScene(); if (!scene) return;
-    if (scene !== this.lastScene) { resetSceneKeys(this.lastScene); this.clearHeld(); this.lastScene = scene; }
+    const changedScene = scene !== this.lastScene;
+    if (changedScene) { resetSceneKeys(this.lastScene); this.clearHeld(); this.lastScene = scene; }
+    // Autoplay has no preceding click on the game. Take keyboard focus once
+    // the scene is ready, so Space cannot activate the browser's Reload button.
+    if (changedScene && !focusedCanvas) this.focus();
+    if (this.pendingIntroSkip) {
+      this.pendingIntroSkip = false;
+      if (scene.isIntro) this.dispatch('confirm', scene);
+    }
     if (!this.toolbar) return;
     const profile = this.getProfile(), touch = profile === 'ipadTouch', intro = Boolean(scene.isIntro);
-    const modal = scene.confirmation?.isOpen || scene.inventoryOverlay?.isOpen || scene.dialog?.container?.visible || scene.settingsBox?.visible;
+    const modal = scene.isInteractingWithLever || scene.confirmation?.isOpen || scene.inventoryOverlay?.isOpen || scene.dialog?.container?.visible || scene.settingsBox?.visible;
     const finished = scene.isGameOver || scene.levelCompleted || scene.isComplete;
     const showTouch = Boolean(touch && scene.player && !modal && !finished && !this.pausedScene);
     this.touchPad.hidden = !showTouch; document.body.classList.toggle('touch-profile', showTouch);
@@ -126,12 +160,12 @@ export default class PortableControls {
     this.toolbar.hidden = actions.size === 0;
     document.body.classList.toggle('has-action-bar', actions.size > 0);
     const disabled = (button, value) => { button.disabled = Boolean(value); };
-    disabled(this.buttons.inventory, this.pausedScene || scene.confirmation?.isOpen || scene.inventoryOverlay?.isOpen || scene.dialog?.container?.visible || !scene.toggleInventory || scene.isGameOver || scene.levelCompleted || scene.isComplete);
+    disabled(this.buttons.inventory, scene.isRevealingMap || this.pausedScene || scene.confirmation?.isOpen || scene.inventoryOverlay?.isOpen || scene.dialog?.container?.visible || !scene.toggleInventory || scene.isGameOver || scene.levelCompleted || scene.isComplete);
     disabled(this.buttons.pause, !this.pausedScene && (!scene.player || scene.isPaused || scene.isGameOver || scene.levelCompleted || scene.isComplete));
     const asking = scene.confirmation?.isOpen;
     const won = !scene.isGameOver && (scene.levelCompleted || scene.isComplete);
     disabled(this.buttons.back, won || (scene.sys.settings.key === 'MainMenuScene' && !asking && !scene.settingsBox?.visible));
-    disabled(this.buttons.confirm, Boolean(this.pausedScene || (intro && scene.started && !scene.suspended)));
+    disabled(this.buttons.confirm, Boolean(scene.isRevealingMap || this.pausedScene || (intro && scene.started && !scene.suspended)));
     Object.entries(this.touchButtons).forEach(([action, button]) => {
       const potion = action === 'potion1' ? scene.equipped?.consumable : scene.equipped?.consumable2;
       if (action === 'attack') {
@@ -143,8 +177,8 @@ export default class PortableControls {
       button.disabled = Boolean(this.pausedScene || scene.confirmation?.isOpen || scene.isGameOver || scene.levelCompleted || scene.isComplete
         || (['attack','shoot'].includes(action) && scene.climbingVine));
     });
-    this.buttons.confirm.textContent = actionLabel(profile, 'confirm', asking ? 'Ja' : 'Bestätigen');
-    this.buttons.back.textContent = actionLabel(profile, 'back', asking ? 'Nein'
+    this.buttons.confirm.textContent = actionLabel(profile, asking ? 'yes' : 'confirm', asking ? 'Ja' : 'Bestätigen');
+    this.buttons.back.textContent = actionLabel(profile, asking ? 'no' : 'back', asking ? 'Nein'
       : scene.dialog?.container?.visible ? 'Schließen' : scene.currentNode ? 'Menü' : scene.player && !finished ? 'Verlassen' : 'Zurück');
     this.buttons.inventory.textContent = actionLabel(profile, 'inventory', 'Inventar');
     this.buttons.pause.textContent = actionLabel(profile, 'pause', this.pausedScene ? 'Fortsetzen' : 'Pause');
@@ -153,8 +187,8 @@ export default class PortableControls {
     if (intro) {
       const label = introSkipLabel(profile);
       if (scene.skipButton?.text !== label) scene.skipButton?.setText(label);
-      this.canvas?.setAttribute('aria-label', 'Spielintro. ' + label + '.');
-    } else this.canvas?.setAttribute('aria-label', 'Brucies Spiel. ' + this.buttons.confirm.textContent + '. ' + this.buttons.back.textContent + '.');
+      this.canvas?.setAttribute('aria-label', (scene.clueWorld ? 'Drachenspur. ' : 'Spielintro. ') + label + '.');
+    } else this.canvas?.setAttribute('aria-label', (scene.accessibilityLabel || 'Brucies Spiel') + '. ' + this.buttons.confirm.textContent + '. ' + this.buttons.back.textContent + '.');
   }
   emitKey(scene, code) {
     const keyboard = scene?.input?.keyboard; if (!keyboard) return;
@@ -163,6 +197,7 @@ export default class PortableControls {
     keyboard.emit('keydown', event); keyboard.emit('keydown-' + (KEY_NAMES[code] || code.replace('Key', '')), event);
   }
   dispatch(action, targetScene = this.activeScene()) {
+    if (this.game?.debugMenu?.isOpen) return;
     if (this.pausedScene) {
       const pausedScene = this.pausedScene;
       if (action === 'pause') this.resume();
@@ -170,12 +205,16 @@ export default class PortableControls {
       return;
     }
     const s = targetScene; if (!s) return;
+    if (s.isInteractingWithLever) return;
+    if (s.isRevealingMap && !['back', 'fullscreen'].includes(action)) return;
     if (s.isIntro) {
       if (action === 'attack' || action === 'confirm') s.finish();
       else if (action === 'fullscreen') this.emitKey(s, 'KeyF');
       return;
     }
-    if (s.confirmation?.isOpen) { if (['confirm','back'].includes(action)) s.confirmation.choose(action === 'confirm'); return; }
+    // Yes/no questions have their own J/N bindings. Menu confirm/back must not
+    // become extra answers when the active keyboard profile changes.
+    if (s.confirmation?.isOpen) { if (['yes','no'].includes(action)) s.confirmation.choose(action === 'yes'); return; }
     if (s.settingsActions && s.settingsBox?.visible) { s.settingsActions[action]?.(); return; }
     if (action === 'pause') { this.pause(s); return; }
     if (s.inventoryOverlay?.isOpen) {
@@ -205,7 +244,8 @@ export default class PortableControls {
     const code = INTERNAL_CODES[action]; if (code) this.emitKey(s, code);
   }
   setHeld(action, down) {
-    const scene = this.activeScene(); if (!scene || this.pausedScene) return;
+    if (this.game?.debugMenu?.isOpen) return;
+    const scene = this.activeScene(); if (!scene || this.pausedScene || scene.isInteractingWithLever) return;
     if (action === 'attack') {
       this.held ||= new Set();
       if (down) {
@@ -234,8 +274,29 @@ export default class PortableControls {
     const code = canonicalCode(event);
     if (!down) this.pressedKeys?.delete(code);
     const target = event.target;
+    const debug = this.game?.debugMenu;
+    if (code === 'Digit3' && debug && !event.isComposing && !event.metaKey && !event.ctrlKey && !event.altKey &&
+      (!target?.isContentEditable && !/^(INPUT|TEXTAREA|SELECT)$/.test(target?.tagName || '') || debug.isOpen)) {
+      event.preventDefault(); event.stopImmediatePropagation();
+      if (down && !event.repeat && !this.pressedKeys?.has(code)) {
+        this.pressedKeys ||= new Set(); this.pressedKeys.add(code); debug.toggle();
+      }
+      return;
+    }
+    if (debug?.isOpen) { event.stopImmediatePropagation(); return; }
     if (target?.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target?.tagName || '') || event.isComposing || event.metaKey || event.ctrlKey || event.altKey) return;
-    const scene = this.activeScene(); if (!scene) return;
+    const scene = this.activeScene();
+    if (!scene) {
+      // Remember an early skip even if the assets are still loading. Consume
+      // both halves of the press so it cannot click Reload or reach the menu.
+      if (code === 'Space' || code === 'Enter') {
+        event.preventDefault(); event.stopImmediatePropagation();
+        if (down && !event.repeat && !this.pressedKeys?.has(code)) {
+          this.pressedKeys ||= new Set(); this.pressedKeys.add(code); this.pendingIntroSkip = true;
+        }
+      }
+      return;
+    }
     if (scene.isIntro) {
       if (down && !event.repeat && !this.pressedKeys?.has(code)) scene.audio?.unlock?.(scene.elapsed);
       if (!GAME_KEYS.has(code)) return;
@@ -258,7 +319,7 @@ export default class PortableControls {
       this.pressedKeys ||= new Set(); this.pressedKeys.add(code);
     }
     if (!action) {
-      if (down && !event.repeat && profile === 'pc' && /^Digit[1-4]$/.test(code)) this.emitKey(scene, code);
+      if (down && !event.repeat && /^Digit[1-4]$/.test(code)) this.emitKey(scene, code);
       return;
     }
     if (HELD_ACTIONS.has(action)) {
@@ -292,7 +353,7 @@ export default class PortableControls {
     if (!this.pausedScene) this.pause(s);
   }
   destroy() {
-    document.removeEventListener('keydown', this.down, true); document.removeEventListener('keyup', this.up, true);
+    window.removeEventListener('keydown', this.down, { capture: true }); window.removeEventListener('keyup', this.up, { capture: true });
     window.removeEventListener('blur', this.blur); window.removeEventListener('focus', this.focusIn); document.removeEventListener('visibilitychange', this.visibility);
     this.canvas?.removeEventListener('pointerdown', this.focusPointer);
     this.overlay?.remove(); this.touchPad?.remove(); this.toolbar?.replaceChildren();

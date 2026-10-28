@@ -1,9 +1,12 @@
 import { defaultSave, loadSave, saveProgress, unlockAllForTesting } from "../saveManager.js";
+import { registerLeverTextures } from '../utils/LeverVisual.js';
 import { registerIntroTextures } from "../utils/introAssets.js";
 import { registerWorldMapAnimationTextures, registerClimbMantleTextures } from "../utils/worldMapAssets.js";
 import { registerWorldMapMarkers } from "../utils/worldMapMarkers.js";
 import { registerMeleeTextures } from "../utils/MeleeAnimation.js";
 import { registerHammerTrainingTextures } from "../utils/hammerTrainingAssets.js";
+import { startStoryPreview } from '../utils/storyPreview.js';
+import { registerStoryTextures } from '../utils/storyAssets.js';
 
 export default class BootScene extends Phaser.Scene {
   constructor() {
@@ -17,6 +20,8 @@ export default class BootScene extends Phaser.Scene {
     this.load.image('melee-parts-atlas', 'assets/common/characters/melee/attack-parts.png');
     this.load.image('melee-parts-v2-atlas', 'assets/common/characters/melee/attack-parts-v2.png');
     for (const world of ['desert', 'underground', 'jungle']) this.load.image('map-places-' + world, 'assets/worldmap/places-' + world + '.png');
+    this.load.svg('map-underground-gate', 'assets/worldmap/gate-closed.svg');
+    this.load.svg('map-underground-open-gate', 'assets/worldmap/gate-open.svg');
     this.load.image('knight-walk-atlas', 'assets/common/characters/world-travel/knight-walk.png');
     this.load.image('companion-drink-atlas', 'assets/common/characters/world-travel/helper-drink.png');
     this.load.image('intro-bedroom', 'assets/intro/bedroom-perspective.png');
@@ -26,7 +31,18 @@ export default class BootScene extends Phaser.Scene {
     this.load.image('intro-knight-poses', 'assets/intro/knight-poses.png');
     this.load.image('intro-helper-atlas', 'assets/intro/helper.png');
     this.load.image('intro-dragon-atlas', 'assets/intro/dragon.png');
+    this.load.image('story-desert', 'assets/story/desert-tracks.jpg');
+    this.load.image('story-underground', 'assets/story/underground-wall.jpg');
+    this.load.image('story-jungle', 'assets/story/jungle-shore.jpg');
+    this.load.image('story-reading', 'assets/story/underground-reading.jpg');
+    this.load.image('story-knight-investigate', 'assets/story/knight-investigate.png');
+    this.load.image('story-gestures', 'assets/story/story-gestures.png');
+    this.load.image('desert-ruin-states', 'assets/desert/ruin-states-v2.png');
+    this.load.image('desert-ruin-repair-steps', 'assets/desert/ruin-repair-steps-v3.png');
+    this.load.image('desert-shrub-art', 'assets/desert/shrub-v2.png');
+    for (const world of ['desert', 'underground', 'jungle']) this.load.image('secret-lever-' + world, 'assets/common/scenery/lever-' + world + '-v1.png');
     this.load.image("worldmap-jungle-bg", "assets/jungle/jungle-worldmap.png");
+    this.load.image('worldmap-jungle-untrodden', 'assets/worldmap/jungle-untrodden.jpg');
     this.load.image("jungle-background", "assets/jungle/jungle-background.png");
     this.load.image("jungle-tree", "assets/jungle/jungle-tree.png");
     this.load.image("jungle-monkeys", "assets/jungle/jungle-monkeys.png");
@@ -140,7 +156,11 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("chest-open", "assets/desert/chest_open.png");
     this.load.image("chest-opened", "assets/desert/chest_open.png");
     this.load.audio("sfx-chest-hit", "assets/common/sounds/chest_hit.wav");
-    this.load.audio("sfx-coin", "assets/common/sounds/coin.wav");
+    this.load.audio("sfx-coin", "assets/common/sounds/coin-pling-v2.wav");
+    this.load.audio('sfx-spring', 'assets/common/sounds/spring-boing.wav');
+    this.load.audio('sfx-player-hurt', 'assets/common/sounds/player-hurt.wav');
+    this.load.audio('sfx-low-health', 'assets/common/sounds/low-health-beep.wav');
+    this.load.audio('sfx-stone-scrape', 'assets/common/sounds/stone-scrape.wav');
     this.load.audio("sfx-companion-hit", "assets/common/sounds/companion_hit.wav");
     this.load.audio("sfx-monster-attack", "assets/common/sounds/monster_atttack.wav");
     this.load.audio("sfx-monster-dig", "assets/common/sounds/monster_dig.wav");
@@ -175,6 +195,8 @@ export default class BootScene extends Phaser.Scene {
   }
 
   create() {
+    registerLeverTextures(this);
+    registerStoryTextures(this);
     registerIntroTextures(this);
     registerWorldMapMarkers(this);
     this.createHammerTextures();
@@ -208,14 +230,29 @@ export default class BootScene extends Phaser.Scene {
       saveProgress(nextSave);
     });
     const maps = { desert: 'DessertMapScene', underground: 'UndergroundMapScene', jungle: 'JungleMapScene', water: 'WaterMapScene' };
-    const returnScene = unlockAll ? maps[saveData.currentWorld] : 'MainMenuScene';
-    if (params.get('skipIntro') === '1') this.scene.start(returnScene);
+    const returnScene = unlockAll ? (maps[saveData.currentWorld] || 'MainMenuScene') : 'MainMenuScene';
+    this.registry.set('storyPreview', null);
+    if (params.get('story') === 'all') startStoryPreview(this);
+    else if (params.get('skipIntro') === '1') this.scene.start(returnScene);
     else this.scene.start('IntroScene');
   }
 
   createJungleTextures() {
     registerWorldMapAnimationTextures(this);
     registerClimbMantleTextures(this);
+    // A saved coin challenge can open before any normal jungle level.
+    if (!this.textures.exists('jungle-branch')) {
+      const branch = this.textures.createCanvas('jungle-branch', 320, 24), ctx = branch.getContext();
+      ctx.fillStyle = '#3e2a16'; ctx.fillRect(0, 5, 320, 17);
+      ctx.fillStyle = '#936038'; ctx.fillRect(0, 6, 320, 9);
+      ctx.fillStyle = '#b78650'; ctx.fillRect(0, 6, 320, 3);
+      ctx.fillStyle = '#75a24b'; ctx.fillRect(0, 1, 320, 5);
+      for (let x = 7; x < 320; x += 22) {
+        ctx.fillStyle = '#afc75b'; ctx.fillRect(x, 0, 12, 3);
+        ctx.fillStyle = '#584126'; ctx.fillRect(x + 4, 14, 14, 3);
+      }
+      branch.refresh();
+    }
     const crop = (sourceKey, key, x, y, width, height, grounded = false, outWidth = 150, outHeight = 150) => {
       if (this.textures.exists(key)) return;
       const source = this.textures.get(sourceKey).getSourceImage();
@@ -275,7 +312,6 @@ export default class BootScene extends Phaser.Scene {
     crop("jungle-equipment-atlas", "item-jungle-shield", 20, 0, 610, 550);
     crop("jungle-equipment-atlas", "jungle-foliage", w, 0, equipment.width - w, h, false, 180, 120);
     crop("jungle-equipment-atlas", "jungle-vine", 240, 550, 220, 595, false, 160, 512);
-    crop("jungle-equipment-atlas", "item-belt", 645, 650, equipment.width - 645, 400);
     // The helmet slot uses the knight's own helmet, so it matches the portrait.
     const helmet = this.textures.createCanvas("item-helmet", 150, 150);
     helmet.getContext().drawImage(this.textures.get("knight-standing").getSourceImage(), 51, 18, 63, 45, 5, 25, 140, 100);

@@ -2,7 +2,8 @@
 // keyboard layout and let the player choose explicitly; never infer a keyboard.
 export const DEFAULT_CONTROL_PROFILE = 'ipadKeyboard';
 const common = { left: 'ArrowLeft', right: 'ArrowRight', up: 'ArrowUp', down: 'ArrowDown',
-  attack: 'Space', shoot: 'ShiftLeft', pause: 'KeyP', potion1: 'KeyT', potion2: 'KeyG', fullscreen: 'KeyF' };
+  attack: 'Space', shoot: 'ShiftLeft', pause: 'KeyP', potion1: 'KeyT', potion2: 'KeyG', fullscreen: 'KeyF',
+  yes: 'KeyJ', no: 'KeyN' };
 export const CONTROL_PROFILES = {
   ipadTouch: { name: 'iPad ohne Tastatur', keys: {} },
   ipadKeyboard: { name: 'iPad mit Tastatur', keys: { ...common, confirm: 'Enter', back: 'KeyQ', inventory: 'KeyI' } },
@@ -19,7 +20,8 @@ export function canonicalCode(event) {
       UIKeyInputReturn: 'Enter', '\r': 'Enter', '\n': 'Enter', Tab: 'Tab', ' ': 'Space', Spacebar: 'Space',
       Up: 'ArrowUp', Down: 'ArrowDown', Left: 'ArrowLeft', Right: 'ArrowRight', UIKeyInputUpArrow: 'ArrowUp',
       UIKeyInputDownArrow: 'ArrowDown', UIKeyInputLeftArrow: 'ArrowLeft', UIKeyInputRightArrow: 'ArrowRight', Shift: 'ShiftLeft', Backspace: 'Backspace' };
-    code = special[event.key] || (/^[a-z]$/i.test(event.key || '') ? 'Key' + event.key.toUpperCase() : event.key || '');
+    code = special[event.key] || (/^[a-z]$/i.test(event.key || '') ? 'Key' + event.key.toUpperCase() :
+      /^[0-9]$/.test(event.key || '') ? 'Digit' + event.key : event.key || '');
   }
   return ({ Return: 'Enter', NumpadEnter: 'Enter', Esc: 'Escape', ShiftRight: 'ShiftLeft' })[code] || code;
 }
@@ -46,14 +48,14 @@ export function actionLabel(profile, action, title) {
 export function formatControlHint(template, profile = DEFAULT_CONTROL_PROFILE) {
   const touch = profile === 'ipadTouch';
   let text = String(template);
-  if (touch) text = text.replace(/\s*·\s*\{(?:confirm|back|inventory|attack|shoot|pause|potion1|potion2)\}(?!\s*[:=+])/g, '')
-    .replace(/\{(?:confirm|back|inventory|attack|shoot|pause|potion1|potion2)\}\s*·\s*/g, '');
+  if (touch) text = text.replace(/\s*·\s*\{(?:confirm|back|yes|no|inventory|attack|shoot|pause|potion1|potion2)\}(?!\s*[:=+])/g, '')
+    .replace(/\{(?:confirm|back|yes|no|inventory|attack|shoot|pause|potion1|potion2)\}\s*·\s*/g, '');
   return text.replace(/\{(\w+)\}/g, (_match, action) => {
     if (action === 'move') return touch ? 'Richtungsknöpfe' : 'WASD / Pfeile';
     if (action === 'jump') return touch ? 'Springen' : '↑';
     if (action === 'climb') return touch ? '↑/↓' : '↑/↓';
     if (action === 'drop') return '↓↓';
-    if (touch) return ({ confirm: 'Antippen', back: 'Zurück', inventory: 'Inventar', attack: 'Angriff', shoot: 'Bogen', pause: 'Pause', potion1: 'Trank 1', potion2: 'Trank 2' })[action] || '';
+    if (touch) return ({ confirm: 'Antippen', back: 'Zurück', yes: 'Antippen', no: 'Antippen', inventory: 'Inventar', attack: 'Angriff', shoot: 'Bogen', pause: 'Pause', potion1: 'Trank 1', potion2: 'Trank 2' })[action] || '';
     return keyLabel(profile, action);
   });
 }

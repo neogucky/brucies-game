@@ -1,6 +1,7 @@
 import { showExitConfirmation } from "../../ui/ConfirmationDialog.js";
 import { getWeaponStats, isMeleeWeapon, getWeaponTextures, applyWeaponAppearance, getAttackStats, getMeleeDamage } from "../../utils/weapons.js";
 import { saveProgress } from "../../saveManager.js";
+import { queueDragonClue } from '../../utils/dragonStory.js';
 import { playMusic, bumpMusicRate } from "../../soundManager.js";
 import DialogManager from "../../dialogManager.js";
 import TopHud from "../../ui/topHud.js";
@@ -136,11 +137,8 @@ export default class DesertTunnelScene extends Phaser.Scene {
     this.player.setDepth(5);
     this.physics.add.existing(this.player);
     this.player.body.setCollideWorldBounds(true);
-    this.player.body.setSize(this.player.width * 0.24, this.player.height * 0.7, true);
-    this.player.body.setOffset(
-      (this.player.width - this.player.body.width) * 0.5,
-      (this.player.height - this.player.body.height) * 0.6
-    );
+    this.player.body.setSize(this.player.width * .24, this.player.height * .7, false);
+    this.player.body.setOffset(this.player.width * .38, this.player.height * .29);
     this.player.setData("standingTexture", standingTexture);
     this.player.setData("hitTexture", hittingTexture);
 
@@ -297,7 +295,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
     this.hud.setItemDisabled("active", !isMeleeWeapon(this.equipped?.weapon));
 
     this.add
-      .text(14, 575, "Pfeiltasten zum bewegen, Früchte heilen, Schwert = Sammeln", {
+      .text(14, 575, "{move}: Bewegen · {attack}: Felsen zerschlagen · Beeren heilen", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "14px",
         color: "#ffffff",
@@ -306,7 +304,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
       .setStroke("#3b2a17", 2);
 
     this.add
-      .text(940, 585, "Steinbruch", {
+      .text(940, 585, "Fremdweg", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "16px",
         color: "#ffffff",
@@ -322,6 +320,9 @@ export default class DesertTunnelScene extends Phaser.Scene {
       })
       .setOrigin(0, 0.5)
       .setStroke("#3b2a17", 2);
+    this.objectiveText = this.add.text(18, 82, '', { fontFamily: 'Trebuchet MS, sans-serif', fontSize: '17px',
+      color: '#fff0c8', stroke: '#4a3420', strokeThickness: 3 }).setDepth(12);
+    this.updateTunnelObjective();
 
     this.statusText = this.add
       .text(480, 300, "", {
@@ -371,15 +372,15 @@ export default class DesertTunnelScene extends Phaser.Scene {
     this.dialog.show(
       [
         {
-          text: "Hoho! Ich, der Wüsten-Maulwurf Boss, habe den\nWeg zur Unterwelt kaputt gemacht!",
+          text: "Hoho! Ich habe den Tunnel verschüttet!\nAn mir kommst du nicht vorbei!",
         },
         {
-          text: "Sammle 200 Steine und besiege mich,\nwenn du ihn reparieren willst!",
+          text: "Zerschlage Felsen und sammle ihre Steine.\nMit 200 Steinen und einem Sieg über mich\nist der Tunnel wieder frei!",
         },
       ],
       "bottom",
       {
-        portraitKey: "desert-mole-running",
+        portraitKey: "desert-mole-charging",
         onClose: () => {
           this.time.paused = false;
           this.physics.world.resume();
@@ -532,6 +533,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
     this.bossEvent = this.time.delayedCall(90000, () => {
       if (this.bossSpawned) return;
       this.bossSpawned = true;
+      this.updateTunnelObjective();
       this.typeIntroducedCount += 1;
       this.applySpawnPenalty();
       this.spawners.boss.triggerSpawning();
@@ -633,8 +635,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
     this.fruitSlots = [];
 
     bushes.forEach((bush) => {
-      this.add.circle(bush.x, bush.y + 4, 18, 0x3d4f26).setAlpha(0.9);
-      this.add.circle(bush.x, bush.y - 6, 16, 0x4f6a2f).setAlpha(0.95);
+      this.add.image(bush.x, bush.y - 3, 'desert-shrub').setDisplaySize(86, 64);
       if (bush.hasFruit) {
         this.fruitSpots.push({ x: bush.x + 10, y: bush.y - 12 });
       }
@@ -1064,7 +1065,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
 
     const spotIndex = Phaser.Math.RND.pick(available);
     const spot = this.fruitSpots[spotIndex];
-    const fruit = this.add.circle(spot.x, spot.y, 5, 0xc23a2c);
+    const fruit = this.add.circle(spot.x, spot.y, 6, 0xc23a2c).setStrokeStyle(1, 0xffc07d).setDepth(2);
     fruit.setData("slot", spotIndex);
     this.physics.add.existing(fruit, true);
     this.fruits.add(fruit);
@@ -1121,7 +1122,14 @@ export default class DesertTunnelScene extends Phaser.Scene {
     if (this.hud) {
       this.hud.setStones(this.stonesCollected);
     }
+    this.updateTunnelObjective();
     this.checkWinCondition();
+  }
+
+  updateTunnelObjective() {
+    this.objectiveText?.setText(this.bossDefeated
+      ? this.stonesCollected >= 200 ? 'Der Tunnel ist frei!' : `Boss besiegt · Noch ${200 - this.stonesCollected} Steine sammeln`
+      : `Tunnel freilegen · Steine ${Math.min(200, this.stonesCollected)}/200 · ${this.bossSpawned ? 'Besiege den Boss!' : 'Halte durch, der Boss kommt noch!'}`);
   }
 
   saveInventory() {
@@ -1349,10 +1357,14 @@ export default class DesertTunnelScene extends Phaser.Scene {
 
   damagePlayer(amount) {
     if (this.isGameOver || this.isPaused || this.isComplete) return;
+    const now = this.time.now;
+    if (now < (this.player.getData('invulnerableUntil') || 0)) return;
+    this.player.setData('invulnerableUntil', now + 1000);
     if (this.shield?.tryBlockHit()) {
       return;
     }
     this.health = Math.max(0, this.health - amount);
+    this.events?.emit?.('player-hurt', { amount, health: this.health });
     this.updateHearts();
     this.flashDamage();
     this.saveInventory();
@@ -1428,6 +1440,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
 
   playBossDefeat(monster) {
     this.bossDefeated = true;
+    this.updateTunnelObjective();
     monster.setData("dead", true);
     const explosions = 15;
     for (let i = 0; i < explosions; i += 1) {
@@ -1603,13 +1616,13 @@ export default class DesertTunnelScene extends Phaser.Scene {
     }
 
     const saveData = this.registry.get("saveData");
-    const nextSave = {
+    const nextSave = queueDragonClue({
       ...saveData,
       currentLevel: "Fremdweg",
       completedLevels: Array.from(
         new Set([...(saveData.completedLevels || []), "Fremdweg"])
       ),
-    };
+    }, 'desert');
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);
 

@@ -9,8 +9,10 @@ export function normalizeInventory(saveData = {}) {
     passives: { ...(existingInventory.passives || {}) },
     consumables: { ...(existingInventory.consumables || {}) },
     companions: { default: true, ...(existingInventory.companions || {}) },
-    armor: { helmet: true, leatherBelt: true, ...(existingInventory.armor || {}) },
+    armor: { helmet: true, ...(existingInventory.armor || {}) },
   };
+  // Remove the former belt item from old saves. Potion pockets are always available.
+  delete inventory.armor.leatherBelt;
 
   if (legacyEquipment.shield) {
     inventory.passives.shield = true;
@@ -51,13 +53,13 @@ export function normalizeInventory(saveData = {}) {
     equipped.consumable = "honey";
   }
 
-  const gear = ["secondary", "shield", "shoes", "helmet", "belt", "consumable2"];
+  const gear = ["secondary", "shield", "shoes", "helmet", "consumable2"];
   const legacyEmpty = hasEquippedPassive && existingEquipped.passive === null;
   const defaults = {
     secondary: !legacyEmpty && inventory.passives.bow ? "bow" : null,
     shield: !legacyEmpty ? inventory.passives.jungleShield ? "jungleShield" : inventory.passives.shield ? "shield" : null : null,
     shoes: !legacyEmpty && inventory.passives.shoes ? "shoes" : null,
-    helmet: "helmet", belt: "leatherBelt", consumable2: null,
+    helmet: "helmet", consumable2: null,
   };
   gear.forEach(slot => { equipped[slot] = Object.prototype.hasOwnProperty.call(existingEquipped, slot) ? existingEquipped[slot] : defaults[slot]; });
   for (const slot of ["secondary", "shield", "shoes"]) {

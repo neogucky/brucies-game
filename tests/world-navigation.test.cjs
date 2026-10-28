@@ -7,11 +7,12 @@ const root = path.join(__dirname, '../src');
 const strip = text => text.replace(/^import .*;\n/gm, '').replace(/export /g, '');
 const saveCode = strip(fs.readFileSync(path.join(root, 'saveManager.js'), 'utf8'));
 const normalize = vm.runInNewContext(saveCode + '\nnormalizeWorldProgress;');
+const debugLevelUnlocks = vm.runInNewContext(saveCode + '\ndebugLevelUnlocks;');
 const plain = value => JSON.parse(JSON.stringify(value));
 function fixture(name, file, save = {}) {
   let stored = save;
   const starts = [], tweens = [], hints = [];
-  const context = { Phaser: { Scene: class {} }, normalizeWorldProgress: normalize,
+  const context = { Phaser: { Scene: class {} }, normalizeWorldProgress: normalize, debugLevelUnlocks,
     saveProgress: data => { stored = data; } };
   vm.createContext(context);
   vm.runInContext(strip(fs.readFileSync(path.join(root, "utils/worldMapRoutes.js"), "utf8")), context);

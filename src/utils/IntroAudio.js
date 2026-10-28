@@ -1,4 +1,4 @@
-const CLIPS = ['music', 'snore', 'whoosh', 'hop', 'boing', 'yawn', 'chime'];
+const CLIPS = ['music', 'snore', 'whoosh', 'hop', 'boing', 'yawn', 'chime', 'paper', 'splash'];
 
 // Autoplay never holds up the film. If the browser suspends audio, a later
 // natural gesture unlocks it at the current story time, without queued cues.

@@ -15,6 +15,7 @@ class Rectangle {
   setSize(width, height) { this.width = width; this.height = height; return this; }
 }
 const context = {
+  queueDragonClue: vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/utils/dragonStory.js'), 'utf8').replace(/export /g, '') + '\nqueueDragonClue;'),
   saveProgress: data => { context.lastSaved = data; },
   Phaser: {
     Scene: class {},
@@ -334,6 +335,75 @@ test('boss keeps rolling distance and two rolling damage, but falling damage is 
   falling.scene.updateStoneMonsterDrop(falling.monster, 0.05);
   assert.equal(falling.scene.health, 2);
 });
+
+test('a boss fall cannot be followed by same-frame bat or mole damage', () => {
+  const {scene,monster}=setup({isStoneBoss:true,stoneState:'dropping'});
+  scene.player.body.x=390;scene.player.body.height=200;
+  scene.updateStoneMonsterDrop(monster,.05);assert.equal(scene.health,2);
+  scene.applyFlyingEnemyHit(2);
+  const mole=actor(scene.player.x,scene.player.y);
+  scene.applyMoleAttack(mole);
+  assert.equal(scene.health,2,'the fall must protect against other enemy types too');
+  assert.equal(scene.isGameOver,false);assert.equal(scene.saves,1);
+});
+
+test('an interrupted boss fall still counts as the same attack after its stun window', () => {
+  const config=vm.runInContext('UNDERGROUND_BOSSES.Schluesselweg',context);
+  const {scene,monster}=setup({isStoneBoss:true,stoneState:'dropping',bossConfig:config});
+  scene.player.body.x=390;scene.player.body.height=200;
+  scene.updateStoneMonsterDrop(monster,.05);assert.equal(scene.health,2);
+  const mole=actor(monster.x,monster.y+80);
+  scene.molesGroup={getChildren:()=>[mole]};scene.damageMole=()=>{mole.active=false;};
+  scene.updateStoneMonsterDrop(monster,.05);assert.equal(monster.getData('stoneState'),'stunned');
+  scene.time.now=monster.getData('stateUntil')+1;scene.updateStoneMonsters();
+  assert.equal(monster.getData('stoneState'),'dropping');
+  scene.updateStoneMonsterDrop(monster,.05);
+  assert.equal(scene.health,2,'resuming this fall must not deal three more hearts');
+  assert.equal(scene.isGameOver,false);assert.equal(scene.saves,1);
+});
+
+for (const first of ['berry', 'mole']) {
+  test(first + ' damage protects against a following boss drop too', () => {
+    const { scene, monster } = setup({ isStoneBoss: true, stoneState: 'dropping' });
+    if (first === 'berry') scene.applyFlyingEnemyHit(2);
+    else scene.applyMoleAttack(actor(scene.player.x, scene.player.y));
+    const remaining = scene.health;
+    scene.applyStoneMonsterPlayerHit(monster, 3, false);
+    assert.equal(scene.health, remaining); assert.equal(scene.saves, 1);
+    scene.time.now = 2000;
+    scene.applyStoneMonsterPlayerHit(monster, 3, false);
+    assert.equal(scene.health, remaining, 'the blocked drop cannot turn into a late overlap hit');
+  });
+}
+
+test('body contact and falling collision share a single impact; a new drop can attack again', () => {
+  const { scene, monster } = setup({ isStoneBoss: true, stoneState: 'dropping' });
+  scene.player.body.x = 390; scene.player.body.height = 200;
+  scene.applyStoneMonsterPlayerHit(monster, 3, false);
+  scene.time.now = 2000;
+  scene.updateStoneMonsterDrop(monster, .05);
+  assert.equal(scene.health, 2); assert.equal(scene.saves, 1);
+  scene.beginStoneMonsterDrop(monster);
+  scene.applyStoneMonsterPlayerHit(monster, 3, false);
+  assert.equal(scene.health, 0); assert.equal(scene.isGameOver, true);
+});
+
+for (const source of ['stone', 'berry', 'mole']) {
+  test(source + ': actual damage emits once; protection and shield hits stay silent', () => {
+    for (const shielded of [false, true]) {
+      const { scene, monster } = setup();
+      const hits = []; scene.events = new EventEmitter();
+      scene.events.on('player-hurt', hit => hits.push(hit));
+      if (shielded) withShield(scene);
+      const mole = actor(scene.player.x, scene.player.y);
+      const hit = () => source === 'stone' ? scene.applyStoneMonsterPlayerHit(monster)
+        : source === 'berry' ? scene.applyFlyingEnemyHit(2) : scene.applyMoleAttack(mole);
+      hit(); hit();
+      assert.equal(hits.length, shielded ? 0 : 1);
+      if (!shielded) assert.equal(hits[0].health, scene.health);
+    }
+  });
+}
 
 test('one heart remaining can still be lost; game-over prevents further damage', () => {
   const { scene, monster } = setup();
@@ -1164,9 +1234,10 @@ for (const level of ['Schluesselweg', 'Kristalltiefen']) {
     assert.equal(getSaved().coins, 30 + config.reward);
     assert.equal(getSaved().inventory.consumables.honey, 2);
     if (config.unlock) assert.equal(getSaved().unlockedLevels.includes(config.unlock), true);
-    assert.equal(getSaved().currentLevel, config.unlockWorld ? level : config.unlock || level);
-    assert.equal(getSaved().mapState.undergroundNode, config.unlockWorld ? level : config.unlock || level);
+    assert.equal(getSaved().currentLevel, level);
+    assert.equal(getSaved().mapState.undergroundNode, level);
     if (config.unlockWorld) {
+      assert.equal(getSaved().pendingDragonClues.includes('underground'), true);
       assert.equal(getSaved().unlockedWorlds.includes('jungle'), true);
       assert.equal(getSaved().unlockedLevels.includes('Urwaldkronen'), true);
       assert.equal(getSaved().unlockedLevels.includes('UrwaldShop'), false);

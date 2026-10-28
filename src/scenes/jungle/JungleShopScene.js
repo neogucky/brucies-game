@@ -7,7 +7,7 @@ export default class JungleShopScene extends ShopSceneBase {
     return { levelId: "UrwaldShop", returnSceneKey: "JungleMapScene", backgroundKey: "jungle-shop",
       locationText: "Urwald-Shop", items: [
         { id: "bow", label: "Pfeil & Bogen", icon: "item-bow", price: 300,
-          successText: "Der Bogen gehört dir! Im Inventar als Sekundärwaffe ausrüsten.\nSchießen · {shoot} · Reichweite etwa 10 Kacheln." },
+          successText: "Lege den Bogen im Inventar auf den Zweitwaffenplatz.\nSchießen · {shoot}. Halte ↑, um nach oben zu zielen!" },
         { id: "honey", label: "Honigsaft", icon: "item-honey", price: 10,
           successText: "Ein Honigsaft für deine Reise. Trinken · {potion1}." },
         { id: "jungleShield", label: "Urwaldschild", icon: "item-jungle-shield", price: 200,
