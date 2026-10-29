@@ -9,9 +9,13 @@ export const STORY_PREVIEW = [
 ];
 
 export function unlockedStoryFilms(save = {}, unlockAll = false) {
-  return STORY_PREVIEW.filter(film => film.id === 'intro' || unlockAll ||
-    save.storyCluesSeen?.includes(film.world) || save.pendingDragonClues?.includes(film.world) ||
-    save.completedLevels?.includes(DRAGON_CLUES[film.world].level));
+  return STORY_PREVIEW.filter(film => {
+    if(film.id==='intro')return true;
+    const override=save.debugProgress?.films?.[film.id];
+    if(typeof override==='boolean')return override;
+    return unlockAll || save.storyCluesSeen?.includes(film.world) || save.pendingDragonClues?.includes(film.world) ||
+      save.completedLevels?.includes(DRAGON_CLUES[film.world].level);
+  });
 }
 
 function showEntry(scene, state) {

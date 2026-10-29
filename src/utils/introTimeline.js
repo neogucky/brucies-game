@@ -8,9 +8,11 @@ export const INTRO_FLOOR_LIGHT = [
 ];
 // Foreground pieces are copied from the same exterior painting, above the
 // flying layer: nearby window masonry, then the two closest castle towers.
+// The left edge is traced against the source painting, keeping the adjacent
+// blue sky out of the foreground rather than hiding the dragon behind sky.
 export const INTRO_EXTERIOR_FOREGROUND = [
-  [{x:0,y:0},{x:170,y:0},{x:149,y:36},{x:128,y:91},{x:109,y:150},{x:90,y:232},
-    {x:82,y:320},{x:86,y:400},{x:96,y:477},{x:178,y:490},{x:272,y:514},
+  [{x:0,y:0},{x:161.61,y:0.0},{x:153.14,y:8.47},{x:141.64,y:16.94},{x:142.24,y:25.4},{x:138.61,y:33.87},{x:134.98,y:42.34},{x:131.35,y:50.81},{x:127.11,y:59.27},{x:123.48,y:67.74},{x:119.24,y:76.21},{x:115.61,y:84.68},{x:111.37,y:93.15},{x:101.08,y:101.61},{x:102.3,y:110.08},{x:98.66,y:118.55},{x:95.64,y:127.02},{x:93.22,y:135.48},{x:90.19,y:143.95},{x:87.16,y:152.42},{x:75.06,y:160.89},{x:86.56,y:169.35},{x:76.87,y:177.82},{x:76.27,y:186.29},{x:76.27,y:194.76},{x:76.27,y:203.23},{x:76.27,y:211.69},{x:75.66,y:220.16},{x:75.66,y:228.63},{x:75.06,y:237.1},{x:72.03,y:245.56},{x:73.85,y:254.03},{x:228.8,y:262.5},{x:85.35,y:270.97},{x:81.72,y:272.18},
+    {x:77,y:272},{x:82,y:320},{x:86,y:400},{x:96,y:477},{x:178,y:490},{x:272,y:514},
     {x:384,y:539},{x:506,y:568},{x:670,y:600},{x:0,y:600}],
   [{x:77,y:272},{x:97,y:233},{x:134,y:190},{x:151,y:173},{x:152,y:137},
     {x:155,y:137},{x:155,y:145},{x:191,y:151},{x:188,y:165},{x:156,y:159},

@@ -1,6 +1,6 @@
 import { getIntroFrame, INTRO_FLOOR_LIGHT, INTRO_EXTERIOR_FOREGROUND } from './introTimeline.js';
 import { dragonClueFrame, DRAGON_TRACKS } from './dragonStory.js';
-import { jungleTreasureFrame, bookCoverCrop, bookIntroCredit } from './bookTimeline.js';
+import { jungleTreasureFrame, bookCoverCrop, bookIntroCredit, bookDawnFrame } from './bookTimeline.js';
 
 export const createBookCanvas = (width, height) => Object.assign(document.createElement('canvas'), { width, height });
 function polygon(c, points) {
@@ -138,9 +138,45 @@ export default class BookShots {
     }
     this.actors(f);
   }
+  opening(target,page) {
+    const c=target.getContext('2d'),w=target.width,h=target.height,f=bookDawnFrame(page.time);
+    const color=rgb=>'rgb('+rgb.join(',')+')';
+    const sky=c.createLinearGradient(0,0,0,h*.76);
+    sky.addColorStop(0,color(f.skyTop));sky.addColorStop(.56,color(f.skyMiddle));sky.addColorStop(1,color(f.skyHorizon));
+    c.fillStyle=sky;c.fillRect(0,0,w,h);
+    // Dawn first brightens the horizon; the small solar disc only emerges
+    // afterwards, occluded naturally by the foreground mountain silhouette.
+    const haze=c.createRadialGradient(w*.14,h*.65,0,w*.14,h*.65,w*.39);
+    haze.addColorStop(0,'#ffca8799');haze.addColorStop(.45,'#ffc58b44');haze.addColorStop(1,'#ffd29a00');
+    c.save();c.globalAlpha=f.horizonGlow;c.fillStyle=haze;c.fillRect(0,0,w,h);c.restore();
+    c.save();c.globalAlpha=f.starsAlpha;c.fillStyle='#f9f4d6';
+    for(const [x,y,r] of [[.06,.08,1],[.22,.05,1.3],[.2,.21,1.8],[.055,.29,1.2],[.255,.31,1.5],[.1,.39,1],[.27,.13,1.2]]){
+      c.beginPath();c.arc(x*w,y*h,r*w/600,0,Math.PI*2);c.fill();
+    }
+    c.restore();
+    c.save();c.globalAlpha=f.moon.alpha;c.translate(f.moon.x*w,f.moon.y*h);
+    const r=w*.034;c.fillStyle='#fff3c1';c.beginPath();c.moveTo(0,-r);
+    c.bezierCurveTo(-r*1.3,-r*.9,-r*1.3,r*.9,0,r);
+    c.bezierCurveTo(-r*.53,r*.45,-r*.53,-r*.45,0,-r);c.fill();c.restore();
+    c.save();c.globalAlpha=f.sun.alpha;
+    const sx=f.sun.x*w,sy=f.sun.y*h,sr=w*.027;
+    const glow=c.createRadialGradient(sx,sy,sr*.8,sx,sy,sr*2.2);
+    glow.addColorStop(0,'#fff1ba99');glow.addColorStop(1,'#ffd28b00');
+    c.fillStyle=glow;c.fillRect(sx-sr*2.2,sy-sr*2.2,sr*4.4,sr*4.4);
+    c.fillStyle='#fff4bb';c.beginPath();c.arc(sx,sy,sr,0,Math.PI*2);c.fill();c.restore();
+    // One registered foreground keeps the window, bed and sleeping figures
+    // still while the ambient light changes around them.
+    const layer=this.openingLayer ||= createBookCanvas(w,h),lc=layer.getContext('2d');
+    const image=this.image(page.shot.texture),crop=bookCoverCrop([0,0,image.width,image.height],w,h);
+    lc.clearRect(0,0,w,h);lc.drawImage(image,...crop,0,0,w,h);
+    lc.save();lc.globalCompositeOperation='source-atop';lc.globalAlpha=f.nightShade;
+    lc.fillStyle='#112344';lc.fillRect(0,0,w,h);lc.globalAlpha=f.warmGlow;
+    lc.fillStyle='#ffd58f';lc.fillRect(0,0,w,h);lc.restore();c.drawImage(layer,0,0);
+  }
   render(target, film, page) {
     const c=target.getContext('2d'),w=target.width,h=target.height,{shot,time}=page;
     c.clearRect(0,0,w,h);
+    if(shot.opening){this.opening(target,page);return;}
     if(shot.texture){
       const image=this.image(shot.texture),crop=bookCoverCrop([0,0,image.width,image.height],w,h);
       c.drawImage(image,...crop,0,0,w,h);return;

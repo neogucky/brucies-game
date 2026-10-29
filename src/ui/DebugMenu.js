@@ -1,4 +1,5 @@
 import { WORLD_LEVELS, SECRET_LEVELS, editDebugProgress, normalizeWorldProgress, saveProgress } from '../saveManager.js';
+import { STORY_PREVIEW, unlockedStoryFilms } from '../utils/storyPreview.js';
 import { resetSceneKeys } from '../utils/PortableControls.js';
 
 const WORLD_NAMES = { desert: 'Wüste', underground: 'Unterwelt', jungle: 'Urwald', water: 'Wasserwelt' };
@@ -25,6 +26,8 @@ const CSS = `
 #debug-progress-menu input { width: 18px; height: 18px; accent-color: #e7c180; flex-shrink: 0; }
 #debug-progress-menu fieldset { padding: 8px 0 0; margin: 8px 0 0; border: 0; border-top: 1px solid #ffffff20; }
 #debug-progress-menu fieldset:disabled { opacity: .4; }
+#debug-progress-menu .debug-films { grid-column: 1 / -1; }
+#debug-progress-menu .debug-film-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 20px; }
 #debug-progress-menu .debug-state { margin-left: auto; font-size: 12px; color: #9fc4ab; }
 #debug-progress-menu .debug-secret { border-top: 1px solid #ffffff20; padding-top: 9px; margin-top: 8px; }
 #debug-progress-menu .debug-secret small { display: block; margin: 0 0 8px 27px; color: #bbccce; }
@@ -65,7 +68,7 @@ export default class DebugMenu {
     if (!this.wasPaused) scene.scene.pause();
     // Pausing a running bonus level saves its current checkpoint first.
     this.baseSave = normalizeWorldProgress(this.game.registry.get('saveData'));
-    this.changes = { worlds: {}, levels: {}, switches: {} }; this.isOpen = true;
+    this.changes = { worlds: {}, levels: {}, switches: {}, films: {} }; this.isOpen = true;
     this.onShutdown = () => this.close(false);
     scene.events.once('shutdown', this.onShutdown);
     this.styles = element('style'); this.styles.textContent = CSS; document.head.append(this.styles);
@@ -141,6 +144,19 @@ export default class DebugMenu {
       }
       this.worlds.append(card);
     }
+    const cinema=element('section',null,'debug-films'),list=element('div',null,'debug-film-list');
+    const available=new Set(unlockedStoryFilms(save,this.game.registry.get('unlockAllForTesting')).map(film=>film.id));
+    cinema.append(element('h2','Kinofilme'),element('p','Filme freischalten, ohne dafür ein Level abzuschließen.'));
+    for(const film of STORY_PREVIEW){
+      const row=this.checkbox('debug-film-'+film.id,film.title,available.has(film.id),value=>this.change('films',film.id,value));
+      if(film.id==='intro')row.firstChild.disabled=true;
+      list.append(row);
+    }
+    cinema.append(list,this.button('Alle Filme freischalten',()=>{
+      for(const film of STORY_PREVIEW)if(film.id!=='intro')this.changes.films[film.id]=true;
+      this.change('films','desert',true);
+    },'debug-small'));
+    this.worlds.append(cinema);
     if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
   }
 

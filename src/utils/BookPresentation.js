@@ -44,7 +44,7 @@ function inkBoundaryPoint(point,u,v) {
   return point(u,v);
 }
 const leftQuad=BOOK_PAGE_SHAPES.left,rightQuad=BOOK_PAGE_SHAPES.right;
-function paperRenderer(ctx) {
+export function bookPaperRenderer(ctx) {
 const sheetFront = createBookCanvas(700,840), sheetBack = createBookCanvas(700,840);
 function drawTriangle(image, source, destination, targetContext = ctx) {
   const [s0,s1,s2] = source, [d0,d1,d2] = destination;
@@ -161,7 +161,7 @@ export default class BookPresentation {
   constructor(canvas,getImage,film,options={}) {
     this.canvas=canvas;this.ctx=canvas.getContext('2d');this.image=getImage;this.film=film;
     this.reducedMotion=options.reducedMotion;this.shots=new BookShots(getImage,options);
-    this.paper=paperRenderer(this.ctx);
+    this.paper=bookPaperRenderer(this.ctx);
     this.pages=Array.from({length:3},()=>({color:createBookCanvas(600,720),gray:createBookCanvas(600,720),
       printed:createBookCanvas(1586,992),printedGray:createBookCanvas(1586,992),key:null,grayKey:null}));
     this.menu=createBookCanvas(1586,992);

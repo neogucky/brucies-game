@@ -130,6 +130,13 @@ async function runTests() {
       await wait(() => active()?.book?.film === film, 'Buchfilm'); await steps();
       const scene = active(), starts = bookShotStarts(film);
       scene.suspendIntro();
+      if(film==='intro'){
+        scene.elapsed=700;scene.drawFrame();
+        const night=[...scene.book.painter.pages[0].color.getContext('2d').getImageData(25,70,1,1).data];
+        scene.elapsed=4100;scene.drawFrame();
+        const day=scene.book.painter.pages[0].color.getContext('2d').getImageData(25,70,1,1).data;
+        assert(day[2]>night[2]+45&&day[0]>night[0]+10,'Der Himmel wird sichtbar von Nacht zu Tag heller.');
+      }
       scene.elapsed = starts[1] + 900; scene.drawFrame();
       const frame = scene.book.frameAt(scene.elapsed), previous = scene.book.painter.pages[0];
       for (const page of [previous, scene.book.painter.pages[1]]) {
@@ -241,6 +248,38 @@ async function runTests() {
       const mapMusic=game.sound.sounds.find(s=>s.key==='music-desert'&&!s.pendingRemove);
       assert(mapMusic,'Die Wüstenkarte spielt Wüstenmusik.');
       if(desertMusic)assert(mapMusic===desertMusic,'Die Wüstenmusik läuft auf der Karte ohne Neustart weiter.');
+      assert(!win.qaErrors.length,win.qaErrors.join('\n'));
+    });
+    await test('Kino: Editor-Freischaltungen speichern unabhängig vom Spielfortschritt und verteilen zwei Filme je Buchseite',async()=>{
+      game.registry.set('saveData',{...structuredClone(defaultSave),lastPlayed:'2026-10-29T12:00:00Z'});
+      game.registry.set('unlockAllForTesting',false);await returnToMenu();
+      const toggle=(id,value)=>{const input=win.document.getElementById('debug-film-'+id);assert(input,'Filmfeld existiert: '+id);
+        input.checked=value;input.dispatchEvent(new win.Event('change',{bubbles:true}));};
+      tap('Digit3');assert(game.debugMenu.isOpen,'Der geheime Editor öffnet.');toggle('jungle',true);
+      assert(!game.registry.get('saveData').debugProgress?.films?.jungle,'Entwürfe verändern den Spielstand noch nicht.');
+      game.debugMenu.close();assert(!game.registry.get('saveData').debugProgress?.films?.jungle,'Abbrechen verwirft den Entwurf.');
+      tap('Digit3');toggle('jungle',true);game.debugMenu.applyButton.click();
+      await wait(()=>sceneIs('MainMenuScene')&&!game.debugMenu.isOpen,'Filmänderung übernehmen');await steps();
+      active().menuItems[3].text.emit('pointerdown');await wait(()=>sceneIs('CinemaScene'),'Kino');await steps();
+      assert(active().films.map(f=>f.id).join(',')==='intro,jungle','Der einzelne gewählte Film ist freigeschaltet.');
+      const save=game.registry.get('saveData');assert(!save.completedLevels.length&&!save.storyCluesSeen.length,'Kein Levelabschluss oder Hinweis wurde erfunden.');
+      tap('Digit3');const all=[...game.debugMenu.dialog.querySelectorAll('button')].find(b=>b.textContent==='Alle Filme freischalten');
+      assert(all,'Alle Filme lassen sich freischalten.');all.click();game.debugMenu.applyButton.click();
+      await wait(()=>sceneIs('MainMenuScene')&&!game.debugMenu.isOpen,'Alle Filme speichern');await steps();
+      active().menuItems[3].text.emit('pointerdown');await wait(()=>sceneIs('CinemaScene'),'Neues Kino');await steps();
+      const cinema=active();assert(cinema.cards.length===4,'Alle vier Filme sind sichtbar.');
+      assert(cinema.cards.map(c=>c.side+':'+c.row).join(',')==='0:0,0:1,1:0,1:1','Zwei Filme passen auf jede Seite.');
+      cinema.cards[2].zone.emit('pointerdown');await wait(()=>active()?.clueWorld==='underground','Film per Kartenklick');await steps();
+      active().elapsed=active().duration-30;await wait(()=>sceneIs('CinemaScene'),'Automatische Rückkehr zum Kino');await steps();
+      assert(active().selectedIndex===2,'Die Auswahl kehrt zum passenden Film zurück.');
+      tap('Digit3');for(const id of ['desert','underground','jungle'])toggle(id,false);
+      game.debugMenu.applyButton.click();await wait(()=>sceneIs('MainMenuScene')&&!game.debugMenu.isOpen,'Filme wieder sperren');await steps();
+      active().menuItems[3].text.emit('pointerdown');await wait(()=>sceneIs('CinemaScene'),'Kino mit nur Intro');await steps();
+      assert(active().cards.length===1&&!active().allText,'Ein einzelner Film hat keinen alten Alle-ansehen-Knopf.');
+      tap('Digit3');[...game.debugMenu.dialog.querySelectorAll('button')].find(b=>b.textContent==='Alle Filme freischalten').click();
+      game.debugMenu.applyButton.click();await wait(()=>sceneIs('MainMenuScene')&&!game.debugMenu.isOpen,'Kino wieder öffnen');await steps();
+      active().menuItems[3].text.emit('pointerdown');await wait(()=>sceneIs('CinemaScene'),'Vier Filmkarten');await steps();
+
       assert(!win.qaErrors.length,win.qaErrors.join('\n'));
     });
     results.textContent += '\nBESTANDEN: ' + passed + ' Integrationsprüfungen';

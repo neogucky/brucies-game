@@ -2,7 +2,7 @@ const {test}=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const read=file=>fs.readFileSync(path.join(__dirname,'..',file),'utf8');
 const strip=source=>source.replace(/^import .*;\n/gm,'').replace(/export default class /g,'class ').replace(/export /g,'');
-const book=vm.runInNewContext(strip(read('src/utils/bookTimeline.js'))+'\n({BOOK_FILMS,bookFilmFrame,bookDuration,bookShotStarts,jungleTreasureFrame,bookCoverCrop,bookIntroCredit,bookIntroMusicMix});');
+const book=vm.runInNewContext(strip(read('src/utils/bookTimeline.js'))+'\n({BOOK_FILMS,bookFilmFrame,bookDuration,bookShotStarts,jungleTreasureFrame,bookCoverCrop,bookIntroCredit,bookIntroMusicMix,bookDawnFrame});');
 const gray=vm.runInNewContext(strip(read('src/utils/BookPresentation.js'))+'\ndesaturateBookPixels;');
 const paper=vm.runInNewContext(strip(read('src/utils/BookPresentation.js'))+'\n({BOOK_PAGE_SHAPES,bookPagePoint,bookInkInset});');
 const plain=value=>JSON.parse(JSON.stringify(value));
@@ -149,4 +149,33 @@ test('a page remains fully visible when it settles after every turn',()=>{
    }
   }
  }
+});
+
+test('the window scene advances from a starry night to full daylight before freezing',()=>{
+ const shot=book.BOOK_FILMS.intro[0],night=book.bookDawnFrame(shot.from),day=book.bookDawnFrame(shot.to);
+ assert.equal(shot.opening,true);assert.equal(night.starsAlpha,1);assert.equal(night.sun.alpha,0);
+ assert.equal(night.moon.alpha,1);assert.equal(day.starsAlpha,0);assert.equal(day.moon.alpha,0);
+ assert.equal(day.sun.alpha,1);assert.equal(day.day,1);assert.ok(day.sun.y<night.sun.y);
+ assert.ok(day.skyTop[2]>night.skyTop[2]);assert.ok(day.skyHorizon[0]>night.skyHorizon[0]);
+ let previous=night;
+ for(let time=shot.from;time<=shot.to;time+=25){
+  const frame=book.bookDawnFrame(time);
+  assert.ok(frame.starsAlpha<=previous.starsAlpha);assert.ok(frame.sun.y<=previous.sun.y);
+  assert.ok(frame.day>=previous.day);previous=frame;
+ }
+ assert.deepEqual(plain(book.bookDawnFrame(shot.to)),plain(book.bookDawnFrame(0)));
+});
+
+test('dawn fades the moon in place and lets the sun emerge close to the mountain ridge',()=>{
+ const shot=book.BOOK_FILMS.intro[0],first=book.bookDawnFrame(shot.from),last=book.bookDawnFrame(shot.to);
+ for(let time=shot.from;time<=shot.to;time+=16){
+  const frame=book.bookDawnFrame(time);
+  assert.equal(frame.moon.x,first.moon.x);assert.equal(frame.moon.y,first.moon.y);
+  assert.ok(frame.sun.y>=last.sun.y&&frame.sun.y<=first.sun.y);
+  assert.ok(frame.sun.x>=first.sun.x&&frame.sun.x<=last.sun.x);
+  assert.ok(frame.moon.alpha<.2||frame.sun.alpha<.2,'The two bright discs do not compete during dawn.');
+ }
+ assert.ok(first.sun.y-last.sun.y<.06,'The sun rises a short distance at the horizon.');
+ assert.ok(last.sun.y>.62&&last.sun.y<.65,'The final sun stays on the painted ridge, not high in the sky.');
+ assert.equal(last.moon.alpha,0);assert.equal(last.sun.alpha,1);
 });

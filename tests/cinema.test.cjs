@@ -27,16 +27,16 @@ test('unavailable films cannot be started and play all uses only the currently e
 });
 
 test('keyboard selection reaches the lower cards and play-all button and can return to the last card', () => {
-  const s = scene(); s.moveSelection(0, 1); assert.equal(s.selectedIndex, 2);
+  const s = scene(); s.moveSelection(0, 1); assert.equal(s.selectedIndex, 1);
   s.moveSelection(1, 0); assert.equal(s.selectedIndex, 3);
   s.moveSelection(0, 1); assert.equal(s.selectedIndex, 4);
   s.moveSelection(0, -1); assert.equal(s.selectedIndex, 3);
-  s.moveSelection(0, -1); assert.equal(s.selectedIndex, 1);
+  s.moveSelection(0, -1); assert.equal(s.selectedIndex, 2);
 });
 
 test('a single film remains selected, and partial grids never select an absent card', () => {
   const single = scene(1); for (const [x, y] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { single.moveSelection(x, y); assert.equal(single.selectedIndex, 0); }
-  const three = scene(3); three.selectedIndex = 1; three.moveSelection(0, 1); assert.equal(three.selectedIndex, 2);
+  const three = scene(3); three.selectedIndex = 1; three.moveSelection(1, 0); assert.equal(three.selectedIndex, 2);
   three.moveSelection(0, 1); assert.equal(three.selectedIndex, 3);
 });
 
@@ -44,4 +44,19 @@ test('leaving the cinema returns to the highlighted main-menu entry without chan
   const s = scene(), destinations = []; s.scene = { start: (...args) => destinations.push(args) };
   s.back(); assert.deepEqual(plain(destinations), [['MainMenuScene', { selectedMenu: 'cinema' }]]);
   s.showingFilm = true; s.back(); assert.equal(destinations.length, 1);
+});
+
+test('two cards belong to each curved page and their click areas stay on that page',()=>{
+ const geometry=vm.runInNewContext(source('src/utils/BookPresentation.js').replace(/^import .*;\n/gm,'')
+  .replace('export default class BookPresentation','class BookPresentation').replace(/export /g,'')
+  +'\n({BOOK_PAGE_SHAPES,bookPagePoint});');
+ Object.assign(ctx,geometry);
+ const cinema=scene(),zones=[];
+ cinema.add={zone(x,y,width,height){zones.push({x,y,width,height});return {setInteractive(){return this},on(){return this}}}};
+ films.forEach((film,index)=>cinema.addFilmCard(film,index));
+ assert.deepEqual(plain(cinema.cards.map(card=>[card.side,card.row])),[[0,0],[0,1],[1,0],[1,1]]);
+ for(const [i,zone] of zones.entries()){
+  if(i<2)assert.ok(zone.x+zone.width/2<500);
+  else assert.ok(zone.x-zone.width/2>500);
+ }
 });

@@ -340,3 +340,21 @@ for(const profile of ['ipadKeyboard','pc','ipadTouch'])test(profile+': world-sto
  for(const action of ['attack','confirm','back'])controls.dispatch(action,story);
  assert.equal(finishes,0);
 });
+
+test('the foreground follows the left wall without repainting the adjacent sky over the dragon',()=>{
+ const masks=vm.runInContext('INTRO_EXTERIOR_FOREGROUND',ctx);
+ const contains=(points,x,y)=>{
+  let inside=false;
+  for(let i=0,j=points.length-1;i<points.length;j=i++){
+   const a=points[i],b=points[j];
+   if((a.y>y)!==(b.y>y)&&x<(b.x-a.x)*(y-a.y)/(b.y-a.y)+a.x)inside=!inside;
+  }
+  return inside;
+ };
+ for(const [x,y] of [[155,25],[130,85],[110,120],[101,155],[90,205]]){
+  assert.ok(!masks.some(points=>contains(points,x,y)),`sky at ${x},${y} must stay in front of no foreground layer`);
+ }
+ for(const [x,y] of [[40,100],[50,200],[10,450]]){
+  assert.ok(masks.some(points=>contains(points,x,y)),`nearby masonry at ${x},${y} must occlude the dragon`);
+ }
+});

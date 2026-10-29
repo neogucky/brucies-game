@@ -595,3 +595,17 @@ dokumentieren die neuen Bilder.
 Nur das Intro kann übersprungen werden; die Weltgeschichten laufen bis zum Ende.
 Der Hinweis zum Überspringen sitzt am unteren Bildrand. Beim Umblättern bleibt
 das Bild nach dem Auflegen des Blatts durchgehend sichtbar.
+
+## Sonnenaufgang und Kino
+
+Das erste Fensterbild zeigt einen kurzen Übergang von Nacht zu Morgen: Sterne
+und Mond verschwinden, die Sonne steigt hinter dem festen Burgbild auf. Der
+Ritter trägt in allen Intro-Bildern seinen Helm. Die Maske am linken Fensterrand
+folgt der Mauer und überdeckt keinen Himmel vor dem Drachen.
+
+Im Kino stehen zwei Filme übereinander auf jeder Buchseite. Bilder, Rahmen und
+Beschriftung werden mit der gekrümmten Seite gezeichnet. Der geheime Testmodus
+hat einen Abschnitt „Kinofilme“ mit einzelnen Freischaltungen und „Alle Filme
+freischalten“. Diese Einstellungen bleiben gespeichert, auch unabhängig von
+Welten und Leveln; sie verändern weder Abschlüsse noch ausstehende Geschichten.
+Das Intro ist immer verfügbar.

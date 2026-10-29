@@ -1,9 +1,10 @@
 // A shot owns one immutable camera. Only actors and paper move.
 const shot = (id, from, to, duration, view, extra = {}) => ({ id, from, to, duration, view, ...extra });
 export const BOOK_TURN_DURATION = 1200;
+export const BOOK_DAWN_DURATION = 4400;
 export const BOOK_FILMS = {
   intro: [
-    shot('moon', -2400, -1, 2400, null, { texture: 'book-moon' }),
+    shot('moon', -BOOK_DAWN_DURATION, -1, BOOK_DAWN_DURATION, null, { texture: 'book-moon', opening: true }),
     shot('bedroom', 0, 6199, 6200, [220, 0, 500, 600]),
     shot('exterior', 6200, 12799, 6600, [25, 0, 500, 600]),
     shot('wake', 12800, 22699, 9900, [220, 0, 500, 600]),
@@ -35,6 +36,24 @@ export const BOOK_FILMS = {
   ],
 };
 export const bookEase = n => { n = Math.max(0, Math.min(1, n)); return n * n * (3 - 2 * n); };
+// The foreground and camera stay fixed. Time moves only the sky, light and
+// celestial bodies, leaving a fully sunlit page behind when the shot freezes.
+export function bookDawnFrame(time) {
+  const p=Math.max(0,Math.min(1,(Number(time)+BOOK_DAWN_DURATION)/(BOOK_DAWN_DURATION-1)));
+  const dawn=bookEase((p-.12)/.46),day=bookEase((p-.58)/.3);
+  const color=(night,morning,noon)=>night.map((v,i)=>Math.round((v+(morning[i]-v)*dawn)*(1-day)+noon[i]*day));
+  const rise=bookEase((p-.43)/.55);
+  return {progress:p,day,skyTop:color([7,17,49],[48,78,142],[48,147,235]),
+    skyMiddle:color([29,43,84],[200,135,141],[126,202,250]),
+    skyHorizon:color([66,73,111],[255,183,106],[255,232,166]),
+    starsAlpha:1-bookEase((p-.1)/.4),
+    // The moon fades in daylight instead of crossing the landscape.
+    moon:{x:.16,y:.15,alpha:1-bookEase((p-.16)/.32)},
+    // A short diagonal rise starts below the painted mountain ridge.
+    sun:{x:.12+.03*rise,y:.672-.04*rise,alpha:bookEase((p-.46)/.18)},
+    horizonGlow:bookEase((p-.18)/.4)*(1-.75*day),
+    nightShade:.26*(1-dawn),warmGlow:.085*dawn*(1-day*.55)};
+}
 export function bookIntroCredit(time) {
   const credit=time<6200?{text:'Spielidee von Brucy',from:300,to:3600,x:34,y:76,align:'left'}
     :{text:'Entwickelt mit Onkel Tim',from:6800,to:10400,x:566,y:660,align:'right'};

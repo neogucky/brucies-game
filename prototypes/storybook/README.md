@@ -50,3 +50,11 @@ to their automatic ending; Space, Enter and confirm actions do not skip them.
 After a page turn, the new left page stays fully visible instead of starting a
 second fade from blank paper. The browser suite checks actual rendered pixels
 at the first resting frames of each story's page turn.
+
+The opening now animates a 4.4-second night-to-day transition behind a single
+transparent castle foreground. The helmet stays on the sleeping knight's head.
+The moon fades in place as the sky brightens, stars disappear, and the sun
+emerges just above the mountain ridge. The finished page holds daylight.
+The left exterior wall's foreground boundary follows the original painting.
+The production cinema prints two selectable films per curved page; the secret
+editor stores movie overrides separately from level and story progress.

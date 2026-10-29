@@ -72,7 +72,7 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("menu-bg", "assets/common/menu/menu.png");
     this.load.image("menu-book", "assets/common/menu/adventure-book.png");
     this.load.image("menu-book-title", "assets/common/menu/adventure-book-title.png");
-    this.load.image('book-moon', 'assets/storybook/moon-window.png');
+    this.load.image('book-moon', 'assets/storybook/castle-window-foreground.png');
     this.load.image('book-desert', 'assets/storybook/desert-page.png');
     this.load.image('book-open', 'assets/storybook/open-book.png');
     this.load.image('book-underworld', 'assets/storybook/underworld-page.png');

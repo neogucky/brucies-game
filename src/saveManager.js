@@ -1,3 +1,4 @@
+import { STORY_PREVIEW } from './utils/storyPreview.js';
 import { normalizeInventory } from "./utils/inventory.js";
 
 const STORAGE_KEY = "brucies_game_save_v1";
@@ -88,7 +89,7 @@ function forgetDebugMapPlaces(save, ids) {
 
 export function editDebugProgress(save, changes) {
   const debug = save.debugProgress || {};
-  const levels = { ...debug.levels }, worlds = { ...debug.worlds }, switches = { ...debug.switches };
+  const levels = { ...debug.levels }, worlds = { ...debug.worlds }, switches = { ...debug.switches }, films = { ...debug.films };
   let next = { ...save };
   for (const [id, value] of Object.entries(changes.levels || {})) {
     const world = worldForLevel(id);
@@ -119,13 +120,16 @@ export function editDebugProgress(save, changes) {
     }
     next.bonusChallenges = bonusChallenges;
   }
+  for(const [id,value] of Object.entries(changes.films || {})) {
+    if(id!=='intro'&&STORY_PREVIEW.some(film=>film.id===id)&&typeof value==='boolean')films[id]=value;
+  }
   // Explicit world choices take precedence over individual level choices.
   for (const [world, value] of Object.entries(changes.worlds || {})) {
     if (!Object.hasOwn(WORLD_LEVELS, world) || typeof value !== 'boolean') continue;
     worlds[world] = value;
     if (!value) next = forgetDebugMapPlaces(next, [...WORLD_LEVELS[world], '@' + world]);
   }
-  return normalizeWorldProgress({ ...next, debugProgress: { levels, worlds, switches } });
+  return normalizeWorldProgress({ ...next, debugProgress: { levels, worlds, switches, films } });
 }
 
 function applyDebugProgress(save) {

@@ -9,6 +9,9 @@ const context = vm.createContext({ normalizeInventory: save => save,
   localStorage: { getItem: () => stored, setItem: (_, value) => { stored = value; } } });
 vm.runInContext(strip(source('saveManager.js')) + '\nglobalThis.saveApi = { defaultSave, WORLD_LEVELS, SECRET_LEVELS, editDebugProgress, debugLevelUnlocks, normalizeWorldProgress, unlockAllForTesting, loadSave, saveProgress };', context);
 vm.runInContext(strip(source('utils/bonusChallenges.js')) + '\nglobalThis.bonusApi = { BONUS_CHALLENGES, bonusState, unlockBonus, beginBonus };', context);
+const storyGlobals=vm.runInNewContext(strip(source('utils/dragonStory.js'))+'\n({DRAGON_CLUES});');
+const filmApi=vm.runInNewContext(strip(source('utils/storyPreview.js'))+'\n({STORY_PREVIEW,unlockedStoryFilms});',storyGlobals);
+context.STORY_PREVIEW=filmApi.STORY_PREVIEW;
 const api = context.saveApi, bonus = context.bonusApi;
 const plain = value => JSON.parse(JSON.stringify(value));
 const fresh = () => structuredClone(plain(api.defaultSave));
@@ -196,4 +199,24 @@ test('saving debug edits happens after scene shutdown checkpoints, so a running 
   menu.apply(); gameEvents.emit('poststep');
   assert.equal(result.coins, 320); assert.equal(result.bonusChallenges.underground, undefined);
   assert.ok(!result.unlockedLevels.includes('Kristallschatz'));
+});
+
+for(const id of ['desert','underground','jungle'])test(id+': manual film unlocks survive save/reload without completing or consuming story progress',()=>{
+ const original={...fresh(),pendingDragonClues:['underground']};
+ const before=JSON.stringify(original);
+ const open=api.editDebugProgress(original,{films:{[id]:true}});
+ assert.ok(filmApi.unlockedStoryFilms(open).some(film=>film.id===id));
+ assert.deepEqual(plain(open.completedLevels),[]);assert.deepEqual(plain(open.storyCluesSeen),[]);
+ assert.deepEqual(plain(open.pendingDragonClues),['underground']);
+ assert.equal(JSON.stringify(original),before);
+ api.saveProgress(open);const loaded=api.loadSave();
+ assert.ok(filmApi.unlockedStoryFilms(loaded).some(film=>film.id===id));
+ const locked=api.editDebugProgress({...loaded,storyCluesSeen:[id]},{films:{[id]:false}});
+ assert.equal(filmApi.unlockedStoryFilms(locked,true).some(film=>film.id===id),false);
+ assert.deepEqual(plain(locked.storyCluesSeen),[id]);
+});
+test('the intro remains available and invalid movie overrides are ignored',()=>{
+ const save=api.editDebugProgress(fresh(),{films:{intro:false,missing:true,desert:'yes'}});
+ assert.deepEqual(plain(filmApi.unlockedStoryFilms(save).map(film=>film.id)),['intro']);
+ assert.deepEqual(plain(save.debugProgress.films),{});
 });
