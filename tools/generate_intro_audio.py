@@ -71,6 +71,38 @@ def effects():
     save('chime', chime)
 
 
+def adventure_effects():
+    rng = random.Random(815)
+    # Body + rushing air + an ascending, cheerful brass-like flourish.
+    length, samples, phase, low = 1.15, [], 0, 0
+    for i in range(round(length * RATE)):
+        t = i / RATE
+        low = .8 * low + .2 * rng.uniform(-1, 1)
+        phase += TAU * (90 + 270 * min(1, t / .36)) / RATE
+        body = math.sin(phase) * .45 * math.exp(-t * 6)
+        air = low * .7 * math.sin(math.pi * min(1, t / .55)) ** 2 if t < .55 else 0
+        flourish = 0
+        for start, frequency in [(.12, 392), (.23, 523.25), (.34, 659.25), (.45, 783.99)]:
+            dt = t - start
+            if dt > 0:
+                flourish += .14 * (tone(dt, frequency) + .22 * tone(dt, frequency * 2)) * math.exp(-dt * 5) * min(1, dt / .018)
+        samples.append((body + air + flourish) * envelope(t, length, .008, .18))
+    save('hero-leap', samples)
+    # Broad, warm major chord opening into sparkling higher notes.
+    length, samples = 2.6, []
+    for i in range(round(length * RATE)):
+        t = i / RATE
+        bloom = min(1, t / .17) * math.exp(-t * 1.1)
+        chord = sum(tone(t, f) + .18 * tone(t, f * 2) for f in [130.81, 261.63, 329.63, 392, 523.25]) * .095 * bloom
+        shimmer = 0
+        for j, frequency in enumerate([783.99, 1046.5, 1318.51, 1567.98]):
+            dt = t - .08 - j * .105
+            if dt > 0:
+                shimmer += .1 * (tone(dt, frequency) + .16 * tone(dt, frequency * 2.76)) * math.exp(-dt * 2.3) * min(1, dt / .008)
+        samples.append((chord + shimmer) * envelope(t, length, .015, .6))
+    save('reveal', samples)
+
+
 def music():
     length, beat = 32, .625
     samples = [0.0] * round(length * RATE)
@@ -94,4 +126,5 @@ def music():
 if __name__ == '__main__':
     effects()
     music()
-    print('Seven original intro sounds written to', OUT)
+    adventure_effects()
+    print('Original intro music and effects written to', OUT)

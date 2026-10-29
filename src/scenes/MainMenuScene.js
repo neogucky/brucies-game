@@ -30,7 +30,7 @@ export default class MainMenuScene extends Phaser.Scene {
     this.addMenu();
     this.createSettingsDialog();
     this.updateSelection();
-    playMusic(this, "music-menu");
+    playMusic(this, "music-menu", { volume: .35 });
 
     this.input.keyboard.on("keydown-UP", () => this.moveSelection(-1));
     this.input.keyboard.on("keydown-DOWN", () => this.moveSelection(1));
@@ -41,28 +41,15 @@ export default class MainMenuScene extends Phaser.Scene {
   }
 
   addBackground() {
-    const bg = this.add.image(480, 300, "menu-bg");
+    const bg = this.add.image(480, 300, "menu-book");
     const scale = Math.max(960 / bg.width, 600 / bg.height);
     bg.setScale(scale);
   }
 
   addTitle() {
-    const panel = this.add.graphics();
-    panel.fillStyle(0x091c24, .2).fillRoundedRect(67, 30, 836, 84, 18);
-    panel.fillStyle(0x17323d, .94).fillRoundedRect(62, 25, 836, 84, 18);
-    panel.lineStyle(2, 0xd0b27c, .9).strokeRoundedRect(62, 25, 836, 84, 18);
-    this.add
-      .text(480, 66, "Ritter und sein gelber Begleiter", {
-        fontFamily: "Georgia, serif",
-        fontSize: "37px",
-        fontStyle: "bold",
-        lineSpacing: 5,
-        align: "center",
-        color: "#fff1c9",
-      })
-      .setOrigin(0.5)
-      .setStroke("#102732", 2);
-    
+    const title = this.add.image(705, 172, "menu-book-title");
+    title.setScale(350 / title.width);
+    title.setName("Der Ritter und sein gelber Begleiter");
   }
 
   addMenu() {
@@ -89,30 +76,33 @@ export default class MainMenuScene extends Phaser.Scene {
       },
     ];
 
-    const bar = this.add.graphics();
-    bar.fillStyle(0x17323d, .94).fillRoundedRect(24, 520, 912, 63, 14);
-    bar.lineStyle(1, 0xd0b27c, .8).strokeRoundedRect(24, 520, 912, 63, 14);
     this.selectionMark = this.add.graphics();
     menuData.forEach((item, index) => {
       const text = this.add
-        .text(144 + index * 224, 551, item.label, {
+        .text(716, 289 + index * 58, item.label, {
           fontFamily: "Trebuchet MS, sans-serif",
-          fontSize: "22px",
-          color: "#fff8e7",
+          fontSize: "32px",
+          fontStyle: "bold",
+          color: "#123f45",
         })
         .setOrigin(0.5)
-        .setStroke("#102732", 1)
-        .setAlpha(item.enabled ? 1 : 0.35)
-        .setInteractive({ useHandCursor: item.enabled })
+        .setAlpha(item.enabled ? 1 : 0.4);
+      // The complete line of the book is tappable, including beside the label.
+      text.setInteractive({
+          hitArea: new Phaser.Geom.Rectangle((text.width - 322) / 2, (text.height - 54) / 2, 322, 54),
+          hitAreaCallback: Phaser.Geom.Rectangle.Contains,
+          useHandCursor: item.enabled,
+        })
         .on("pointerover", () => {
-          if (!item.enabled) return;
+          if (!item.enabled || this.isDialogOpen || this.leaving) return;
           this.selectedIndex = index;
           this.updateSelection();
         })
         .on("pointerdown", () => {
-          if (item.enabled) {
-            item.action();
-          }
+          if (!item.enabled || this.isDialogOpen || this.leaving) return;
+          this.selectedIndex = index;
+          this.updateSelection();
+          this.activateSelection();
         });
 
       this.menuItems.push({ text, action: item.action, enabled: item.enabled });
@@ -120,7 +110,7 @@ export default class MainMenuScene extends Phaser.Scene {
   }
   
   moveSelection(delta) {
-    if (this.isDialogOpen) return;
+    if (this.isDialogOpen || this.leaving) return;
     const nextIndex = Phaser.Math.Wrap(
       this.selectedIndex + delta,
       0,
@@ -137,13 +127,34 @@ export default class MainMenuScene extends Phaser.Scene {
   }
 
   updateSelection() {
-    this.selectionMark?.clear();
-    this.selectionMark?.fillStyle(0xe5bd6b, .19).fillRoundedRect(38 + this.selectedIndex * 224, 529, 212, 45, 9);
-    this.selectionMark?.lineStyle(1, 0xf4d28c, .85).strokeRoundedRect(38 + this.selectedIndex * 224, 529, 212, 45, 9);
+    const y = this.menuItems[this.selectedIndex]?.text.y;
+    const mark = this.selectionMark;
+    if (mark && Number.isFinite(y)) {
+      mark.clear();
+      // A slightly uneven ink stroke and a red bookmark belong to the page.
+      mark.fillStyle(0x123f45, .97).fillPoints([
+        { x: 555, y: y - 23 }, { x: 611, y: y - 25 },
+        { x: 839, y: y - 24 }, { x: 875, y: y - 21 },
+        { x: 872, y: y - 15 }, { x: 878, y: y - 8 },
+        { x: 874, y: y + 16 }, { x: 877, y: y + 22 },
+        { x: 812, y: y + 24 }, { x: 604, y: y + 23 },
+        { x: 554, y: y + 25 }, { x: 558, y: y + 13 },
+        { x: 553, y: y + 7 }, { x: 557, y: y - 13 },
+      ], true);
+      const ribbon = [
+        { x: 568, y: y - 30 }, { x: 590, y: y - 31 },
+        { x: 590, y: y + 31 }, { x: 579, y: y + 23 },
+        { x: 568, y: y + 32 },
+      ];
+      mark.fillStyle(0xb83e2d).fillPoints(ribbon, true);
+      mark.lineStyle(1.5, 0x7f3025).strokePoints(ribbon, true);
+      mark.lineStyle(1, 0xf1a05c, .75).lineBetween(572, y - 25, 572, y + 23);
+      mark.fillStyle(0xf0be65).fillCircle(594, y - 17, 2.5);
+    }
     this.menuItems.forEach((item, index) => {
       const isSelected = index === this.selectedIndex;
       item.text.setScale(1);
-      item.text.setColor?.(isSelected && item.enabled ? "#ffe1a0" : "#fff8e7");
+      item.text.setColor?.(isSelected && item.enabled ? "#fff3d0" : "#123f45");
     });
   }
 

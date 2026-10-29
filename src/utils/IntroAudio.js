@@ -1,18 +1,18 @@
-const CLIPS = ['music', 'snore', 'whoosh', 'hop', 'boing', 'yawn', 'chime', 'paper', 'splash'];
+const CLIPS = ['music', 'snore', 'whoosh', 'hop', 'boing', 'yawn', 'chime', 'paper', 'splash', 'hero-leap', 'reveal'];
 
 // Autoplay never holds up the film. If the browser suspends audio, a later
 // natural gesture unlocks it at the current story time, without queued cues.
 export default class IntroAudio {
-  constructor(Context = globalThis.AudioContext || globalThis.webkitAudioContext, fetcher = globalThis.fetch) {
+  constructor(Context = globalThis.AudioContext || globalThis.webkitAudioContext, fetcher = globalThis.fetch, { music = true } = {}) {
     this.buffers = new Map(); this.sources = new Set(); this.muted = false;
     this.destroyed = false; this.started = false; this.paused = false; this.loadErrors = [];
-    this.elapsedMs = 0;
+    this.elapsedMs = 0; this.musicEnabled = music;
     this.ready = Promise.resolve(); if (!Context || !fetcher) return;
     try { this.context = new Context(); } catch { return; }
     this.master = this.context.createGain(); this.master.connect(this.context.destination);
     this.musicGain = this.context.createGain(); this.musicGain.gain.value = .2; this.musicGain.connect(this.master);
     this.effectsGain = this.context.createGain(); this.effectsGain.gain.value = .38; this.effectsGain.connect(this.master);
-    this.ready = Promise.all(CLIPS.map(async name => {
+    this.ready = Promise.all(CLIPS.filter(name => music || name !== 'music').map(async name => {
       try {
         const response = await fetcher('assets/intro/sounds/' + name + '.wav');
         if (!response.ok) throw new Error(name);
@@ -32,7 +32,7 @@ export default class IntroAudio {
     if (this.destroyed || !this.context || this.paused) return Promise.resolve();
     try {
       return Promise.resolve(this.context.resume()).then(() => this.ready).then(() => {
-        if (!this.destroyed && !this.paused && this.started) this.play('music');
+        if (!this.destroyed && !this.paused && this.started && this.musicEnabled) this.play('music');
       }).catch(() => {});
     } catch { return Promise.resolve(); }
   }

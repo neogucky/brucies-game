@@ -8,6 +8,7 @@ export default class CharacterSelectScene extends Phaser.Scene {
   }
 
   create() {
+    this.leaving = false;
     this.addBackground();
     this.addTitle();
     this.createCharacters();
@@ -132,6 +133,8 @@ export default class CharacterSelectScene extends Phaser.Scene {
   }
 
   confirmSelection() {
+    if (this.leaving) return;
+    this.leaving = true;
     const choice = this.selectedIndex === 1 ? "female" : "male";
     const saveData = this.registry.get("saveData") || {};
     const nextSave = {
@@ -141,7 +144,8 @@ export default class CharacterSelectScene extends Phaser.Scene {
     };
     this.registry.set("saveData", nextSave);
     saveProgress(nextSave);
-    this.scene.start("DessertMapScene");
+    this.registry.remove?.("storyPreview");
+    this.scene.start("IntroScene", { mode: "newGame" });
   }
 
   toggleFullscreen() {

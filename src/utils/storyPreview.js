@@ -5,7 +5,7 @@ export const STORY_PREVIEW = [
   { id: 'intro', title: 'Intro', thumbnail: 'intro-exterior', scene: 'IntroScene' },
   { id: 'desert', title: 'Spuren im Sand', thumbnail: 'story-desert', scene: 'DragonClueScene', world: 'desert' },
   { id: 'underground', title: 'Das Drachenloch', thumbnail: 'story-underground', scene: 'DragonClueScene', world: 'underground' },
-  { id: 'jungle', title: 'Spuren zum See', thumbnail: 'story-jungle', scene: 'DragonClueScene', world: 'jungle' },
+  { id: 'jungle', title: 'Die schwimmende Schatztruhe', thumbnail: 'book-shore', scene: 'DragonClueScene', world: 'jungle' },
 ];
 
 export function unlockedStoryFilms(save = {}, unlockAll = false) {

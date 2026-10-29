@@ -2,7 +2,7 @@ import { playMusic } from '../soundManager.js';
 import { profileForScene } from '../utils/controlProfiles.js';
 import { unlockedStoryFilms, startStoryPreview } from '../utils/storyPreview.js';
 
-const textStyle = { fontFamily: 'Trebuchet MS, sans-serif', color: '#fff1d0' };
+const textStyle = { fontFamily: 'Trebuchet MS, sans-serif', color: '#173d42' };
 
 export default class CinemaScene extends Phaser.Scene {
   constructor() { super({ key: 'CinemaScene' }); }
@@ -16,11 +16,11 @@ export default class CinemaScene extends Phaser.Scene {
     this.addBackground();
     this.add.text(480, 59, 'Kino', { ...textStyle, fontFamily: 'Georgia, serif', fontStyle: 'bold', fontSize: '40px' }).setOrigin(.5);
     this.add.text(120, 59, 'Zurück · {back}', { ...textStyle, fontSize: '19px', padding: { x: 16, y: 13 }, backgroundColor: '#213d49' })
-      .setOrigin(.5).setInteractive({ useHandCursor: true }).on('pointerdown', () => this.back());
+      .setOrigin(.5).setColor('#fff1d0').setInteractive({ useHandCursor: true }).on('pointerdown', () => this.back());
     const multiRow = this.films.length > 2;
     this.films.forEach((film, index) => {
-      const width = this.films.length === 1 ? 520 : 380, height = multiRow ? 180 : 276;
-      const x = this.films.length === 1 || (this.films.length === 3 && index === 2) ? 480 : 270 + (index % 2) * 420;
+      const width = 330, height = multiRow ? 170 : 276;
+      const x = 290 + (index % 2) * 420;
       const y = multiRow ? 230 + Math.floor(index / 2) * 200 : 300;
       this.addFilmCard(film, index, x, y, width, height);
     });
@@ -29,11 +29,12 @@ export default class CinemaScene extends Phaser.Scene {
       this.allText = this.add.text(480, 550, 'Alle ansehen', { ...textStyle, fontSize: '21px' }).setOrigin(.5);
       this.add.zone(480, 550, 226, 40).setInteractive({ useHandCursor: true })
         .on('pointerover', () => this.select(this.films.length)).on('pointerdown', () => this.playAll());
-    } else this.add.text(480, 484, 'Weitere Filme schaltest du beim Spielen frei.', { ...textStyle, fontSize: '19px', color: '#b8c9c8' }).setOrigin(.5);
+    } else this.add.text(710, 300, 'Weitere Filme schaltest du beim Spielen frei.', { ...textStyle,
+      fontSize: '23px', color: '#654c32', align: 'center', wordWrap: { width: 260 } }).setOrigin(.5);
     const touch = profileForScene(this) === 'ipadTouch';
     const hint = touch ? 'Film antippen' : this.films.length > 1 ? '{move}: Wählen · Ansehen · {confirm}' : 'Ansehen · {confirm}';
     this.add.text(480, this.allText ? 584 : 555, hint,
-      { ...textStyle, fontSize: '16px', color: '#b8c9c8' }).setOrigin(.5);
+      { ...textStyle, fontSize: '16px', color: '#fff1d0', stroke: '#34251d', strokeThickness: 3 }).setOrigin(.5);
     this.input.keyboard.on('keydown-LEFT', () => this.moveSelection(-1, 0));
     this.input.keyboard.on('keydown-RIGHT', () => this.moveSelection(1, 0));
     this.input.keyboard.on('keydown-UP', () => this.moveSelection(0, -1));
@@ -46,14 +47,7 @@ export default class CinemaScene extends Phaser.Scene {
   }
 
   addBackground() {
-    this.add.rectangle(480, 300, 960, 600, 0x0d222d);
-    this.add.image(480, 300, 'menu-bg').setDisplaySize(960, 600).setAlpha(.07);
-    const curtains = this.add.graphics();
-    curtains.fillStyle(0x512c3b).fillPoints([{ x: 0, y: 0 }, { x: 58, y: 0 }, { x: 48, y: 180 }, { x: 15, y: 470 }, { x: 0, y: 600 }], true);
-    curtains.fillPoints([{ x: 960, y: 0 }, { x: 902, y: 0 }, { x: 912, y: 180 }, { x: 945, y: 470 }, { x: 960, y: 600 }], true);
-    curtains.lineStyle(2, 0xc6a56e, .6).lineBetween(57, 0, 48, 180).lineBetween(48, 180, 15, 470)
-      .lineBetween(903, 0, 912, 180).lineBetween(912, 180, 945, 470);
-    curtains.fillStyle(0xd5b878, .75).fillRect(0, 0, 960, 5);
+    this.add.image(480, 300, 'book-open').setDisplaySize(960, 600);
   }
 
   addFilmCard(film, index, x, y, width, height) {
@@ -64,7 +58,7 @@ export default class CinemaScene extends Phaser.Scene {
     const shape = this.make.graphics({ x: 0, y: 0, add: false });
     shape.fillStyle(0xffffff).fillRect(x - imageWidth / 2, imageY - imageHeight / 2, imageWidth, imageHeight);
     const mask = shape.createGeometryMask(); image.setMask(mask); this.masks.push(mask); this.maskShapes.push(shape);
-    const title = this.add.text(x - width / 2 + 18, y + height / 2 - 23, film.title, { ...textStyle, fontSize: '22px' }).setOrigin(0, .5);
+    const title = this.add.text(x - width / 2 + 18, y + height / 2 - 23, film.title, { ...textStyle, fontSize: film.title.length > 23 ? '17px' : '22px' }).setOrigin(0, .5);
     const play = this.add.graphics(); play.fillStyle(0xe6c783).fillTriangle(x + width / 2 - 37, y + height / 2 - 31,
       x + width / 2 - 37, y + height / 2 - 15, x + width / 2 - 24, y + height / 2 - 23);
     this.add.zone(x, y, width, height).setInteractive({ useHandCursor: true })
@@ -88,11 +82,11 @@ export default class CinemaScene extends Phaser.Scene {
   updateSelection() {
     this.cards.forEach((card, index) => {
       const selected = index === this.selectedIndex;
-      card.frame.clear().fillStyle(selected ? 0x2b4650 : 0x17313e)
+      card.frame.clear().fillStyle(selected ? 0xeed29b : 0xffedc7, .94)
         .fillRoundedRect(card.x - card.width / 2, card.y - card.height / 2, card.width, card.height, 10)
-        .lineStyle(selected ? 3 : 1, selected ? 0xf1d294 : 0x506975)
+        .lineStyle(selected ? 3 : 1, selected ? 0x275459 : 0xc7a46d)
         .strokeRoundedRect(card.x - card.width / 2, card.y - card.height / 2, card.width, card.height, 10);
-      card.title.setColor(selected ? '#ffe2a1' : '#fff1d0');
+      card.title.setColor('#173d42');
     });
     if (this.allFrame) {
       const selected = this.selectedIndex === this.films.length;

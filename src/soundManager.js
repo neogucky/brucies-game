@@ -3,11 +3,14 @@ let currentKey = null;
 let currentRate = 1;
 
 export function playMusic(scene, key, options = {}) {
-  if (currentKey === key && currentMusic && currentMusic.isPlaying) {
+  if (currentKey === key && currentMusic) {
     if (Number.isFinite(options.rate) && options.rate !== currentRate) {
       currentRate = options.rate;
       currentMusic.setRate(currentRate);
     }
+    if (currentMusic.isPaused) currentMusic.resume();
+    else if (!currentMusic.isPlaying) currentMusic.play();
+    if (Number.isFinite(options.volume)) currentMusic.setVolume(options.volume);
     return;
   }
   if (currentMusic) {
@@ -36,3 +39,8 @@ export function bumpMusicRate(multiplier = 1.15) {
   currentRate *= multiplier;
   currentMusic.setRate(currentRate);
 }
+
+// Intro and menu share one music voice, including its playback position.
+export function setMusicVolume(volume) { currentMusic?.setVolume(Math.max(0, Math.min(1, volume))); }
+export function pauseMusic() { if (currentMusic?.isPlaying) currentMusic.pause(); }
+export function resumeMusic() { if (currentMusic?.isPaused) currentMusic.resume(); }

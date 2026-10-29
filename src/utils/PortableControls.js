@@ -185,9 +185,9 @@ export default class PortableControls {
     this.resumeButton.textContent = actionLabel(profile, 'pause', 'Weiterspielen');
     this.exitButton.textContent = actionLabel(profile, 'back', 'Level verlassen');
     if (intro) {
-      const label = introSkipLabel(profile);
+      const label = scene.canSkip === false ? '' : introSkipLabel(profile);
       if (scene.skipButton?.text !== label) scene.skipButton?.setText(label);
-      this.canvas?.setAttribute('aria-label', (scene.clueWorld ? 'Drachenspur. ' : 'Spielintro. ') + label + '.');
+      this.canvas?.setAttribute('aria-label', (scene.clueWorld ? 'Drachenspur' : 'Spielintro') + (label ? '. ' + label : '') + '.');
     } else this.canvas?.setAttribute('aria-label', (scene.accessibilityLabel || 'Brucies Spiel') + '. ' + this.buttons.confirm.textContent + '. ' + this.buttons.back.textContent + '.');
   }
   emitKey(scene, code) {
@@ -208,7 +208,7 @@ export default class PortableControls {
     if (s.isInteractingWithLever) return;
     if (s.isRevealingMap && !['back', 'fullscreen'].includes(action)) return;
     if (s.isIntro) {
-      if (action === 'attack' || action === 'confirm') s.finish();
+      if ((action === 'attack' || action === 'confirm') && s.canSkip !== false) s.finish();
       else if (action === 'fullscreen') this.emitKey(s, 'KeyF');
       return;
     }

@@ -36,7 +36,7 @@ test('confirming a new hero marks the adventure as playable again from the main 
   scene.scene = { start: key => { destination = key; } }; scene.selectedIndex = 1;
   scene.confirmSelection();
   assert.ok(Number.isFinite(Date.parse(save.lastPlayed))); assert.equal(save.currentLevel, 'Wuestenexperte');
-  assert.equal(save.playerGender, 'female'); assert.equal(destination, 'DessertMapScene');
+  assert.equal(save.playerGender, 'female'); assert.equal(destination, 'IntroScene');
 });
 
 test('finishing the desert conversation unlocks the ruin while preserving discoveries and other introductions', () => {

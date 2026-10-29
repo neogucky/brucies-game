@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#211c18">
+  <title>Buchkino · Vorschau</title>
+  <style>
+    * { box-sizing: border-box; }
+    :root { color-scheme: dark; font-family: "Trebuchet MS", system-ui, sans-serif; }
+    body { margin: 0; background: radial-gradient(ellipse at 50% 40%, #524333, #211c18 75%); color: #e7d8bc; min-height: 100svh; display: grid; place-items: center; }
+    main { width: min(100%, 1450px); padding: max(10px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom)); }
+    header { display: flex; justify-content: space-between; align-items: center; margin: 0 auto 8px; max-width: 1120px; font-size: 13px; color: #c5b390; }
+    header p { margin: 0; } a { color: inherit; text-decoration: none; padding: 6px; } a:hover { color: #fff2cf; }
+    .stage { position: relative; width: min(100%, calc((100svh - 190px) * 1.5988)); min-width: 200px; margin: auto; }
+    iframe { display: block; width: 100%; aspect-ratio: 1.6; border: 0; outline: none; filter: drop-shadow(0 12px 24px #08070466); }
+    #loading { position: absolute; inset: 0; display: grid; place-items: center; background: #382a20; font-size: 18px; }
+    #loading[hidden] { display: none; }
+    .controls { max-width: 1020px; margin: 10px auto 0; }
+    .transport { display: flex; gap: 12px; align-items: center; }
+    button { font: inherit; color: #ecdfc7; border: 1px solid #aa937741; background: #55453366; border-radius: 7px; min-height: 36px; padding: 6px 12px; cursor: pointer; touch-action: manipulation; }
+    button:hover, button:focus-visible { background: #82624366; border-color: #caae7c; }
+    button:disabled { opacity: .4; cursor: default; }
+    #play { min-width: 100px; } #replay { min-width: 105px; }
+    #seek { flex: 1; min-width: 30px; accent-color: #e7bd6a; cursor: pointer; }
+    #clock { font-size: 12px; color: #c5b390; font-variant-numeric: tabular-nums; min-width: 72px; }
+    .chapters { display: flex; justify-content: center; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+    .chapters button { border-color: transparent; background: transparent; color: #b9aa90; font-size: 12px; min-height: 28px; padding: 4px 9px; }
+    .chapters button[aria-current="step"] { color: #ffe4a6; background: #d6a85320; }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+    @media (max-width: 580px) {
+      main { padding-left: 4px; padding-right: 4px; } header, .controls { margin-left: 9px; margin-right: 9px; }
+      .transport { gap: 7px; } button { font-size: 12px; padding: 6px 9px; }
+      #play { min-width: 78px; } #replay { min-width: 80px; }
+      #clock { min-width: 57px; font-size: 10px; }
+    }
+    @media (max-height: 480px) and (orientation: landscape) {
+      header { display: none; } .stage { width: min(100%, calc((100svh - 90px) * 1.5988)); }
+      .controls { margin-top: 5px; } .chapters { margin-top: 2px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header><p>Buchkino · Vorschau</p><a href="../../?skipIntro=1">Zum Spiel ↗</a></header>
+    <nav class="chapters" id="films" aria-label="Filme" style="margin:0 0 8px">
+      <button data-film="intro">Intro → Menü</button><button data-film="adventure">Neues Spiel</button><button data-film="desert">Wüste</button>
+      <button data-film="underground">Untergrund</button><button data-film="jungle">Urwald</button>
+    </nav>
+    <div class="stage">
+      <iframe id="game-frame" title="Buchfilm" allow="autoplay; fullscreen"></iframe>
+      <div id="loading" role="status">Das Buch wird vorbereitet …</div>
+    </div>
+    <section class="controls" aria-label="Filmsteuerung">
+      <div class="transport">
+        <button id="play" disabled>Pause</button>
+        <button id="replay" disabled>Von vorn</button>
+        <input id="seek" type="range" min="0" max="28000" value="0" step="50" aria-label="Filmposition" disabled>
+        <output id="clock">0:00 / 0:28</output>
+      </div>
+      <nav class="chapters" id="chapters" aria-label="Aufnahmen"></nav>
+      <p id="status" class="sr-only" role="status" aria-live="polite">Lädt</p>
+    </section>
+  </main>
+  <script type="module" src="./storybook.js"></script>
+</body>
+</html>

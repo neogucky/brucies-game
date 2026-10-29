@@ -3,7 +3,7 @@ const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const root=path.join(__dirname,'..'),ctx={Promise,Map,Set,globalThis:null,Phaser:{Scene:class{}},performance:{now:()=>1}};
 ctx.globalThis=ctx;vm.createContext(ctx);
 function load(file,name){let code=fs.readFileSync(path.join(root,file),'utf8').replace(/^import[\s\S]*?;\n/gm,'');if(name)code=code.replace(/export default class \w+/,`globalThis.${name}=class ${name}`);vm.runInContext(code.replace(/export /g,''),ctx)}
-load('src/utils/introTimeline.js');load('src/utils/IntroAudio.js','IntroAudio');load('src/utils/storyPreview.js');load('src/scenes/IntroScene.js','IntroScene');load('src/utils/controlProfiles.js');load('src/utils/PortableControls.js','PortableControls');
+ctx.bookIntroMusicMix=vm.runInNewContext(fs.readFileSync(path.join(root,'src/utils/bookTimeline.js'),'utf8').replace(/export /g,'')+'\nbookIntroMusicMix;');load('src/utils/introTimeline.js');load('src/utils/BookShots.js','BookShots');load('src/utils/IntroAudio.js','IntroAudio');load('src/utils/storyPreview.js');load('src/scenes/IntroScene.js','IntroScene');load('src/utils/controlProfiles.js');load('src/utils/PortableControls.js','PortableControls');
 
 test('the story follows sleep, shadow, window, treasure dragon, bouncing, yawn and ready beats',()=>{
  for(const [time,beat] of [[0,'sleep'],[2700,'shadow'],[5200,'window'],[8500,'dragon'],[13700,'return'],[16300,'wake'],[18900,'yawn'],[22000,'ready']])assert.equal(ctx.getIntroFrame(time).beat,beat);
@@ -99,7 +99,7 @@ test('losing focus releases pressed keys even when the browser never sends their
 function introFocusFixture(lateCanvas=false){
  const previous={document:ctx.document,window:ctx.window};
  const windowListeners={},documentListeners={};let focuses=0,skips=0,resumes=0,active;
- const doc={activeElement:{tagName:'BUTTON',id:'browser-reload'},getElementById(){return null},
+ const doc={activeElement:{tagName:'BUTTON',id:'game-button'},getElementById(){return null},
   addEventListener(type,fn){documentListeners[type]=fn},removeEventListener(){}};
  const win={addEventListener(type,fn){windowListeners[type]=fn},removeEventListener(){}};
  ctx.document=doc;ctx.window=win;
@@ -116,10 +116,10 @@ function introFocusFixture(lateCanvas=false){
   restore(){controls.destroy();ctx.document=previous.document;ctx.window=previous.window}};
 }
 
-test('autoplay moves focus from Reload to the game before the first Space press, without requiring a click',()=>{
+test('autoplay moves DOM focus from a game button to the canvas',()=>{
  const f=introFocusFixture();
  try{
-  assert.equal(f.doc.activeElement.id,'browser-reload');f.controls.update();
+  assert.equal(f.doc.activeElement.id,'game-button');f.controls.update();
   assert.equal(f.doc.activeElement,f.canvas);assert.equal(f.focuses(),1);
   const event={code:'Space',target:f.doc.activeElement,preventDefault(){this.prevented=true},stopImmediatePropagation(){}};
   f.windowListeners.keydown(event);assert.equal(f.skips(),1);assert.equal(event.prevented,true);
@@ -143,13 +143,13 @@ test('returning to an autoplaying cinematic restores both game focus and playbac
  const f=introFocusFixture();
  try{
   f.controls.update();f.windowListeners.blur();assert.equal(f.intro.suspended,true);
-  f.doc.activeElement={tagName:'BUTTON',id:'browser-reload'};
+  f.doc.activeElement={tagName:'BUTTON',id:'game-button'};
   f.windowListeners.focus();assert.equal(f.doc.activeElement,f.canvas);assert.equal(f.resumes(),1);
   assert.equal(f.intro.suspended,false);
  }finally{f.restore()}
 });
 
-function audioFixture(){
+function audioFixture(options){
  let instances=0;const voices=[];
  class Context{
   constructor(){instances++;this.state='suspended';this.destination={}}
@@ -158,7 +158,7 @@ function audioFixture(){
   createBufferSource(){const voice={connect(){},disconnect(){},start(){this.playing=true},stop(){this.playing=false}};voices.push(voice);return voice}
   resume(){this.state='running';return Promise.resolve()}suspend(){this.state='suspended';return Promise.resolve()}close(){this.state='closed';return Promise.resolve()}
  }
- const audio=new ctx.IntroAudio(Context,()=>Promise.resolve({ok:true,arrayBuffer:()=>Promise.resolve(new ArrayBuffer(1))}));return {audio,voices,instances:()=>instances};
+ const audio=new ctx.IntroAudio(Context,()=>Promise.resolve({ok:true,arrayBuffer:()=>Promise.resolve(new ArrayBuffer(1))}),options);return {audio,voices,instances:()=>instances};
 }
 test('automatic audio start and pause/resume keep the same context and music voice',async()=>{
  const {audio,voices,instances}=audioFixture();await audio.ready;await audio.start();audio.play('whoosh');assert.equal(instances(),1);assert.equal(voices.length,2);
@@ -173,7 +173,7 @@ test('missing audio remains silent without blocking Start, Skip or cleanup',asyn
  const a=new ctx.IntroAudio(undefined,undefined);await a.ready;assert.doesNotThrow(()=>{a.start();a.pause();a.resume();a.mute(true);a.destroy()});
 });
 test('every generated audio file is valid, audible PCM with safe peak headroom',()=>{
- for(const name of ['music','snore','whoosh','hop','boing','yawn','chime','paper','splash']){
+ for(const name of ['music','snore','whoosh','hop','boing','yawn','chime','paper','splash','hero-leap','reveal']){
   const wav=fs.readFileSync(path.join(root,'assets/intro/sounds',name+'.wav'));assert.equal(wav.toString('ascii',0,4),'RIFF');assert.equal(wav.toString('ascii',8,12),'WAVE');assert.equal(wav.readUInt32LE(24),22050);let peak=0;for(let i=44;i<wav.length;i+=2)peak=Math.max(peak,Math.abs(wav.readInt16LE(i)));assert.ok(peak>1000&&peak<30000,name);
  }
 });
@@ -193,7 +193,19 @@ test('every 60-Hz frame keeps the dragon outside and above the helper, with shad
  assert.ok(outsideFrames>390);assert.ok(shadowFrames>100);
 });
 
+function bookShotFixture(){
+ const calls=[],paths=[],stack=[];let clip=null,current=[];
+ const c={save(){stack.push(clip)},restore(){clip=stack.pop()},translate(){},rotate(){},scale(){},
+   beginPath(){current=[]},moveTo(x,y){current.push({x,y})},lineTo(x,y){current.push({x,y})},closePath(){},
+   clip(){clip=current.slice();paths.push(clip)},ellipse(){},fill(){},stroke(){},fillRect(){},
+   strokeText(){},fillText(){},drawImage(image,...args){calls.push({key:image.key,args,clip})}};
+ const renderer=Object.create(ctx.BookShots.prototype);
+ Object.assign(renderer,{c,reducedMotion:false,image:key=>({key,width:960,height:600}),
+   tinted:new Map([['intro-dragon-0',{key:'shadow-0'}],['intro-dragon-1',{key:'shadow-1'}]])});
+ return {renderer,calls,paths,draw(time){calls.length=0;paths.length=0;renderer.intro(time);return calls}};
+}
 function introSceneFixture(){
+ ctx.BookFilm=class {constructor(){this.duration=29000}draw(){}destroy(){}};
  const texts=[],objects=[];
  function art(x=0,y=0,texture=''){
   const o={x,y,texture,text:'',alpha:1,visible:true,list:[],active:true,
@@ -218,13 +230,16 @@ test('creating the intro immediately starts playback, with just a discreet Skip 
  assert.equal(s.skipButton.text,'Überspringen · Leertaste');assert.ok(s.skipButton.alpha<1);
  assert.ok(!texts.some(o=>/Eine kleine Geschichte|Ton:|Intro starten|iPad|Tastatur/.test(o.text)));
 });
-test('floor shadow renders behind the bed; outdoor dragon and sparkle layers render behind near masonry',()=>{
- const {s}=introSceneFixture();
- assert.ok(s.bedroom.list.indexOf(s.dragonShadow)<s.bedroom.list.indexOf(s.bed));
- const floor=vm.runInContext('INTRO_FLOOR_LIGHT',ctx);
- assert.deepEqual(s.dragonShadow.mask.geometryMask.points,floor);
- for(const layer of s.foreground)assert.ok(s.exterior.list.indexOf(layer)>s.exterior.list.indexOf(s.dragon));
- for(const sparkle of s.sparkles)assert.ok(s.exterior.list.indexOf(sparkle)<s.exterior.list.indexOf(s.foreground[0]));
+test('book artwork keeps the projected shadow behind the bed and the dragon behind foreground masonry',()=>{
+ const {draw}=bookShotFixture();let calls=draw(2800);
+ const shadow=calls.findIndex(c=>c.key.startsWith('shadow-'));
+ assert.ok(shadow>=0&&shadow<calls.findIndex(c=>c.key==='intro-bed-fixed'));
+ assert.deepEqual(calls[shadow].clip,JSON.parse(JSON.stringify(vm.runInContext('INTRO_FLOOR_LIGHT',ctx))));
+ calls=draw(8500);
+ const dragon=calls.findIndex(c=>c.key.startsWith('intro-dragon-'));
+ const foreground=calls.filter(c=>c.key==='intro-exterior'&&c.clip);
+ assert.equal(foreground.length,3);
+ assert.ok(foreground.every(layer=>calls.indexOf(layer)>dragon));
 });
 test('blocked audio does not queue past effects or prevent playback; a later gesture joins the current music time',async()=>{
  const voices=[];let allowed=false;
@@ -262,27 +277,25 @@ test('jump preparation, push-off, tucked flight and landing use distinct poses b
  const landing=ctx.getIntroFrame(21800).knight;assert.ok(landing.scaleX>1);assert.ok(landing.scaleY<1);
  assert.equal(landing.y,535);assert.equal(ctx.getIntroFrame(22400).knight.x,565);
 });
-test('all frames keep one fixed bed and furniture foreground while only the knight changes',()=>{
- const {s}=introSceneFixture(),bed={...s.bed},front={...s.bedFront};
+test('all book intro frames keep the bed and its foreground fixed while the knight moves',()=>{
+ const {draw}=bookShotFixture();
  for(let t=0;t<=27800;t+=1000/60){
-  s.drawFrame(ctx.getIntroFrame(t));
-  for(const key of ['x','y','texture','displayWidth','displayHeight','angle']){
-   assert.equal(s.bed[key],bed[key],key);assert.equal(s.bedFront[key],front[key],key);
-  }
+  if(ctx.getIntroFrame(t).stage==='exterior')continue;
+  const calls=draw(t),bed=calls.find(c=>c.key==='intro-bed-fixed'),front=calls.find(c=>c.key==='intro-bed-front');
+  assert.deepEqual(bed.args,[0,0]);assert.deepEqual(front.args,[0,0]);
+  assert.equal(bed.clip,null);assert.equal(front.clip,null);
+  const f=ctx.getIntroFrame(t),hero=calls.findIndex(c=>c.key==='intro-hero-'+(f.occupant.visible?f.occupant.pose:f.knight.pose));
+  if(f.occupant.visible||f.knight.behindBed)assert.ok(hero<calls.indexOf(front));
  }
- assert.equal(s.bed.texture,'intro-bed-fixed');
- assert.ok(s.bedroom.list.indexOf(s.occupant)<s.bedroom.list.indexOf(s.bedFront));
- assert.ok(s.bedroom.list.indexOf(s.bedHero)<s.bedroom.list.indexOf(s.bedFront));
 });
-test('a separate curved blanket covers the waist; the helper lands on its body mound and only cloth reacts',()=>{
- const {s}=introSceneFixture(),layers=s.bedroom.list;
- assert.equal(s.occupant.mask,undefined);assert.equal(s.bedFront.mask,undefined);
- assert.equal(s.bedFront.texture,'intro-bed-front');assert.equal(s.blanket.texture,'intro-blanket-occupied');
- assert.ok(layers.indexOf(s.occupant)<layers.indexOf(s.blanket));assert.ok(layers.indexOf(s.blanket)<layers.indexOf(s.bedFront));
+test('the book renderer keeps the curved blanket over the knight, and helper landings only deform the cloth',()=>{
+ const {draw}=bookShotFixture();
  for(const t of [15300,16300,17300]){
   const f=ctx.getIntroFrame(t);assert.equal(f.helper.x,306);assert.equal(f.helper.groundY,354);assert.equal(f.helper.y,f.helper.groundY);
-  assert.equal(ctx.introCuesBetween(t-1,t+1)[0][1],'boing');
-  assert.ok(f.helper.stretch<1);assert.ok(f.blanket.scaleY<1);s.drawFrame(f);assert.equal(s.bed.y,600);
+  assert.equal(ctx.introCuesBetween(t-1,t+1)[0][1],'boing');assert.ok(f.helper.stretch<1);assert.ok(f.blanket.scaleY<1);
+  const calls=draw(t),hero=calls.findIndex(c=>c.key==='intro-hero-sleep'),blanket=calls.findIndex(c=>c.key==='intro-blanket-occupied');
+  const front=calls.findIndex(c=>c.key==='intro-bed-front');assert.ok(hero<blanket&&blanket<front);
+  assert.equal(calls[hero].clip,null);assert.deepEqual(calls.find(c=>c.key==='intro-bed-fixed').args,[0,0]);
  }
  assert.equal(ctx.getIntroFrame(20000).blanket.empty,0);
  assert.ok(ctx.getIntroFrame(20650).blanket.empty>0&&ctx.getIntroFrame(20650).blanket.empty<1);
@@ -296,4 +309,34 @@ for(const reduced of [false,true])test(`jump layer changes only once after clear
   previous=k.behindBed;
  }
  assert.equal(changes,1);
+});
+
+test('world films load and play effects without a background music voice',async()=>{
+ const {audio,voices}=audioFixture({music:false});await audio.ready;await audio.start();
+ assert.equal(audio.buffers.has('music'),false);assert.equal(voices.length,0);
+ audio.play('reveal');assert.equal(voices.length,1);assert.equal(voices[0].loop,false);
+ audio.pause();await audio.resume();assert.equal(voices.length,1);audio.destroy();
+});
+test('a new adventure skips to the desert, while a startup intro skips to the menu',()=>{
+ for(const newGame of [true,false]){
+  const destinations=[];const scene=Object.create(ctx.IntroScene.prototype);
+  Object.assign(scene,{newGame,audio:{destroy(){}},scene:{start:key=>destinations.push(key)}});
+  scene.finish();scene.finish();assert.deepEqual(destinations,[newGame?'DessertMapScene':'MainMenuScene']);
+ }
+});
+
+for(const profile of ['ipadKeyboard','pc','ipadTouch'])test(profile+': world-story films consume skip keys and ignore skip actions',()=>{
+ const Clue=vm.runInNewContext(fs.readFileSync(path.join(root,'src/scenes/DragonClueScene.js'),'utf8')
+  .replace(/^import .*;\n/gm,'').replace('export default class DragonClueScene','class DragonClueScene')
+  +'\nDragonClueScene;',{Phaser:{Scene:class{}}});
+ const story=new Clue();let finishes=0;story.finish=()=>finishes++;
+ assert.equal(story.canSkip,false);
+ const controls=Object.create(ctx.PortableControls.prototype);
+ Object.assign(controls,{activeScene:()=>story,getProfile:()=>profile,pressedKeys:new Set(),held:new Set()});
+ for(const code of ['Space','Enter']){
+  const event={code,preventDefault(){},stopImmediatePropagation(){}};
+  controls.onKey(event,true);controls.onKey(event,false);
+ }
+ for(const action of ['attack','confirm','back'])controls.dispatch(action,story);
+ assert.equal(finishes,0);
 });

@@ -1,4 +1,6 @@
 import { defaultSave, unlockAllForTesting, SECRET_LEVELS } from '../src/saveManager.js';
+import { bookShotStarts, BOOK_FILMS } from '../src/utils/bookTimeline.js';
+import { BOOK_PAGE_SHAPES } from '../src/utils/BookPresentation.js';
 
 const frame = document.getElementById('game-frame'), results = document.getElementById('results');
 const buttons = [document.getElementById('run'), document.getElementById('preview')];
@@ -79,8 +81,9 @@ async function returnToMenu() {
 async function runTests() {
   buttons.forEach(button => button.disabled = true); results.textContent = 'Tests laufen …';
   let passed = 0;
-  const test = async (title, run) => { await run(); passed++; results.textContent += '\n✓ ' + title; };
+  const test = async (title, run) => { if(params.get('suite')==='audio'&&!/^(Aufwachen|Musik:)/.test(title))return; await run(); passed++; results.textContent += '\n✓ ' + title; };
   try {
+    if(params.get('suite')==='audio'){await loadGame();await wait(()=>sceneIs('IntroScene'),'Intro');tap('Space');await wait(()=>sceneIs('MainMenuScene'),'Menü');await steps();}
     for (const loading of [true, false]) for (const code of ['Space', 'Enter']) {
       await test((loading ? 'Beim Laden' : 'Im Intro') + ': ' + code + ' überspringt einmal, Enter setzt das Spiel fort',
         () => skipAndContinue(code, loading));
@@ -97,7 +100,7 @@ async function runTests() {
     });
     await test('Automatisches Intro-Ende öffnet ein frisches Menü mit Weiterspielen', async () => {
       active().scene.start('IntroScene', {}); await wait(() => sceneIs('IntroScene'), 'Intro');
-      active().elapsed = 27760; await wait(() => sceneIs('MainMenuScene'), 'Automatisches Ende'); await steps();
+      active().elapsed = active().duration - 40; await wait(() => sceneIs('MainMenuScene'), 'Automatisches Ende'); await steps();
       assert(active().selectedIndex === 0, 'Keine veraltete Kino-Auswahl nach normalem Intro.');
     });
     await test('Tabwechsel setzt das Intro fort; Überspringen per Klick öffnet das Menü nur einmal', async () => {
@@ -120,7 +123,127 @@ async function runTests() {
         assert(!win.qaErrors.length, win.qaErrors.join('\n'));
       });
     }
-    results.textContent += '\nBESTANDEN: ' + passed + ' Browsertests';
+    for (const film of ['intro','desert','underground','jungle']) await test(film + ': Buchseiten, Entsättigung und automatisches Filmende', async () => {
+      const saveBefore = JSON.stringify(game.registry.get('saveData'));
+      game.registry.set('storyPreview', { filmIds: [film], index: 0, returnScene: 'MainMenuScene' });
+      active().scene.start(film === 'intro' ? 'IntroScene' : 'DragonClueScene', film === 'intro' ? {} : { world: film });
+      await wait(() => active()?.book?.film === film, 'Buchfilm'); await steps();
+      const scene = active(), starts = bookShotStarts(film);
+      scene.suspendIntro();
+      scene.elapsed = starts[1] + 900; scene.drawFrame();
+      const frame = scene.book.frameAt(scene.elapsed), previous = scene.book.painter.pages[0];
+      for (const page of [previous, scene.book.painter.pages[1]]) {
+        const c = page.color.getContext('2d');
+        for (const [x, y] of [[1, 1], [598, 1], [1, 718], [598, 718]]) {
+          assert(c.getImageData(x, y, 1, 1).data[3] === 255, 'Die Animation muss die Seite bis in alle vier Ecken füllen.');
+        }
+      }
+      assert(frame.left.desaturation === .88 && frame.right.desaturation === 0, 'Nur die abgeschlossene Seite wird entsättigt.');
+      assert(previous.grayKey === previous.key, 'Entsättigtes Standbild muss wirklich gezeichnet werden.');
+      const freezeKey = previous.key;
+      scene.elapsed += 700; scene.drawFrame();
+      assert(scene.book.painter.pages[0].key === freezeKey, 'Das vorige Bild muss vollständig stillstehen.');
+      for(let i=2;i<starts.length;i+=2){
+        if(BOOK_FILMS[film][i].menu)continue;
+        for(const offset of [0,16,66,250]){
+          scene.elapsed=starts[i]+offset;scene.book.painter.tick=null;scene.drawFrame();
+          const settled=scene.book.frameAt(scene.elapsed),painter=scene.book.painter,c=painter.canvas.getContext('2d');
+          const actual=c.getImageData(350,250,200,300).data;
+          // A fully visible repaint must not bring a disappeared scene back.
+          painter.paintPage(0,{...settled.left,reveal:1},BOOK_PAGE_SHAPES.left);
+          const visible=c.getImageData(350,250,200,300).data;
+          assert(actual.every((value,j)=>value===visible[j]),'Das Bild bleibt direkt nach dem Umblättern sichtbar.');
+        }
+      }
+      if(film!=='intro'){
+        assert(scene.canSkip===false&&!scene.skipButton,'Geschichten zeigen keinen Überspringen-Knopf.');
+        tap('Space');tap('Enter');game.portableControls.dispatch('confirm');await steps();
+        assert(active()===scene&&!scene.leaving,'Leertaste und Enter überspringen keine Weltgeschichte.');
+        assert(!game.canvas.getAttribute('aria-label').includes('Überspringen'),'Auch die Lesefassung bietet kein Überspringen an.');
+      }
+      scene.elapsed = starts[2] - 600; scene.drawFrame();
+      assert(scene.book.frameAt(scene.elapsed).turn !== null, 'Der Blattumschlag wird gerendert.');
+      scene.elapsed = starts.at(-1) + Math.min(1600, BOOK_FILMS[film].at(-1).duration - 1); scene.drawFrame();
+      if (film === 'intro') {
+        assert(scene.book.frameAt(scene.elapsed).left.shot.menu, 'Der letzte Umschlag führt links ins Hauptmenü.');
+        const painter = scene.book.painter, a = painter.canvas.getContext('2d').getImageData(0,0,1586,992).data;
+        const b = painter.menu.getContext('2d').getImageData(0,0,1586,992).data;
+        assert(a.every((value,i)=>value===b[i]), 'Die letzte Filmseite muss exakt dem Menü-Hintergrund entsprechen.');
+      } else {
+        assert(scene.book.painter.pages[1].key.includes('title'), 'Die nächste Welt erscheint rechts.');
+        assert(scene.audio.musicEnabled === false, 'Weltfilme spielen nur Effekte.');
+      }
+      scene.elapsed = scene.duration - 30; scene.startIntro();
+      await wait(() => sceneIs('MainMenuScene'), 'Natürliches Buchfilmende'); await steps();
+      assert(JSON.stringify(game.registry.get('saveData')) === saveBefore, 'Kinofilme verändern keinen Spielstand.');
+      assert(!win.qaErrors.length, win.qaErrors.join('\n'));
+    });
+    await test('Aufwachen überblendet zur Titelmusik, die im Menü ohne Neustart weiterläuft', async () => {
+      active().scene.start('IntroScene', {}); await wait(() => sceneIs('IntroScene'), 'Intro'); await steps();
+      const intro = active(); intro.suspendIntro(); intro.updateMusic(18650);
+      assert(Math.abs(intro.audio.musicGain.gain.value - .1) < .001, 'Schlafmusik blendet aus.');
+      const music = game.sound.get('music-menu');
+      // A locked AudioContext applies scheduled gains only once it renders.
+      // Check the requested gain in all browsers, and the real node when live.
+      assert(music && Math.abs(music.currentConfig.volume - .175) < .001, 'Titelmusik bekommt die überblendete Lautstärke.');
+      if(game.sound.context?.state==='running'){
+        await steps(4);
+        assert(Math.abs(music.volumeNode.gain.value - .175) < .001, 'Der laufende Audioknoten blendet ein.');
+      }
+      intro.elapsed = intro.duration - 30; intro.startIntro();
+      await wait(() => sceneIs('MainMenuScene'), 'Menü nach Musikwechsel'); await steps();
+      assert(game.sound.get('music-menu') === music, 'Dieselbe Titelmusik läuft im Menü weiter.');
+      assert(Math.abs(music.currentConfig.volume - .35) < .001, 'Menümusik erreicht ihre normale Lautstärke.');
+    });
+    for (const [phase, sourceTime] of [['vor der Titelmusik',5000],['während der Titelmusik',18650]]) {
+      await test('Musik: Intro überspringen ' + phase, async () => {
+        active().scene.start('IntroScene', {}); await wait(() => sceneIs('IntroScene'), 'Intro'); await steps();
+        const intro=active();intro.suspendIntro();intro.updateMusic(sourceTime);
+        const existing=game.sound.sounds.find(s=>s.key==='music-menu'&&!s.pendingRemove);
+        let restarts=0,playTime;
+        if(existing){
+          playTime=existing.playTime;
+          const play=existing.play;
+          existing.play=function(...args){restarts++;return play.apply(this,args);};
+        }
+        if(sourceTime<17600)assert(!existing,'Vor dem Aufwachen läuft noch keine Titelmusik.');
+        else assert(existing,'Beim Aufwachen läuft bereits Titelmusik.');
+        tap('Space');await wait(()=>sceneIs('MainMenuScene'),'Überspringen ins Menü');await steps();
+        const music=game.sound.sounds.find(s=>s.key==='music-menu'&&!s.pendingRemove);
+        assert(music,'Das Menü spielt die Titelmusik.');
+        if(existing){
+          assert(music===existing&&restarts===0,'Überspringen darf die laufende Titelmusik nicht neu starten.');
+          assert(music.playTime===playTime,'Die Startposition der laufenden Tonspur bleibt erhalten.');
+        }else{
+          assert(music.config.seek===0,'Beim frühen Überspringen startet die Titelmusik am Anfang.');
+        }
+        assert(Math.abs(music.currentConfig.volume-.35)<.001,'Im Menü gilt die normale Musiklautstärke.');
+        assert(!win.qaErrors.length,win.qaErrors.join('\n'));
+      });
+    }
+    for (const ending of ['Ende', 'Überspringen']) await test('Neues Spiel: Intro ohne Mondseite → Wüstenwelt (' + ending + ')', async () => {
+      await returnToMenu(); active().startNewGame();
+      await wait(() => sceneIs('CharacterSelectScene'), 'Heldenwahl'); await steps();
+      tap('Enter'); await wait(() => active()?.book?.film === 'adventure', 'Intro zum neuen Spiel'); await steps();
+      const intro=active();let desertMusic;
+      assert(intro.book.frameAt(0).left.shot.id==='bedroom', 'Neue Spiele beginnen direkt im Schlafzimmer.');
+      assert(!game.registry.get('storyPreview'), 'Neues Spiel erbt keinen Kinoauftrag.');
+      if(ending==='Überspringen')tap('Space');
+      else {
+        intro.suspendIntro();intro.updateMusic(20500);
+        desertMusic=game.sound.sounds.find(s=>s.key==='music-desert'&&!s.pendingRemove);
+        assert(desertMusic,'Neues Spiel blendet direkt in die Wüstenmusik über.');
+        assert(!game.sound.sounds.some(s=>s.key==='music-menu'&&!s.pendingRemove),'Keine Titelmusik im neuen Abenteuer.');
+        intro.elapsed=intro.duration-30;intro.startIntro();
+      }
+      await wait(() => sceneIs('DessertMapScene'), 'Wüstenwelt nach dem Intro');await steps();
+      assert(game.registry.get('saveData').currentLevel==='Wuestenexperte', 'Das Abenteuer beginnt beim Professor.');
+      const mapMusic=game.sound.sounds.find(s=>s.key==='music-desert'&&!s.pendingRemove);
+      assert(mapMusic,'Die Wüstenkarte spielt Wüstenmusik.');
+      if(desertMusic)assert(mapMusic===desertMusic,'Die Wüstenmusik läuft auf der Karte ohne Neustart weiter.');
+      assert(!win.qaErrors.length,win.qaErrors.join('\n'));
+    });
+    results.textContent += '\nBESTANDEN: ' + passed + ' Integrationsprüfungen';
   } catch (error) { results.textContent += '\nFEHLER: ' + error.message; }
   finally { buttons.forEach(button => button.disabled = false); }
 }

@@ -24,7 +24,7 @@ export const INTRO_CUES = [
   [3200, 'hop'], [3800, 'hop'], [4500, 'hop'],
   [6500, 'whoosh'], [8100, 'whoosh'], [9700, 'whoosh'], [11300, 'whoosh'],
   [13100, 'hop'], [14600, 'hop'], [15300, 'boing'], [16300, 'boing'], [17300, 'boing'],
-  [18000, 'yawn'], [20450, 'hop'], [21700, 'chime'],
+  [18000, 'yawn'], [20450, 'hero-leap'], [21700, 'chime'],
 ];
 
 const clamp = n => Math.max(0, Math.min(1, n));

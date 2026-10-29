@@ -4,6 +4,7 @@ const fs = require('node:fs'), path = require('node:path'), vm = require('node:v
 const source = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 const strip = code => code.replace(/^import .*;\n/gm, '').replace(/export /g, '');
 const load = (file, names, globals = {}) => vm.runInNewContext(strip(source(file)) + '\n({' + names + '});', globals);
+const book = load('src/utils/bookTimeline.js', 'bookIntroMusicMix');
 const timeline = load('src/utils/introTimeline.js', 'INTRO_DURATION, getIntroFrame, introCuesBetween');
 const story = load('src/utils/dragonStory.js', 'DRAGON_CLUES, DRAGON_CLUE_CUES, dragonClueFrame, completeDragonClue');
 const preview = load('src/utils/storyPreview.js', 'STORY_PREVIEW, startStoryPreview, advanceStoryPreview, unlockedStoryFilms', { DRAGON_CLUES: story.DRAGON_CLUES });
@@ -15,7 +16,7 @@ function fixture() {
   const data = new Map([['saveData', save]]), starts = [], writes = [];
   const registry = { get: key => data.get(key), set(key, value) { data.set(key, value); } };
   let now = 0, destroys = 0;
-  const ctx = vm.createContext({ ...preview, ...story, ...timeline, Phaser: { Scene: class {} },
+  const ctx = vm.createContext({ ...preview, ...story, ...timeline, ...book, playMusic() {}, setMusicVolume() {}, resumeMusic() {}, Phaser: { Scene: class {} },
     saveProgress(value) { writes.push(value); }, performance: { now: () => now } });
   for (const name of ['IntroScene', 'DragonClueScene']) vm.runInContext('{' + source('src/scenes/' + name + '.js')
     .replace(/^import .*;\n/gm, '').replace('export default class ' + name, 'globalThis.' + name + ' = class ' + name) + '}', ctx);
@@ -43,7 +44,7 @@ test('the full preview screens the intro and all three clues in order, then retu
   assert.equal(f.registry.get('storyPreview'), null); assert.equal(f.destroys(), 4);
 });
 
-test('previewing or skipping every sequence never writes, consumes a pending clue or changes the save', () => {
+test('completing every preview sequence never writes, consumes a pending clue or changes the save', () => {
   const f = fixture(), before = structuredClone(f.save); preview.startStoryPreview(f.boot);
   for (const entry of preview.STORY_PREVIEW) f.scene(entry.scene, { world: entry.world }).finish();
   assert.equal(f.registry.get('saveData'), f.save); assert.deepEqual(f.save, before); assert.equal(f.writes.length, 0);

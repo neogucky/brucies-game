@@ -78,7 +78,7 @@ export default class DessertMapScene extends Phaser.Scene {
     this.createUI();
     this.mapDiscovery = new WorldMapDiscovery(this, 'desert', NODES, this.mapExits);
     if (this.underworldExitLabel) this.mapDiscovery.watchExit('@underground', [this.underworldExitLabel]);
-    playMusic(this, "music-world");
+    playMusic(this, "music-desert");
     const saveData = { ...this.registry.get("saveData"), currentWorld: "desert", currentLevel: this.currentNode.id };
     this.registry.set("saveData", saveData); saveProgress(saveData);
     const normalized = normalizeInventory(saveData);

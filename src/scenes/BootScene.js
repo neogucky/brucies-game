@@ -35,6 +35,7 @@ export default class BootScene extends Phaser.Scene {
     this.load.image('story-underground', 'assets/story/underground-wall.jpg');
     this.load.image('story-jungle', 'assets/story/jungle-shore.jpg');
     this.load.image('story-reading', 'assets/story/underground-reading.jpg');
+    this.load.image('book-reading', 'assets/storybook/underground-reading-portrait.png');
     this.load.image('story-knight-investigate', 'assets/story/knight-investigate.png');
     this.load.image('story-gestures', 'assets/story/story-gestures.png');
     this.load.image('desert-ruin-states', 'assets/desert/ruin-states-v2.png');
@@ -69,6 +70,15 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("desert-end", "assets/desert/desert_end.png");
     this.load.image("desert-lost", "assets/desert/desert_lost.png");
     this.load.image("menu-bg", "assets/common/menu/menu.png");
+    this.load.image("menu-book", "assets/common/menu/adventure-book.png");
+    this.load.image("menu-book-title", "assets/common/menu/adventure-book-title.png");
+    this.load.image('book-moon', 'assets/storybook/moon-window.png');
+    this.load.image('book-desert', 'assets/storybook/desert-page.png');
+    this.load.image('book-open', 'assets/storybook/open-book.png');
+    this.load.image('book-underworld', 'assets/storybook/underworld-page.png');
+    this.load.image('book-jungle', 'assets/storybook/jungle-page.png');
+    this.load.image('book-water', 'assets/storybook/water-page.png');
+    this.load.image('book-shore', 'assets/storybook/jungle-shore.png');
     this.load.image("ui-coin", "assets/common/ui/coin.png");
     this.load.image("ui-stone", "assets/common/ui/stone.svg");
     this.load.image("ui-heart", "assets/common/ui/heart.png");

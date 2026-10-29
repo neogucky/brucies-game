@@ -28,7 +28,7 @@ Bildprompt stehen in [assets/icons](assets/icons/README.md).
 
 Das Burgzimmer-Intro startet automatisch und zeigt Ritter und Helfer, einen
 freundlichen Drachen mit Schätzen und die Credits „Spielidee von Brucy“ /
-„Entwickelt mit Onkel Tim“. Nach 27,8 Sekunden öffnet sich immer das Hauptmenü.
+„Entwickelt mit Onkel Tim“. Nach 29 Sekunden öffnet sich immer das Hauptmenü.
 Der Drachenschatten erscheint bereits nach etwa zwei Sekunden. Schlaf-„z“ steigen
 vom Ritter auf; Bett und Ritter sind getrennt, sodass das Bett beim animierten
 Absprung und der Landung an seinem Platz bleibt.
@@ -36,7 +36,7 @@ Dort lassen sich die freigespielten Filme im **Kino** erneut abspielen.
 Überspringen funktioniert mit **Leertaste**, **Enter** oder dem dezenten
 Overlay unten rechts. Ein gehaltener Tastendruck löst im folgenden Menü keine
 weitere Aktion aus; erst nach dem Loslassen reagiert die Taste wieder. Im Touch-Profil trägt das Overlay keinen Tastaturhinweis.
-Die Spielfläche übernimmt schon während des Ladens den Tastaturfokus. Eine dabei
+Die Spielfläche fordert schon während des Ladens den Tastaturfokus an. Eine dabei
 gedrückte Leertaste oder Enter-Taste wird als einmaliger Überspringwunsch gemerkt.
 Die Eingabe wird am Browserfenster abgefangen, bevor sie Knöpfe oder Phaser
 erreichen kann. „Weiterspielen“ startet ausschließlich die gespeicherte Welt,
@@ -47,6 +47,17 @@ normalen Berührung oder Taste freigegeben; verpasste Geräusche werden nicht na
 Zum direkten Entwicklertest ohne Intro kann weiterhin `&skipIntro=1` angehängt werden.
 Die Grafiken, vollständigen Prompts und eigenen Töne liegen in
 [assets/intro](assets/intro/README.md).
+
+Hauptmenü und Kino greifen das aufgeschlagene Abenteuerbuch auf. Alle vier
+Filme laufen als bewegte Buchseiten: Jede Aufnahme hat eine feste Kamera und
+füllt den Bereich innerhalb der genau nachgezeichneten Seitenlinien. Feste
+Hochformat-Ausschnitte erhalten die Proportionen der Figuren; die beiden Credits
+blenden kurz an verschiedenen Stellen ein und wieder aus. Die fertige Seite
+bleibt stehen und verliert ihre Farbe, während die nächste Seite lebendig wird.
+Beim Umblättern folgt das Bild der Papierform. Bei reduzierter Bewegung wird
+stattdessen weich überblendet.
+[Alle Filme mit Zeitleiste ansehen](prototypes/storybook/index.html).
+[Buchgrafiken und vollständige Prompts](assets/storybook/README.md).
 
 Alle drei Weltkarten haben geschwungene, deutlich eingefasste Wege. Ritter und
 Helfer folgen diesen Wegen; das Tempo bleibt auch bei langen Pfaden und beim
@@ -382,7 +393,7 @@ Bestehende Spielstände behalten ihre Freischaltungen.
 Nach dem Fremdweg, den Kristalltiefen und dem Lianenpfad folgt jeweils eine kurze
 animierte Drachenspur, bevor es zur Weltkarte zurückgeht: Spuren führen zum
 Tunnel, ein drachenförmiges Loch samt Urlaubswerbung weist in den Urwald,
-weitere Spuren führen zum See. Der Drache selbst bleibt außer Sicht. Jede Szene
+eine schwimmende Schatztruhe lockt zum See. Der Drache selbst bleibt außer Sicht. Jede Szene
 läuft einmal und kann mit Leertaste, Enter oder Antippen übersprungen werden.
 In der Wüste liegen die dezenten Spuren von Anfang an entfernt im Sand. Der
 Helfer bemerkt sie mit einem roten Ausrufezeichen und hüpft hin. Eine Nahaufnahme
@@ -396,7 +407,7 @@ Szene. Die Vorschau verändert keinen Fortschritt und markiert keine Hinweise al
 angesehen; Neuladen startet die Vorführung erneut.
 
 Im Hauptmenü öffnet „Kino“ die Filmauswahl. Das Intro ist immer verfügbar;
-Wüstenspur, Drachenloch und Seespur erscheinen nach dem jeweiligen Levelabschluss.
+Wüstenspur, Drachenloch und schwimmende Schatztruhe erscheinen nach dem jeweiligen Levelabschluss.
 Auch ältere Abschlüsse sowie bereits gesehene oder noch anstehende Hinweise
 zählen. Alle freigespielten Filme bleiben gleichzeitig sichtbar und lassen sich
 einzeln oder mit „Alle ansehen“ in Reihenfolge abspielen. Danach geht es zurück
@@ -452,9 +463,13 @@ Beerenkollisionen mit Spieler, Schild, Boden und Plattformen ab.
 Intro bis zum verzögerten Menüwechsel und „Weiterspielen“ in jeder Welt.
 Zusätzlich unter dem laufenden Webserver
 [tests/browser-regressions.html](tests/browser-regressions.html) öffnen und
-**Intro-Tests starten** drücken. Diese Prüfungen laden die aktuelle Spielseite
-mit echtem Phaser, Assets und Szenen: frühe und gehaltene Tasten, Überspringen,
-wiederholte Kino-Besuche, automatisches Ende und Fortsetzen per Enter oder Klick.
+**Intro-Tests starten** drücken. Diese Integrationsprüfungen laden die aktuelle
+Spielseite mit echtem Phaser, Assets und Szenen: frühe und gehaltene Tasten,
+Überspringen, wiederholte Kino-Besuche, automatisches Ende und Fortsetzen per
+Enter oder Klick. Außerdem prüfen sie alle vier Buchfilme, ihre eingefrorenen
+Seiten, die Entsättigung, das Umblättern und die automatische Rückkehr ins Menü.
+Die Eingaben werden künstlich ausgelöst; getestet wird die
+Spielsteuerung, nicht die Browserleiste.
 Der Testspielstand liegt ausschließlich im Arbeitsspeicher. **Hebel prüfen**
 zeigt außerdem die drei Nahaufnahmen für Ritter und Ritterin an; Greifen,
 Mitte und Ende lassen sich einzeln betrachten. Die normalen Tests sichern neben
@@ -488,8 +503,10 @@ Spielereingabe.
 
 Die Drachenspur-Filme erzählen durch Bewegungen, Gesten und Kameraschnitte statt
 durch Untertitel. Unter Tage zeigt eine echte Aufnahme über der Schulter den
-Ritter mit dem Prospekt in den Händen. Im Urwald führen nasse Spuren, ein
-kleiner Wasserschreck und ein verlorener Schatz zum See.
+Ritter mit dem Prospekt in den Händen. Im Urwald treibt eine Schatztruhe ans
+Ufer. Der Helfer versucht sie zu erreichen, doch Blasen und Wellen tragen sie
+wieder auf den See hinaus. Beide schauen ihr nach, bevor die Wasserwelt-Seite
+erscheint.
 [Neue Filmassets, Ablauf und vollständige Bildprompts](assets/story/README.md).
 
 Offener Vorschlag zur Balance: Im Wüstenendlos-Level erscheint der Boss erst
@@ -558,3 +575,23 @@ Ein Schalter-Reset versteckt den Geheimort wieder und entfernt seinen verbraucht
 Versuch, Zwischenstand, gesammelte Levelmünzen und Rekord. Bereits verdientes Gold
 bleibt erhalten. Der Hebel kann danach im Level erneut umgelegt werden; alternativ
 lässt sich das Geheimlevel über seine Schalter-Einstellung sofort wieder freischalten.
+
+## Buchfilme: Start und neues Abenteuer
+
+Beim Öffnen beginnt der Film mit einem Blick durch das Burgfenster im Mondlicht.
+Der letzte Blattumschlag zeigt links das Menübild; das Hauptmenü übernimmt dieselbe
+Buchansicht. Nach der Heldenwahl für ein neues Spiel beginnt der Film direkt im
+Schlafzimmer und endet mit der Wüstenwelt rechts. Überspringen führt jeweils zum
+passenden Ziel; Weiterspielen bleibt der direkte Weg zum gespeicherten Spiel.
+
+Beim Aufwachen geht die Schlafmusik im Start-Intro in die bekannte Titelmusik
+über, die im Menü weiterläuft. Im neuen Abenteuer folgt stattdessen die
+Wüstenmusik, die auf der Wüstenkarte weiterläuft. Die späteren Weltfilme verwenden nur Effekte. Der Bettsprung und die
+Welt-Titelbilder haben eigene kräftigere Klänge. Die gebogenen Bildflächen haben
+nun eine schmale, feste Pinselkante. Die [Filmvorschau](prototypes/storybook/)
+zeigt beide Intro-Versionen; [Assets und Prompts](assets/storybook/README.md)
+dokumentieren die neuen Bilder.
+
+Nur das Intro kann übersprungen werden; die Weltgeschichten laufen bis zum Ende.
+Der Hinweis zum Überspringen sitzt am unteren Bildrand. Beim Umblättern bleibt
+das Bild nach dem Auflegen des Blatts durchgehend sichtbar.
