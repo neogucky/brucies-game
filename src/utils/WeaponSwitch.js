@@ -16,7 +16,9 @@ export default class WeaponSwitch {
     if (this.pending) { if (this.pending.kind === kind) this.pending.action = action; return false; }
     if (kind === this.hand) return action();
     if (this.scene.isSwinging || this.scene.hammerSlamActive) return false;
-    this.pending = { kind, action, readyAt: this.now + WEAPON_SWITCH_MS }; return false;
+    this.pending = { kind, action, readyAt: this.now + WEAPON_SWITCH_MS };
+    if (this.scene.cache?.audio?.exists('sfx-armor-cloth')) this.scene.sound.play('sfx-armor-cloth', { volume: .18 });
+    return false;
   }
   update(dt) {
     if (this.scene.climbingVine) { this.pending = null; this.hand = 'melee'; this.shotUntil = 0; this.backShield?.setVisible(false); return; }

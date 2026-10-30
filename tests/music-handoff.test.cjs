@@ -1,7 +1,7 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 function fixture(){
- const music=vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../src/soundManager.js'),'utf8').replace(/export /g,'')+'\n({playMusic,stopMusic,setMusicVolume,pauseMusic,resumeMusic});');
+ const music=vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../src/soundManager.js'),'utf8').replace(/export /g,'')+'\n({playMusic,stopMusic,setMusicVolume,pauseMusic,resumeMusic,bumpMusicRate});');
  const voices=[];
  const scene={sound:{add(key,options){
   const voice={key,...options,isPlaying:false,isPaused:false,starts:0,
@@ -27,6 +27,23 @@ test('a paused title track resumes on menu entry rather than creating a second t
  music.playMusic(scene,'music-menu',{volume:.35});
  assert.equal(voices.length,1);assert.equal(voices[0].starts,1);assert.equal(voices[0].isPlaying,true);
  assert.equal(voices[0].volume,.35);music.stopMusic();assert.equal(voices[0].destroyed,true);
+});
+test('leaving an accelerated desert level restores normal map music without restarting the track',()=>{
+ const {music,scene,voices}=fixture();music.playMusic(scene,'music-desert');
+ for(let i=0;i<3;i++)music.bumpMusicRate(1.15);
+ assert.ok(voices[0].rate>1.5);
+ music.playMusic(scene,'music-desert');
+ assert.equal(voices.length,1);assert.equal(voices[0].rate,1);assert.equal(voices[0].starts,1);
+ assert.equal(voices[0].destroyed,undefined);
+ music.bumpMusicRate();music.pauseMusic();music.playMusic(scene,'music-desert');
+ assert.equal(voices[0].rate,1);assert.equal(voices[0].isPlaying,true);
+});
+test('explicit scene rates are respected and later defaults do not inherit them',()=>{
+ const {music,scene,voices}=fixture();music.playMusic(scene,'music-desert',{rate:.9});
+ music.playMusic(scene,'music-desert',{rate:1.1,volume:.2});
+ assert.equal(voices[0].rate,1.1);assert.equal(voices[0].volume,.2);
+ music.playMusic(scene,'music-desert');assert.equal(voices[0].rate,1);
+ music.playMusic(scene,'music-underground');assert.equal(voices[1].rate,1);
 });
 
 test('new-game wake-up uses desert music and hands that same track to the desert map',()=>{

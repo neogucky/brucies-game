@@ -7,6 +7,8 @@ import { registerMeleeTextures } from "../utils/MeleeAnimation.js";
 import { registerHammerTrainingTextures } from "../utils/hammerTrainingAssets.js";
 import { startStoryPreview } from '../utils/storyPreview.js';
 import { registerStoryTextures } from '../utils/storyAssets.js';
+import { registerLevelMotionTextures } from '../utils/levelMotionAssets.js';
+import { registerSwordTextures } from '../utils/SwordAnimation.js';
 
 export default class BootScene extends Phaser.Scene {
   constructor() {
@@ -14,11 +16,28 @@ export default class BootScene extends Phaser.Scene {
   }
 
   preload() {
+    for (const [name, file] of [['locomotion', 'knight-locomotion'], ['poses', 'knight-poses'], ['helper', 'helper-actions']])
+      this.load.image('level-motion-' + name, 'assets/common/characters/level-motion/' + file + '.png');
+    this.load.json('level-motion-frames', 'assets/common/characters/level-motion/frames.json?v=20261030-sword-camera-2');
+    this.load.image('level-motion-rig', 'assets/common/characters/level-motion/knight-rig.png');
+    this.load.image('healing-berry', 'assets/common/scenery/healing-berry.png');
+    for (const name of ['footstep-sand', 'footstep-stone', 'footstep-leaf', 'armor-cloth', 'landing-soft', 'bow-release', 'hammer-swoosh', 'helper-curious', 'helper-brave', 'helper-slurp', 'helper-bounce'])
+      this.load.audio('sfx-' + name, 'assets/common/sounds/' + name + '.wav');
     this.load.image('hammer-training-atlas', 'assets/common/training/hammer-coach-atlas.png');
     this.load.image('hammer-coach-civilian', 'assets/common/training/hammer-coach-civilian.png');
     this.load.image('melee-bodies-atlas', 'assets/common/characters/melee/attack-bodies.png');
     this.load.image('melee-parts-atlas', 'assets/common/characters/melee/attack-parts.png');
     this.load.image('melee-parts-v2-atlas', 'assets/common/characters/melee/attack-parts-v2.png');
+    for (const gender of ['male', 'female']) for (const stance of ['stand', 'crouch', 'jump']) {
+      const id = gender + '-' + stance;
+      const version = stance === 'stand' ? 'v3' : id === 'male-crouch' ? 'v2' : 'v1';
+      this.load.image('sword-b-' + id, 'assets/common/characters/sword-b/' + id + '-' + version + '.png');
+    }
+    this.load.json('sword-b-frames', 'assets/common/characters/sword-b/frames.json?v=20261030-sword-camera-2');
+    this.load.image('melee-right-bodies', 'assets/common/characters/sword-b/right-bodies-v1.png');
+    this.load.json('melee-right-body-frames', 'assets/common/characters/sword-b/right-bodies.json');
+    this.load.image('sword-far-bodies', 'assets/common/characters/sword-b/left-far-bodies-v1.png');
+    this.load.json('sword-far-body-frames', 'assets/common/characters/sword-b/left-far-bodies.json');
     for (const world of ['desert', 'underground', 'jungle']) this.load.image('map-places-' + world, 'assets/worldmap/places-' + world + '.png');
     this.load.svg('map-underground-gate', 'assets/worldmap/gate-closed.svg');
     this.load.svg('map-underground-open-gate', 'assets/worldmap/gate-open.svg');
@@ -104,6 +123,7 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("worldmap-ruin", "assets/worldmap/ruin.png");
     this.load.image("worldmap-ruin-repaired", "assets/worldmap/ruin_repaired.png");
     this.load.image("desert-bg", "assets/desert/desert.png");
+    this.load.image('desert-oasis-bg', 'assets/desert/oasis-v1.png');
     this.load.image("desert-quarry-bg", "assets/desert/desert_quarry.png");
     this.load.image("worldmap-bg", "assets/worldmap/desert_world.png");
     this.load.image("worldmap-oasis", "assets/worldmap/oasis.png");
@@ -213,6 +233,8 @@ export default class BootScene extends Phaser.Scene {
     this.createBatTextures();
     this.createJungleTextures();
     registerMeleeTextures(this);
+    registerSwordTextures(this);
+    registerLevelMotionTextures(this);
     registerHammerTrainingTextures(this);
     let saveData = loadSave();
     const params = new URLSearchParams(window.location.search);

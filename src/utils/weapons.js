@@ -11,6 +11,19 @@ export function getWeaponStats(id) {
   return isMeleeWeapon(id) ? WEAPON_STATS[id] : null;
 }
 
+// Jump levels share one height rule for enemies, chests and blocks. Auto-aim
+// may turn the knight, but must never lift a crouched strike into the next row.
+export function getJumpMeleeBounds(scene) {
+  const stats = getWeaponStats(scene.equipped?.weapon) || WEAPON_STATS.sword;
+  const tile = scene.tileSize || 38;
+  const feet = Number.isFinite(scene.player.body?.bottom) ? scene.player.body.bottom : scene.player.y;
+  const body = scene.player.body;
+  const airborne = body && (body.blocked || body.touching) && !body.blocked?.down && !body.touching?.down;
+  const height = tile * (scene.isDucking && !airborne ? 1 : 2);
+  return { x: scene.player.x + ((scene.facingX || 1) < 0 ? -stats.width : 0),
+    y: feet - height, width: stats.width, height };
+}
+
 export function getWeaponDamage(id, isStone = false, multiplier = 1) {
   const stats = getWeaponStats(id);
   return stats ? stats.damage * (isStone ? stats.stoneMultiplier : 1) * multiplier : 0;

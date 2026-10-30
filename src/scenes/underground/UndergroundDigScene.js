@@ -1,5 +1,5 @@
 import { showExitConfirmation } from "../../ui/ConfirmationDialog.js";
-import { getWeaponStats, isMeleeWeapon, getWeaponTextures, applyWeaponAppearance, getWeaponDamage, getAttackStats, getMeleeDamage } from "../../utils/weapons.js";
+import { getWeaponStats, isMeleeWeapon, getWeaponTextures, applyWeaponAppearance, getWeaponDamage, getAttackStats, getMeleeDamage, getJumpMeleeBounds } from "../../utils/weapons.js";
 import { saveProgress } from "../../saveManager.js";
 import { queueDragonClue } from '../../utils/dragonStory.js';
 import { bumpMusicRate, playMusic } from "../../soundManager.js";
@@ -23,7 +23,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     this.isEditorMode = false;
     this.mapKey = "underground-dig-map";
     this.levelId = "UnderDig";
-    this.locationName = "Erdgang";
+    this.locationName = "Lehmhöhle";
     this.scrollXEnabled = false;
     this.worldWidth = 960;
     this.worldHeight = 600;
@@ -1966,9 +1966,8 @@ export default class UndergroundDigScene extends Phaser.Scene {
   }
 
   getSwingCenterY() {
-    let y = this.player.y - this.player.displayHeight * .6 + (this.isDucking ? 20 : -10);
-    if (this.cursors.up.isDown || this.wasd.W.isDown) y -= 10;
-    return y + (this.isDucking ? 12 : 3);
+    const hit = getJumpMeleeBounds(this);
+    return hit.y + hit.height / 2;
   }
 
   applyAutoAim() {
@@ -1986,7 +1985,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
           : kind === "bat" ? this.batSystem.getBounds(enemy) : enemy.getBounds();
         const gapX = Math.max(0, bounds.x - this.player.x, this.player.x - bounds.right);
         const gapY = Math.max(0, bounds.y - centerY, centerY - bounds.bottom);
-        if (gapX > stats.width + 12 || gapY > stats.height / 2 + 16) return;
+        if (gapX > stats.width + 12 || gapY > getJumpMeleeBounds(this).height / 2) return;
         const targetY = bounds.y + bounds.height / 2;
         if (!this.hasLineOfSight(this.player.x, centerY, enemy.x, targetY)) return;
         const distance = Math.abs(enemy.x - this.player.x) + Math.abs(targetY - centerY);
@@ -2019,7 +2018,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     if (!this.blocks?.children?.size) return;
     // Crouched digging stays in the row at the feet, even when auto-aim looks up.
     const feetY = this.player.body?.bottom ?? this.player.y;
-    const blockHitBounds = this.isDucking
+    const blockHitBounds = hitBounds.height <= this.tileSize
       ? new Phaser.Geom.Rectangle(hitBounds.x,
         Math.floor((feetY - 1) / this.tileSize) * this.tileSize, hitBounds.width, this.tileSize)
       : hitBounds;
@@ -2161,16 +2160,8 @@ export default class UndergroundDigScene extends Phaser.Scene {
   }
 
   getMeleeBounds() {
-    const stats = getWeaponStats(this.equipped?.weapon) || getWeaponStats("sword");
-    const offsetX = this.facingX * stats.offset;
-    let centerY = this.getSwingCenterY();
-    const target = this.autoAimTarget;
-    if (this.autoAimEnabled && target?.enemy.active) {
-      const bounds = target.kind === "stone" ? this.getStoneMonsterHitbox(target.enemy)
-        : target.kind === "bat" ? this.batSystem.getBounds(target.enemy) : target.enemy.getBounds();
-      centerY = Phaser.Math.Clamp(bounds.y + bounds.height / 2, centerY - 16, centerY + 16);
-    }
-    return new Phaser.Geom.Rectangle(this.player.x + offsetX - stats.width / 2, centerY - stats.height / 2, stats.width, stats.height);
+    const { x, y, width, height } = getJumpMeleeBounds(this);
+    return new Phaser.Geom.Rectangle(x, y, width, height);
   }
 
   performDownStrike() {
@@ -2299,7 +2290,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
       this.sfx.coin.play();
     }
     chest.setTexture("chest-opened");
-    const coin = this.add.circle(chest.x, chest.y - 8, 6, 0xf5d37a);
+    const coin = this.add.image(chest.x, chest.y - 8, 'ui-coin').setDisplaySize(14, 14).setDepth(chest.depth + 1);
     this.tweens.add({
       targets: coin,
       y: coin.y - 20,
@@ -3630,6 +3621,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
   }
 
   updateCompanionAttack() {
+    if (this.companionActions) return false;
     if (this.isPaused || this.isGameOver || !this.companionEnabled || this.companionHealth <= 0) return false;
     if (!this.companion?.visible || !this.companion.body?.enable || this.companionRespawnAt > 0) return false;
     const now = this.time.now;

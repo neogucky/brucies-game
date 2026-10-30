@@ -1,5 +1,6 @@
 import { getWeaponStats, getAttackStats } from './weapons.js';
 import { HAMMER_CHARGE } from './hammerRules.js';
+import SwordAnimation, { swordStance } from './SwordAnimation.js';
 
 export const MELEE_EMPTY_TEXTURE = 'melee-player-body';
 export const MELEE_RECOVERY_MS = 90;
@@ -76,6 +77,17 @@ export function registerMeleeTextures(scene) {
     const id = gender + (ducking ? '-crouch' : '-stand');
     bodies[id] = registerMeleeBodyRow(scene, atlas, cuts, id);
   });
+  const rightAtlas = scene.textures.get('melee-right-bodies').getSourceImage();
+  scene.cache.json.get('melee-right-body-frames').forEach((cuts, row) => {
+    const id = (row >= 2 ? 'female' : 'male') + '-right-' + (row % 2 ? 'crouch' : 'stand');
+    bodies[id] = registerMeleeBodyRow(scene, rightAtlas, cuts, id, .36)
+      .map(frame => ({ ...frame, shoulder: { ...frame.shoulder, x: -frame.shoulder.x } }));
+  });
+  const farAtlas = scene.textures.get('sword-far-bodies').getSourceImage();
+  scene.cache.json.get('sword-far-body-frames').forEach((cuts, row) => {
+    const id = (row >= 3 ? 'female' : 'male') + '-left-far-' + ['stand', 'crouch', 'jump'][row % 3];
+    bodies[id] = registerMeleeBodyRow(scene, farAtlas, cuts, id, .44);
+  });
   const parts = {};
   for (const [id, cut] of Object.entries(PART_CUTS)) {
     const source = scene.textures.get(cut.atlas || 'melee-parts-v2-atlas').getSourceImage();
@@ -112,23 +124,40 @@ export function weaponOutlineBounds(part, length, angle) {
 }
 
 // All geometry is in facing-local coordinates: positive x points at the enemy.
-export function getMeleePose({ elapsed, stats, weapon, hit, x, feetY, scale = .6, direction = 1, ducking = false, kind = 'swing', recovery = null, recoveryPose, assets }) {
+export function getMeleePose({ elapsed, stats, weapon, hit, x, feetY, scale = .6, direction = 1, ducking = false, kind = 'swing', recovery = null, recoveryPose, assets, aimVector, farSide = false, farCut = false }) {
   const phase = getMeleePhase(elapsed, stats, kind, recovery);
   const bodyFrames = assets.bodies, frame = bodyFrames[Math.round(phase.bodyPhase * BODY_STEPS)];
   // The joint sits inside the shoulder plate, rather than on its outer edge.
-  const shoulder = { x: frame.shoulder.x * scale - 4 * scale / .6, y: frame.shoulder.y * scale };
+  const unit = scale / .6;
+  // Weight starts on the back foot and travels through the torso into the
+  // shoulder. That leaves room for an actual upper arm rather than squeezing
+  // two sleeves into the few pixels between a fixed shoulder and the grip.
+  const drive = phase.stage === 'charge' ? -phase.blend : phase.stage === 'windup' && stats.chargeProgress !== undefined ? -ease(stats.chargeProgress) * (1 - phase.blend)
+    : phase.stage === 'strike' ? Math.sin(phase.blend * Math.PI) : 0;
+  const bodyOffset = { x: (-9 + drive * 3) * unit, y: Math.max(0, drive) * 1.2 * unit };
+  if (phase.stage === 'recovery') { bodyOffset.x = mix(recoveryPose.bodyOffset?.x ?? -9 * unit, 0, phase.blend); bodyOffset.y = mix(recoveryPose.bodyOffset?.y ?? 0, 0, phase.blend); }
+  const bodyAngle = (phase.stage === 'charge' ? -.065 * phase.blend
+    : phase.stage === 'windup' && stats.chargeProgress !== undefined ? mix(-.065 * ease(stats.chargeProgress), -.025, phase.blend)
+    : phase.stage === 'strike' ? -.035 + .105 * phase.blend : -.025);
+  const rawShoulder = { x: frame.shoulder.x * scale - Math.sign(frame.shoulder.x || 1) * 4 * unit, y: frame.shoulder.y * scale };
+  const shoulder = { x: rawShoulder.x * Math.cos(bodyAngle) - rawShoulder.y * Math.sin(bodyAngle) + bodyOffset.x,
+    y: rawShoulder.x * Math.sin(bodyAngle) + rawShoulder.y * Math.cos(bodyAngle) + bodyOffset.y };
   const reach = direction > 0 ? hit.x + hit.width - x : x - hit.x;
-  const length = 38 * scale / .6;
+  const length = (farCut ? 52 : 38) * scale / .6;
   const part = assets.parts[weapon];
   const centerY = hit.y + hit.height / 2 - feetY;
   const aim = clamp(Math.atan2(centerY - shoulder.y, Math.max(1, reach - shoulder.x)) * .6, -.45, .35);
-  const angleLimit = weapon === 'powerHammer' ? .65 : .9;
-  const firstAngle = clamp(-.5 + aim, -angleLimit, angleLimit);
-  const activeAngle = clamp(mix(-.5, .5, phase.blend) + aim, -angleLimit, angleLimit);
+  const vertical = aimVector && Math.abs(aimVector.y) > Math.abs(aimVector.x);
+  const angleLimit = weapon === 'powerHammer' ? .9 : 1.1;
+  const firstAngle = vertical ? Math.sign(aimVector.y) * Math.PI / 2 - .22 : clamp(-.85 + aim, -angleLimit, angleLimit);
+  const activeAngle = vertical ? Math.sign(aimVector.y) * Math.PI / 2 + mix(-.22, .22, phase.blend) : clamp(mix(-.85, .75, phase.blend) + aim, -angleLimit, angleLimit);
   const activeBounds = weaponOutlineBounds(part, length, activeAngle);
   const freeHeight = Math.max(0, hit.height - (activeBounds.bottom - activeBounds.top));
   const strikeHand = { x: reach - activeBounds.right, y: centerY + (phase.blend - .5) * freeHeight * .65 - (activeBounds.top + activeBounds.bottom) / 2 };
-  const readyHand = { x: shoulder.x + 8 * scale / .6, y: shoulder.y - 9 * scale / .6 };
+  const verticalHand = bounds => ({ x: direction * (hit.x + hit.width / 2 - x) - (bounds.left + bounds.right) / 2,
+    y: aimVector.y < 0 ? hit.y - feetY - bounds.top : hit.y + hit.height - feetY - bounds.bottom });
+  if (vertical) Object.assign(strikeHand, verticalHand(activeBounds));
+  const readyHand = { x: shoulder.x + 15 * unit, y: shoulder.y - 8 * unit };
   let angle = activeAngle, hand = strikeHand;
   if (phase.stage === 'ready') {
     hand = readyHand; angle = -1.2;
@@ -146,6 +175,7 @@ export function getMeleePose({ elapsed, stats, weapon, hit, x, feetY, scale = .6
   } else if (phase.stage === 'windup') {
     const firstBounds = weaponOutlineBounds(part, length, firstAngle);
     const firstHand = { x: reach - firstBounds.right, y: centerY - Math.max(0, hit.height - firstBounds.bottom + firstBounds.top) * .325 - (firstBounds.top + firstBounds.bottom) / 2 };
+    if (vertical) Object.assign(firstHand, verticalHand(firstBounds));
     const charged = stats.chargeProgress !== undefined, chargeBlend = ease(stats.chargeProgress);
     const fromHand = charged ? { x: shoulder.x + mix(9, 4, chargeBlend) * scale / .6,
       y: shoulder.y - mix(8, 18, chargeBlend) * scale / .6 } : readyHand;
@@ -157,24 +187,44 @@ export function getMeleePose({ elapsed, stats, weapon, hit, x, feetY, scale = .6
   } else if (phase.stage === 'recovery') {
     hand = between(recoveryPose.hand, readyHand, phase.blend); angle = mix(recoveryPose.angle, -1.2, phase.blend);
   }
+  if (farCut && weapon === 'sword' && phase.stage === 'strike' && !vertical) {
+    // The same B cut seen from its far side: coil, high cut, waist, low
+    // follow-through. The torso is a separate foreground layer, hiding the
+    // shoulder instead of swapping to a front-facing left arm.
+    const points = ducking
+      ? [[.45,-20],[2.8,-24],[0,-22],[.1,-17],[.55,-2]]
+      : [[-2,-76],[-2.45,-82],[-.8,-70],[-.05,-50],[-.025,-40],[.58,-2],[.42,-2]];
+    const t=clamp(elapsed/stats.swingMs)*points.length,index=Math.min(points.length-1,Math.floor(t));
+    const next=Math.min(points.length-1,index+1),blend=ease(t-index);
+    angle=mix(points[index][0],points[next][0],blend);
+    const tipY=mix(points[index][1],points[next][1],blend)*unit;
+    const bounds=weaponOutlineBounds(part,length,angle);
+    const grip=i=>i<2?{x:shoulder.x+(i?-6:9)*unit,y:points[i][1]*unit-length*Math.sin(points[i][0])}
+      :{x:reach-weaponOutlineBounds(part,length,points[i][0]).right,y:points[i][1]*unit-length*Math.sin(points[i][0])};
+    hand=index<2?between(grip(index),grip(next),blend):{x:reach-bounds.right,y:tipY-length*Math.sin(angle)};
+  }
   // A tucked hand foreshortens the sleeves. Fixed long bones would fold the
   // elbow past the fist here, making the arm look dislocated.
   const dx = hand.x - shoulder.x, dy = hand.y - shoulder.y, distance = Math.max(.001, Math.hypot(dx, dy));
-  const handLength = 3.5 * scale / .6, wristOffset = handLength * (assets.parts.hand?.wristRatio ?? .85);
+  const handLength = (farSide ? 5 : 3.5) * scale / .6, wristOffset = handLength * (assets.parts.hand?.wristRatio ?? .85);
   const sleevesVisible = distance > wristOffset + 1.5 * scale / .6;
   const wrist = sleevesVisible
     ? { x: hand.x - dx / distance * wristOffset, y: hand.y - dy / distance * wristOffset } : { ...shoulder };
   const sleeveDistance = Math.hypot(wrist.x - shoulder.x, wrist.y - shoulder.y);
-  const elbow = { x: mix(shoulder.x, wrist.x, .48), y: mix(shoulder.y, wrist.y, .48) + Math.min(2.5 * scale / .6, sleeveDistance * .12) };
+  // Bend outwards, perpendicular to the shoulder/wrist line. Both bones keep
+  // their thickness; the bend opens during extension and follows the swing.
+  const bend = Math.min(6.5 * unit, sleeveDistance * .32);
+  const elbow = { x: mix(shoulder.x, wrist.x, .5) - (wrist.y - shoulder.y) / Math.max(.001, sleeveDistance) * bend,
+    y: mix(shoulder.y, wrist.y, .5) + (wrist.x - shoulder.x) / Math.max(.001, sleeveDistance) * bend };
+  elbow.x = clamp(elbow.x, Math.min(shoulder.x, wrist.x), Math.max(shoulder.x, wrist.x));
   return { frame: frame.key, phase, shoulder, elbow, wrist, hand, handAngle: Math.atan2(dy, dx), handLength, sleevesVisible,
-    angle, length, direction, x, feetY, scale, ducking,
-    bounds: weaponOutlineBounds(part, length, angle) };
+    angle, length, direction, x, feetY, scale, ducking, bodyOffset, bodyAngle,
+    armWidths: farSide ? {upper:9,forearm:7.5} : null, bounds: weaponOutlineBounds(part, length, angle) };
 }
 
 export default class MeleeAnimation {
   constructor(scene) {
     this.scene = scene; this.assets = scene.registry.get('melee-animation-assets');
-    this.chargeOnly = scene.gameMode === 'isometric';
     if (!this.assets) return;
     this.parts = scene.meleeVisualType === 'trainer' ? this.assets.trainerParts : this.assets.parts;
     this.body = scene.add.image(0, 0, this.assets.bodies['male-stand'][0].key).setOrigin(.5, 1);
@@ -183,11 +233,12 @@ export default class MeleeAnimation {
     this.forearm = scene.add.image(0, 0, this.parts.forearm.key);
     this.hand = scene.add.image(0, 0, this.parts.hand.key);
     this.images = [this.body, this.upper, this.weapon, this.forearm, this.hand];
+    this.sword = new SwordAnimation(scene);
     this.hide();
   }
 
   clock() { return this.scene.worldTime ?? this.scene.time.now; }
-  hide() { this.images?.forEach(image => image.setVisible(false)); }
+  hide() { this.images?.forEach(image => image.setVisible(false)); this.sword?.hide(); }
   restore() {
     const s = this.scene, p = s.player;
     this.hide();
@@ -202,7 +253,6 @@ export default class MeleeAnimation {
     }
     const now = this.clock();
     const charging = s.hammerCharge?.holding && s.hammerCharge.ready;
-    if (this.chargeOnly && !charging) { this.state = null; this.restore(); return; }
     const paused = s.isPaused || s.inventoryOpen || s.isEditorMode || s.isHitboxEditMode || s.time?.paused;
     const delta = paused || this.lastClock === undefined ? 0 : Math.max(0, now - this.lastClock);
     this.lastClock = now;
@@ -225,18 +275,37 @@ export default class MeleeAnimation {
     if (!this.state) { this.restore(); return; }
     const state = this.state, stats = getAttackStats(state.weapon, s.hammerAttack), scale = Math.abs(p.scaleY);
     const gender = s.meleeVisualType || (s.registry.get('saveData')?.playerGender === 'female' ? 'female' : 'male');
-    const bodyFrames = this.assets.bodies[gender + (s.isDucking ? '-crouch' : '-stand')];
     const hit = s.getMeleeBounds ? s.getMeleeBounds() : s.swordHitbox.getBounds();
     const feetY = p.y + (1 - (p.originY ?? 1)) * (p.displayHeight || 0);
-    const direction = s.facingX || (s.facing?.x < 0 ? -1 : 1);
+    const direction = s.facingX || (s.facing?.x ? Math.sign(s.facing.x) : p.flipX ? 1 : -1);
+    if (state.recoveryElapsed !== undefined && state.recoveryPose.direction !== direction) {
+      this.state = null; this.restore(); return;
+    }
+    const stance = s.gameMode === 'jump' ? swordStance(s) : s.isDucking ? 'crouch' : 'stand';
+    const farBody = state.weapon === 'sword' && direction < 0 ? this.assets.bodies[gender + '-left-far-' + stance] : null;
+    const rightBody = state.weapon === 'sword' && direction > 0 ? this.assets.bodies[gender + '-right-' + (s.isDucking ? 'crouch' : 'stand')] : null;
+    const bodyFrames = farBody || rightBody || this.assets.bodies[gender + (s.isDucking ? '-crouch' : '-stand')];
+    if (state.weapon === 'sword' && s.gameMode === 'jump' && direction > 0 && this.sword?.body) {
+      this.images.forEach(image => image.setVisible(false));
+      this.lastPose = this.sword.draw({ state, stats, hit, direction, scale, feetY,
+        recovery: state.recoveryElapsed === undefined ? null : state.recoveryElapsed / MELEE_RECOVERY_MS });
+      p.setTexture(MELEE_EMPTY_TEXTURE);
+      return;
+    }
+    this.sword?.hide();
     const pose = getMeleePose({ elapsed: state.elapsed, stats, weapon: state.weapon, hit, x: p.x, feetY,
-      direction, scale, ducking: s.isDucking, kind: state.kind,
+      direction, scale, ducking: stance === 'crouch', kind: state.kind, farSide: Boolean(farBody), farCut: Boolean(farBody) && s.gameMode === 'jump',
       recovery: state.recoveryElapsed === undefined ? null : state.recoveryElapsed / MELEE_RECOVERY_MS,
-      recoveryPose: state.recoveryPose, assets: { bodies: bodyFrames, parts: this.parts } });
+      recoveryPose: state.recoveryPose, aimVector: s.gameMode === 'isometric' ? s.facing : null, assets: { bodies: bodyFrames, parts: this.parts } });
+    if (farBody) Object.assign(pose, { renderer: 'sword-b', view: 'far', stance, frameIndex: Math.round(pose.phase.bodyPhase * BODY_STEPS) });
     this.lastPose = pose;
     p.setTexture(MELEE_EMPTY_TEXTURE);
     this.images.forEach((image, index) => image.setVisible(p.visible).setAlpha(p.alpha).setDepth(p.depth + .01 * (index + 1)));
-    this.body.setTexture(pose.frame).setPosition(p.x, feetY).setScale(scale).setFlipX(direction > 0);
+    // A fixed camera sees the right sword shoulder behind the torso when the
+    // knight faces left. Helmet, chest and shield occlude the far-side arm.
+    if (state.weapon === 'sword' && direction < 0) this.body.setDepth(p.depth + .06);
+    this.body.setTexture(pose.frame).setPosition(p.x + direction * pose.bodyOffset.x, feetY + pose.bodyOffset.y)
+      .setScale(scale).setFlipX(rightBody ? false : direction > 0).setRotation(direction * pose.bodyAngle);
     this.drawLimb(this.upper, this.parts.upper, pose.shoulder, pose.elbow, pose);
     this.drawPart(this.weapon, this.parts[state.weapon], pose.hand, pose.angle, pose.length, pose);
     this.drawLimb(this.forearm, this.parts.forearm, pose.elbow, pose.wrist, pose);
@@ -246,7 +315,7 @@ export default class MeleeAnimation {
   drawLimb(image, part, from, to, pose) {
     this.drawPart(image, part, from, Math.atan2(to.y - from.y, to.x - from.x), Math.hypot(to.x - from.x, to.y - from.y), pose);
     // Perspective changes sleeve length, while armor thickness stays constant.
-    image.scaleY = (part === this.parts.upper ? 7 : 5.5) * pose.scale / .6 / part.height;
+    image.scaleY = (part === this.parts.upper ? pose.armWidths?.upper || 7 : pose.armWidths?.forearm || 5.5) * pose.scale / .6 / part.height;
   }
   drawPart(image, part, pivot, angle, length, pose) {
     const scale = length / part.length;
@@ -254,5 +323,5 @@ export default class MeleeAnimation {
       .setPosition(pose.x + pose.direction * pivot.x, pose.feetY + pivot.y)
       .setScale(-pose.direction * scale, scale).setRotation(pose.direction * (angle - part.angle));
   }
-  destroy() { this.restore(); this.images?.forEach(image => image.destroy()); this.state = null; }
+  destroy() { this.restore(); this.images?.forEach(image => image.destroy()); this.sword?.destroy(); this.state = null; }
 }

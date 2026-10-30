@@ -1,0 +1,6 @@
+{
+  "mode": "built-in image_gen",
+  "reference": "assets/desert/desert.png",
+  "output": "assets/desert/oasis-v1.png",
+  "prompt": "Edit the provided 960x600 game background. Preserve the same bright, warm painted cartoon style, sand textures, slightly elevated top-down game perspective, and large OPEN sandy playing area. Make it clearly a DESERT OASIS. Put a compact turquoise oasis pool ONLY in the UPPER RIGHT corner, approximately x=735..955 and y=20..165 in a 960x600 coordinate system. Shoreline is framed by chunky tan rocks, lush green date palms, reeds, small tropical leaves and a sandy lip. The pool must look like real visible water with gentle bright ripples. Keep ALL of the center and lower 70% dry sand and visually uncluttered, and keep the existing little rocks and green bushes around the lower and left edges. Leave the bottom-right open sandy edge clear of a large tree. This is a playable background: no characters, no chests, no interface, no text, no paths or decorative symbols. Do not add a horizon or switch to a side-on perspective. Canvas 960x600, full opaque background."
+}

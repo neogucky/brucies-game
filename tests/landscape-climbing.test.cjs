@@ -100,7 +100,7 @@ test('the closed key gate is on every route from the shop to the mine and crysta
   registry:{get:()=>save,set(_k,v){save=v;}},mapTravel:{travel(){moves++;}},showDialog(t){message=t;},sound:{play(){}}});
  ctx.saveProgress=()=>{};s.tryMove({x:-1,y:1});assert.equal(moves,0);s.startCurrentLevel();assert.match(message,/Verschlossen/);
  save.undergroundKeyCollected=true;s.startCurrentLevel();assert.ok(s.unlocked.has('Schluesselweg'));
- s.tryMove({x:-1,y:1});assert.equal(moves,1);assert.equal(nodes.find(n=>n.id==='Schluesselweg').label,'Steinwächtermine');
+ s.tryMove({x:-1,y:1});assert.equal(moves,1);assert.equal(nodes.find(n=>n.id==='Schluesselweg').label,'Mine');
 });
 test('the water preview preserves world progression without inventing completed levels',()=>{
  const save=ctx.normalizeWorldProgress({currentLevel:'Lianenpfad',unlockedWorlds:['jungle'],completedLevels:['Urwaldkronen'],coins:321});

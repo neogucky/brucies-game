@@ -11,7 +11,7 @@ export default class UndergroundShopScene extends ShopSceneBase {
       returnSceneKey: "UndergroundMapScene",
       backgroundKey: "underground-shop",
       loadingKey: "underground-shop-loading",
-      locationText: "Untergrundshop",
+      locationText: "Taverne",
       greetingText: "Da bist du wieder! Hier unten rumpelt es ganz schön.\nFür harte Brocken habe ich einen starken Hammer!",
       promptText: "Was möchtest du kaufen?",
       items: [

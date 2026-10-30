@@ -24,3 +24,7 @@ sofort den passenden Zustand; die fertige Ruine bleibt das bisherige Asset.
 Die Büsche enthalten keine fest gemalten Beeren: Nur die separat dargestellten
 roten Früchte können gesammelt werden. Nach der Ernte verschwinden sie und
 wachsen wie bisher nach. So zeigt die Grafik den tatsächlichen Vorrat.
+
+### Oase
+
+`oasis-v1.png` ist der neue Hintergrund für die Oase (interne Spielstand-ID `DesertEndless`). Erstellt mit dem eingebauten ImageGen-Werkzeug auf Basis von `desert.png`. Der vollständige Prompt ist in `prompts/oasis-v1.json` dokumentiert. Die Spielfläche bleibt trocken; Poolbegrenzung und sichere Gegnerpositionen stehen in `src/utils/oasis.js`.

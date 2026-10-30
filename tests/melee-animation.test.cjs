@@ -7,7 +7,7 @@ function load(file, name) {
   if (name) code = code.replace(/export default class \w+/, 'globalThis.' + name + ' = class ' + name);
   vm.runInContext(code.replace(/export /g, ''), ctx);
 }
-load('src/utils/weapons.js'); load('src/utils/hammerRules.js'); load('src/utils/MeleeAnimation.js', 'MeleeAnimation');
+load('src/utils/weapons.js'); load('src/utils/hammerRules.js'); load('src/utils/SwordAnimation.js', 'SwordAnimation'); load('src/utils/MeleeAnimation.js', 'MeleeAnimation');
 const stats = vm.runInContext('WEAPON_STATS', ctx);
 const frames = Array.from({ length: 13 }, (_, i) => ({ key: 'pose-' + i, shoulder: { x: 14 + i * .4, y: -62 + i * .7 } }));
 // Convex silhouettes measured from the transparent production weapon atlas.
@@ -182,4 +182,23 @@ test('foreshortening changes sleeve length without flattening the glove or armor
     assert.ok(Math.abs(animation.forearm.scaleY*parts.forearm.height-5.5)<1e-8);
   }
   assert.ok(sizes.every(size=>size===sizes[0]),'glove keeps its size throughout the swing');
+});
+test('attacks move the shoulder and upper arm as well as rotating the weapon',()=>{
+  for(const weapon of ['sword','powerHammer']){
+    const poses=Array.from({length:12},(_,i)=>poseAt(weapon,stats[weapon].windupMs+(stats[weapon].swingMs-stats[weapon].windupMs-1)*i/11));
+    assert.ok(Math.max(...poses.map(p=>p.shoulder.x))-Math.min(...poses.map(p=>p.shoulder.x))>4);
+    const upperAngles=poses.map(p=>Math.atan2(p.elbow.y-p.shoulder.y,p.elbow.x-p.shoulder.x));
+    assert.ok(Math.max(...upperAngles)-Math.min(...upperAngles)>.4,'the whole upper arm participates');
+  }
+});
+test('isometric attacks can point up and down while keeping the tip on the damage boundary',()=>{
+  for(const yDirection of [-1,1])for(const weapon of ['sword','powerHammer']){
+    const hit={x:380,y:yDirection<0?400:460,width:40,height:38};
+    for(let elapsed=stats[weapon].windupMs;elapsed<stats[weapon].swingMs;elapsed+=12){
+      const p=poseAt(weapon,elapsed,1,false,0,{hit,aimVector:{x:0,y:yDirection}});
+      const edge=500+p.hand.y+(yDirection<0?p.bounds.top:p.bounds.bottom);
+      assert.ok(Math.abs(edge-(yDirection<0?hit.y:hit.y+hit.height))<1e-7);
+      assert.ok(Number.isFinite(p.elbow.x)&&Number.isFinite(p.elbow.y));
+    }
+  }
 });

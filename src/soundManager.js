@@ -3,9 +3,10 @@ let currentKey = null;
 let currentRate = 1;
 
 export function playMusic(scene, key, options = {}) {
+  const requestedRate = Number.isFinite(options.rate) ? options.rate : 1;
   if (currentKey === key && currentMusic) {
-    if (Number.isFinite(options.rate) && options.rate !== currentRate) {
-      currentRate = options.rate;
+    if (requestedRate !== currentRate) {
+      currentRate = requestedRate;
       currentMusic.setRate(currentRate);
     }
     if (currentMusic.isPaused) currentMusic.resume();
@@ -19,7 +20,7 @@ export function playMusic(scene, key, options = {}) {
     currentMusic = null;
   }
   currentKey = key;
-  currentRate = options.rate ?? 1;
+  currentRate = requestedRate;
   currentMusic = scene.sound.add(key, { loop: true, volume: 0.35, ...options });
   currentMusic.setRate(currentRate);
   currentMusic.play();

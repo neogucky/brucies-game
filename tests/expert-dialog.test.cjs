@@ -67,7 +67,7 @@ test('the first desert conversation is a complete introduction without the retur
   assert.equal(s.dialog.pages.length,4);
   assert.match(s.dialog.text.text,/Willkommen.*Professor Knobel.*Monster und Natur/);
   controls.dispatch('confirm'); assert.match(s.dialog.text.text,/grünen Drachen/);
-  controls.dispatch('confirm'); assert.match(s.dialog.text.text,/gestern.*über der Wüstenruine/);
+  controls.dispatch('confirm'); assert.match(s.dialog.text.text,/gestern.*über der Ruine/);
   controls.dispatch('confirm'); assert.match(s.dialog.text.text,/Komm gerne wieder.*Tipps zu Gegnern/);
   assert.ok(s.dialog.pages.every(page=>page.text!==experts.desert.returnGreeting));
   controls.dispatch('confirm'); assert.equal(s.dialog.container.visible,false);

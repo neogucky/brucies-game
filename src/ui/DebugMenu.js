@@ -3,9 +3,9 @@ import { STORY_PREVIEW, unlockedStoryFilms } from '../utils/storyPreview.js';
 import { resetSceneKeys } from '../utils/PortableControls.js';
 
 const WORLD_NAMES = { desert: 'Wüste', underground: 'Unterwelt', jungle: 'Urwald', water: 'Wasserwelt' };
-const LEVEL_NAMES = { Wuestenruine: 'Wüstenruine', Taverne: 'Taverne', DesertEndless: 'Wüstenendlos', Fremdweg: 'Fremdweg',
-  Wuestenexperte: 'Wüstenexperte', Wuestenschatz: 'Goldoase', UnderShop: 'Untergrundshop', UnderDig: 'Erdgang',
-  Schluesseltor: 'Schlüsseltor', Schluesselweg: 'Steinwächtermine', Kristalltiefen: 'Kristalltiefen',
+const LEVEL_NAMES = { Wuestenruine: 'Ruine', Taverne: 'Taverne', DesertEndless: 'Oase', Fremdweg: 'Steinbruch',
+  Wuestenexperte: 'Wüstenexperte', Wuestenschatz: 'Goldoase', UnderShop: 'Taverne', UnderDig: 'Lehmhöhle',
+  Schluesseltor: 'Schlüsseltor', Schluesselweg: 'Mine', Kristalltiefen: 'Kristalltiefen',
   Unterweltexperte: 'Unterweltexperte', Kristallschatz: 'Funkelkammer', UrwaldShop: 'Urwald-Shop',
   Urwaldkronen: 'Kokoskronen', Lianenpfad: 'Lianenpfad', Urwaldexperte: 'Urwaldexperte', Wipfelschatz: 'Goldwipfel', Seeufer: 'Seeufer' };
 

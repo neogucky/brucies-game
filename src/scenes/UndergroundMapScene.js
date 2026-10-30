@@ -16,14 +16,14 @@ import { applyInventoryToSave, normalizeInventory } from "../utils/inventory.js"
 const NODES = [
   {
     id: "UnderShop",
-    label: "Untergrundshop",
+    label: "Taverne",
     x: 570,
     y: 130,
     neighbors: { left: "UnderDig", downLeft: "Schluesseltor", right: "Unterweltexperte" },
   },
   {
     id: "UnderDig",
-    label: "Erdgang",
+    label: "Lehmhöhle",
     x: 185,
     y: 130,
     neighbors: { right: "UnderShop", down: 'Kristallschatz' },
@@ -38,7 +38,7 @@ const NODES = [
   },
   {
     id: "Schluesselweg",
-    label: "Steinwächtermine",
+    label: "Mine",
     x: 205,
     y: 383,
     neighbors: { upRight: "Schluesseltor", right: "Kristalltiefen" },
@@ -257,7 +257,7 @@ export default class UndergroundMapScene extends Phaser.Scene {
       color: "#fff0c0", stroke: "#38291e", strokeThickness: 4 }).setOrigin(.5).setDepth(6)
       .setInteractive({ useHandCursor: true }).on("pointerdown", () => {
         if (this.currentNode?.id === "UnderShop") this.returnToDesert();
-        else this.lockText.setText("Der Weg zur Wüste beginnt beim Untergrundshop.");
+        else this.lockText.setText("Der Weg zur Wüste beginnt bei der Taverne.");
       });
     this.hintText = this.add
       .text(14, 585, "{confirm} = Betreten · {move} = Bewegen · {back} = Menü", {
@@ -349,13 +349,13 @@ export default class UndergroundMapScene extends Phaser.Scene {
       this.scene.start("UndergroundDigScene", {
         mapKey: "underground-dig-map",
         levelId: "UnderDig",
-        locationName: "Erdgang",
+        locationName: "Lehmhöhle",
       });
     } else if (this.currentNode.id === "Schluesselweg") {
       this.scene.start("UndergroundDigScene", {
         mapKey: "underground-keytower-map",
         levelId: "Schluesselweg",
-        locationName: "Steinwächtermine",
+        locationName: "Mine",
       });
     } else if (this.currentNode.id === "Kristalltiefen") {
       this.scene.start("UndergroundDigScene", {

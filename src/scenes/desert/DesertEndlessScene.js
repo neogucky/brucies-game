@@ -10,6 +10,7 @@ import CoordinateDebugger from "../../utils/coordinateDebugger.js";
 import { applyInventoryToSave, normalizeInventory } from "../../utils/inventory.js";
 import { applyItemModeSupport, GAME_MODES } from "../../utils/itemRegistry.js";
 import SecretSwitch from '../../utils/SecretSwitch.js';
+import { OASIS_WATER, safeOasisSpawn } from '../../utils/oasis.js';
 
 export default class DesertEndlessScene extends Phaser.Scene {
   constructor() {
@@ -66,6 +67,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
     this.createBushes();
     this.createChests();
     this.createMonsters();
+    this.createOasisShore();
     this.createSword();
     this.createRespawnTimers();
     this.createAudio();
@@ -120,9 +122,25 @@ export default class DesertEndlessScene extends Phaser.Scene {
   }
 
   addBackground() {
-    const bg = this.add.image(480, 300, "desert-bg");
+    const bg = this.add.image(480, 300, "desert-oasis-bg");
     const scale = Math.max(960 / bg.width, 600 / bg.height);
     bg.setScale(scale);
+    for (const [x, y, delay] of [[830, 98, 0], [806, 153, 1000]]) {
+      const ripple = this.add.ellipse(x, y, 34, 9, 0, 0).setStrokeStyle(1, 0xe7fff1, .35).setDepth(.1);
+      this.tweens.add({ targets: ripple, scaleX: 1.5, scaleY: 1.5, alpha: .02, duration: 2200, delay, yoyo: true, repeat: -1 });
+    }
+  }
+
+  createOasisShore() {
+    this.oasisShore = this.physics.add.staticGroup();
+    this.solidScenery = OASIS_WATER.map(r => new Phaser.Geom.Rectangle(r.x, r.y, r.width, r.height));
+    OASIS_WATER.forEach(r => {
+      const barrier = this.add.rectangle(r.x, r.y, r.width, r.height, 0, 0).setOrigin(0);
+      this.physics.add.existing(barrier, true); this.oasisShore.add(barrier);
+    });
+    this.physics.add.collider(this.player, this.oasisShore);
+    this.physics.add.collider(this.monsters, this.oasisShore);
+    if (this.companion?.body) this.physics.add.collider(this.companion, this.oasisShore);
   }
 
   createPlayer() {
@@ -355,7 +373,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
       .setStroke("#3b2a17", 2);
 
     this.add
-      .text(945, 585, "Wüstenendlos", {
+      .text(945, 585, "Oase", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "16px",
         color: "#ffffff",
@@ -511,7 +529,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
   }
 
   createSword() {
-    this.swordHitbox = this.add.rectangle(0, 0, 54, 38, 0xfff2d0, 0.2);
+    this.swordHitbox = this.add.rectangle(0, 0, 54, 38, 0xfff2d0, 0);
     this.physics.add.existing(this.swordHitbox);
     this.swordHitbox.body.setEnable(false);
     this.swordHitbox.setVisible(false);
@@ -728,6 +746,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
       x = fixedPosition.x ?? x;
       y = fixedPosition.y ?? y;
     }
+    ({ x, y } = safeOasisSpawn(x, y, type === 'boss' ? 60 : 40));
 
     const color =
       type === "red"
@@ -860,9 +879,10 @@ export default class DesertEndlessScene extends Phaser.Scene {
 
     const spotIndex = Phaser.Math.RND.pick(available);
     const spot = this.fruitSpots[spotIndex];
-    const fruit = this.add.circle(spot.x, spot.y, 6, 0xc23a2c).setStrokeStyle(1, 0xffc07d).setDepth(2);
+    const fruit = this.add.image(spot.x, spot.y, 'healing-berry').setDisplaySize(17, 17).setDepth(2);
     fruit.setData("slot", spotIndex);
     this.physics.add.existing(fruit, true);
+    fruit.body.setSize(12, 12).setOffset(2.5, 2.5);
     this.fruits.add(fruit);
     this.fruitSlots[spotIndex] = true;
   }
@@ -888,7 +908,7 @@ export default class DesertEndlessScene extends Phaser.Scene {
     if (blinkEvent) {
       blinkEvent.remove(false);
     }
-    const coin = this.add.circle(chest.x, chest.y - 8, 6, 0xf5d37a);
+    const coin = this.add.image(chest.x, chest.y - 8, 'ui-coin').setDisplaySize(14, 14).setDepth(chest.depth + 1);
     this.tweens.add({
       targets: coin,
       y: coin.y - 20,
@@ -1728,8 +1748,8 @@ export default class DesertEndlessScene extends Phaser.Scene {
       }
     }
 
-    let target = this.companion.getData("target");
-    if (!target || !target.active) {
+    let target = this.companionActions ? null : this.companion.getData("target");
+    if (!this.companionActions && (!target || !target.active)) {
       target = this.findNearestMonster();
       this.companion.setData("target", target);
     }

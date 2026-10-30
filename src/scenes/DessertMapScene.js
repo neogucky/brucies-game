@@ -15,7 +15,7 @@ import { applyInventoryToSave, normalizeInventory } from "../utils/inventory.js"
 const NODES = [
   {
     id: "Wuestenruine",
-    label: "Wüstenruine",
+    label: "Ruine",
     x: 180,
     y: 490,
     neighbors: { right: "Taverne", up: "Wuestenexperte" },
@@ -29,14 +29,14 @@ const NODES = [
   },
   {
     id: "DesertEndless",
-    label: "Wüstenendlos",
+    label: "Oase",
     x: 620,
     y: 250,
     neighbors: { down: "Taverne", right: 'Wuestenschatz' },
   },
   {
     id: "Fremdweg",
-    label: "Fremdweg",
+    label: "Steinbruch",
     x: 720,
     y: 460,
     neighbors: { up: "Taverne" },
@@ -283,7 +283,7 @@ export default class DessertMapScene extends Phaser.Scene {
   travelToUnderground() {
     if (this.isRevealingMap || this.isMoving || this.inventoryOpen || this.inventoryOverlay?.isOpen) return;
     if (this.currentNode?.id !== "Fremdweg") {
-      this.lockText.setText("Der Weg zur Unterwelt beginnt beim Fremdweg."); return;
+      this.lockText.setText("Der Weg zur Unterwelt beginnt am Steinbruch."); return;
     }
     const saveData = this.registry.get("saveData") || {};
     if (!isWorldUnlocked(saveData, "underground")) {

@@ -93,6 +93,7 @@ export default class BowManager {
     this.arrows.push({ sprite, x, y, vx: dx * BOW_STATS.speed,
       vy: jump ? launchY : dy * BOW_STATS.speed, jump, aimUp, age: 0, distance: 0, range });
     this.nextShotAt = this.now + BOW_STATS.cooldownMs;
+    if (s.cache?.audio?.exists('sfx-bow-release')) s.sound.play('sfx-bow-release', { volume: .32 });
     if (s.weaponSwitch) { s.weaponSwitch.aimUp = aimUp; s.weaponSwitch.shotUntil = s.weaponSwitch.now + 300; }
     s.hud?.flashItem("passive");
     if (!s.weaponSwitch) {

@@ -304,7 +304,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
       .setStroke("#3b2a17", 2);
 
     this.add
-      .text(940, 585, "Fremdweg", {
+      .text(940, 585, "Steinbruch", {
         fontFamily: "Trebuchet MS, sans-serif",
         fontSize: "16px",
         color: "#ffffff",
@@ -815,7 +815,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
   }
 
   createSword() {
-    this.swordHitbox = this.add.rectangle(0, 0, 54, 38, 0xfff2d0, 0.2);
+    this.swordHitbox = this.add.rectangle(0, 0, 54, 38, 0xfff2d0, 0);
     this.physics.add.existing(this.swordHitbox);
     this.swordHitbox.body.setEnable(false);
     this.swordHitbox.setVisible(false);
@@ -1065,9 +1065,10 @@ export default class DesertTunnelScene extends Phaser.Scene {
 
     const spotIndex = Phaser.Math.RND.pick(available);
     const spot = this.fruitSpots[spotIndex];
-    const fruit = this.add.circle(spot.x, spot.y, 6, 0xc23a2c).setStrokeStyle(1, 0xffc07d).setDepth(2);
+    const fruit = this.add.image(spot.x, spot.y, 'healing-berry').setDisplaySize(17, 17).setDepth(2);
     fruit.setData("slot", spotIndex);
     this.physics.add.existing(fruit, true);
+    fruit.body.setSize(12, 12).setOffset(2.5, 2.5);
     this.fruits.add(fruit);
     this.fruitSlots[spotIndex] = true;
   }
@@ -1093,7 +1094,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
     if (blinkEvent) {
       blinkEvent.remove(false);
     }
-    const coin = this.add.circle(chest.x, chest.y - 8, 6, 0xf5d37a);
+    const coin = this.add.image(chest.x, chest.y - 8, 'ui-coin').setDisplaySize(14, 14).setDepth(chest.depth + 1);
     this.tweens.add({
       targets: coin,
       y: coin.y - 20,
@@ -2022,8 +2023,8 @@ export default class DesertTunnelScene extends Phaser.Scene {
       }
     }
 
-    let target = this.companion.getData("target");
-    if (!target || !target.active) {
+    let target = this.companionActions ? null : this.companion.getData("target");
+    if (!this.companionActions && (!target || !target.active)) {
       target = this.findNearestMonster();
       this.companion.setData("target", target);
     }

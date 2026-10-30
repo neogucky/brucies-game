@@ -104,7 +104,7 @@ export const EXPERT_WORLDS = {
     introduction: [
       'Willkommen, Herr Ritter! Ich bin Professor Knobel, Experte für Monster und Natur.',
       'Was, du suchst einen grünen Drachen?!',
-      'Ja, ein prächtiges Exemplar! Ich habe ihn gestern über der Wüstenruine gesehen.',
+      'Ja, ein prächtiges Exemplar! Ich habe ihn gestern über der Ruine gesehen.',
       'Komm gerne wieder, wenn du Tipps zu Gegnern brauchst!',
     ],
     returnGreeting: 'Hey Ritter! Erzähl mir, was du auf deinen Reisen gesehen hast. Ich gebe dir einen tollen Tipp dazu!',
@@ -113,7 +113,8 @@ export const EXPERT_WORLDS = {
       'mole-normal': ['Er kommt **aus dem Sand**! Triffst du zuerst, ist er **kurz betäubt**. Dann kann er dich nicht angreifen!', ...EXPERT_CARDS['mole-normal'].tips.slice(1)],
       companion: [
         'Fehlen dir Herzen? Dein Helfer **sammelt nahe Beeren** und **bringt sie zu dir**. So wirst du wieder gesund!',
-        'Er **greift nahe Gegner an**. Wird ihm alles zu viel, versteckt er sich kurz und kommt von selbst zurück.',
+        'Wirst du getroffen, **hilft er manchmal mit einem Sprungangriff**. Er holt deutlich aus und braucht danach eine Pause.',
+        'Wird ihm alles zu viel, **versteckt er sich kurz**. Er kommt von selbst wieder zu dir zurück.',
       ],
     } },
   underground: { id: 'Unterweltexperte', name: 'Unterweltexperte', map: 'UndergroundMapScene', mapField: 'undergroundNode',

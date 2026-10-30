@@ -7,7 +7,7 @@ import TopHud from "../../ui/topHud.js";
 import InventoryOverlay from "../../ui/InventoryOverlay.js";
 import ShieldManager from "../../utils/ShieldManager.js";
 import { applyInventoryToSave, normalizeInventory } from "../../utils/inventory.js";
-import { getWeaponStats, getWeaponDamage, applyWeaponAppearance, getAttackStats, getMeleeDamage } from "../../utils/weapons.js";
+import { getWeaponStats, getWeaponDamage, applyWeaponAppearance, getAttackStats, getMeleeDamage, getJumpMeleeBounds } from "../../utils/weapons.js";
 import { applyItemModeSupport, GAME_MODES } from "../../utils/itemRegistry.js";
 import { JUNGLE_LEVELS, JUNGLE_BRANCHES, JUNGLE_PHYSICS, MONKEY_TYPES, MONKEY_KING_THROWS,
   canLandOnBranch, circleTouchesRect, secondsLeft, planMonkeyClimb, advanceMonkeyClimb } from "../../utils/jungleRules.js";
@@ -405,9 +405,8 @@ export default class JungleScene extends Phaser.Scene {
   }
 
   getMeleeBounds() {
-    const stats = getWeaponStats(this.equipped.weapon) || getWeaponStats('sword');
-    return new Phaser.Geom.Rectangle(this.player.x + (this.facingX > 0 ? 0 : -stats.width),
-      this.player.body.bottom - 55, stats.width, 40);
+    const { x, y, width, height } = getJumpMeleeBounds(this);
+    return new Phaser.Geom.Rectangle(x, y, width, height);
   }
 
   landSlam() {
@@ -451,6 +450,7 @@ export default class JungleScene extends Phaser.Scene {
     }
     if (this.helperDrinkingPuddle) this.helper.setTexture('companion-running').setDisplaySize(42, 42);
     this.helperDrinkingPuddle = null;
+    if (this.companionActions) return;
     if (now < this.helperNextAt) return;
     const target = [...this.monkeys, ...(this.boss ? [this.boss] : [])]
       .find(m => m.active && !m.hidden && Math.abs(m.x - this.helper.x) < 65 && Math.abs(m.y - this.helper.y) < 65);

@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="de">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Drei Schwertschläge – Bewegungsvergleich</title>
+<link rel="stylesheet" href="style.css?v=1">
+<main>
+<header><p class="eyebrow">Der Ritter · Bewegungsentwürfe</p><h1>Drei Schwertschläge</h1>
+<p>Gleicher Ritter, gleiche kräftige Proportionen, Schwert in der rechten Hand. Jeder Entwurf zeigt sechs gezeichnete Schlüsselbilder.</p></header>
+<nav aria-label="Vorschau steuern">
+<button id="play" type="button">Pause</button>
+<label>Tempo <select id="speed"><option value=".35">Zeitlupe</option><option value=".65" selected>Langsam</option><option value="1">Normal</option></select></label>
+<label>Einzelbild <input id="frame" type="range" min="0" max="5" step="1" value="0"><output id="frame-number">1</output></label>
+</nav>
+<section class="studies" aria-label="Die drei Varianten">
+<article data-study="simple"><h2>A · Simpel</h2><p>Kurzer Schwung aus dem ganzen Arm. Die Füße bleiben stehen.</p><canvas width="840" height="680" aria-label="Einfacher Schwertschlag"></canvas><p class="phase" role="status"></p><details><summary>Alle sechs Bilder</summary><img src="assets/simple.png" alt="Sechs Posen des einfachen Schwertschlags"></details></article>
+<article data-study="grounded"><h2>B · Etwas realistischer</h2><p>Hüfte, Schulter und Arm drehen gemeinsam. Das Gewicht geht nach vorn.</p><canvas width="840" height="680" aria-label="Schwertschlag mit Gewichtsverlagerung"></canvas><p class="phase" role="status"></p><details><summary>Alle sechs Bilder</summary><img src="assets/grounded.png" alt="Sechs Posen des Schwertschlags mit Körpereinsatz"></details></article>
+<article data-study="realistic"><h2>C · Sehr realistisch bewegt</h2><p>Ausholen, ein Schritt in den Schlag und ein kontrollierter Nachschwung.</p><canvas width="840" height="680" aria-label="Schwertschlag mit Schritt und Körperdrehung"></canvas><p class="phase" role="status"></p><details><summary>Alle sechs Bilder</summary><img src="assets/realistic.png" alt="Sechs Posen des Schwertschlags mit Schritt"></details></article>
+</section>
+<footer><p>Entwürfe zur Auswahl. Die sechs Schlüsselbilder zeigen den Bewegungsablauf; die fertige Spielanimation bekommt weitere Zwischenbilder.</p><a href="../../">Zum Spiel</a> · <a href="../../tests/level-animation-review.html?gallery=melee">Bisherige Schwertposen</a> · <a href="../../tests/level-animation-review.html?gallery=proportions">Korrigierte Beinproportionen</a></footer>
+<p id="load-status" role="status">Bildfolgen werden geladen …</p>
+</main><script type="module" src="study.js?v=2"></script></html>

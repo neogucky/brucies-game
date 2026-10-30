@@ -442,6 +442,30 @@ test('sword reaches 48px in front after the 20% reduction, also when crouching',
   }
 });
 
+for (const weapon of ['sword', 'powerHammer']) for (const facing of [-1, 1]) {
+  test(`${weapon}, direction ${facing}: standing hits both rows, crouching cannot damage an upper-row enemy`, () => {
+    const { scene, monster } = setup(); monster.active = false; withSword(scene);
+    scene.equipped.weapon = weapon; scene.facingX = facing; scene.player.body.bottom = 160;
+    scene.autoAimEnabled = true; scene.applyAutoAim = () => {};
+    const upper = actor(400 + facing * 25, 116, { hp: 3 });
+    const lower = actor(400 + facing * 25, 156, { hp: 3 });
+    upper.getBounds = () => new Rectangle(upper.x - 8, 84, 16, 28);
+    lower.getBounds = () => new Rectangle(lower.x - 8, 124, 16, 28);
+    scene.autoAimTarget = { enemy: upper, kind: 'mole' };
+    scene.molesGroup = { getChildren: () => [upper, lower] };
+    scene.damageMole = enemy => enemy.setData('hp', enemy.getData('hp') - 1);
+    scene.isDucking = true; scene.startSwing();
+    scene.swingTimer.elapsed = weapon === 'sword' ? 30 : 150; scene.hitSwordEnemies();
+    assert.equal(upper.getData('hp'), 3, 'auto-aim cannot lift the low cut into the upper row');
+    assert.equal(lower.getData('hp'), 2);
+    scene.isSwinging = false; scene.isDucking = false; scene.startSwing();
+    scene.swingTimer.elapsed = weapon === 'sword' ? 30 : 150; scene.hitSwordEnemies();
+    assert.equal(upper.getData('hp'), 2, 'standing cut reaches the upper target');
+    assert.equal(lower.getData('hp'), 1, 'standing cut also reaches the low target');
+    scene.hitSwordEnemies(); assert.equal(upper.getData('hp'), 2); assert.equal(lower.getData('hp'), 1);
+  });
+}
+
 test('one swing can damage an enemy only once, with a new swing after 140ms', () => {
   const { scene, monster } = setup({ hp: 5 });
   withSword(scene);

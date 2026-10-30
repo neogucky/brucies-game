@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bewegungen im Spiel prüfen</title>
+<style>body{margin:0;background:#172e35;color:#fff0cb;font:14px system-ui}main{max-width:1100px;margin:auto;padding:8px}h1{font-size:17px;margin:0 0 4px}button,select{padding:5px 10px;margin:2px;font:inherit}iframe{width:100%;height:650px;border:0}#status{white-space:pre-wrap;max-height:130px;overflow:auto}#tools{display:flex;flex-wrap:wrap;align-items:center}</style>
+<main><h1>Bewegungsprobe – eigener Spielstand im Arbeitsspeicher</h1>
+<div id="tools">
+<button data-scene="DesertRuinScene">Wüste</button><button data-scene="DesertEndlessScene">Oase</button><button data-scene="DesertTunnelScene">Steinbruch</button>
+<button data-scene="UndergroundDigScene">Unterwelt</button><button data-scene="JungleScene">Urwald</button><button data-scene="CoinChallengeScene">Funkelkammer</button>
+<button id="gender">Ritterin / Ritter</button><button id="weapon">Schwert / Hammer</button><button id="shoes">Schuhe an / aus</button>
+<button data-action="walk">Gehen</button><button data-action="run">Rennen</button><button data-action="jump">Sprung</button><button data-action="crouch">Ducken</button>
+<button data-action="swing">Schlag</button><button data-action="bow">Bogen</button><button data-action="hurt">Helfer schützt</button><button data-action="berry">Beere</button><button data-action="crumble">Block</button>
+<button id="gallery">Schläge in Einzelbildern</button><button id="motion-gallery">Bewegungen in Einzelbildern</button><button id="test">Abläufe prüfen</button>
+<button id="proportions">Proportionen vergleichen</button><button id="music-test">Musik beim Verlassen prüfen</button>
+<button id="sword-gallery">Schwert B: drei Höhen</button><button id="sword-test">Schwerthöhen prüfen</button>
+<button id="hands-gallery">Rechte Hand vergleichen</button>
+<span id="sword-tools" hidden><button id="sword-play">Abspielen</button><label>Schlag <input id="sword-frame" type="range" min="0" max="139" value="65"></label><button id="sword-direction">Blickrichtung wechseln</button><label>Bewegung <select id="hand-state"><option value="idle">Ruhe</option><option value="walk">Gehen</option><option value="run">Rennen</option><option value="crouch">Geduckt</option><option value="jump">Sprung</option></select></label></span>
+</div><div id="status" role="status">Lädt …</div><iframe title="Spiel zur Bewegungsprüfung" id="game"></iframe></main>
+<script type="module" src="level-animation-review.js?v=sword-camera-2"></script></html>
