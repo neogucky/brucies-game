@@ -1,10 +1,10 @@
 import { defaultSave, unlockAllForTesting } from '../src/saveManager.js';
-import { applyWeaponAppearance } from '../src/utils/weapons.js?v=20261030-sword-camera-2';
+import { applyWeaponAppearance, WEAPON_STATS } from '../src/utils/weapons.js?v=20261101-sword-range-1';
 
 const frame = document.querySelector('iframe'), status = document.getElementById('status');
 const root = new URL('../', location.href).href;
 let game, win, current, held = [];
-let galleryMode, swordPlaying = false, swordDirection = 1, swordElapsed = 65;
+let galleryMode, swordPlaying = false, swordDirection = 1, swordElapsed = 65, showJoints = false;
 const wait = async (condition, label = 'Spiel', timeout = 20000) => {
   const start = performance.now();
   while (!condition()) { if (performance.now() - start > timeout) throw Error('Zeitüberschreitung: ' + label); await new Promise(requestAnimationFrame); }
@@ -13,6 +13,7 @@ const steps = async (n = 3) => { for (let i=0; i<n; i++) await new Promise(resol
 const seed = { ...unlockAllForTesting(structuredClone(defaultSave), 'jungle'), health: 5, lastPlayed: '2026-10-29',
   tutorials: { powerHammer: { offered:true, completed:true } }, settings: { controlProfile:'ipadKeyboard', autoAim:false } };
 seed.inventory.weapons.powerHammer = true; seed.inventory.passives.bow = true; seed.inventory.passives.companion = true;
+Object.assign(seed.inventory.passives,{shield:true,jungleShield:true,shoes:true});seed.inventory.consumables.honey=3;
 seed.equipped = { ...seed.equipped, weapon:'sword', secondary:'bow', companion:'default', shoes:null };
 
 function key(code, down = true) { win.dispatchEvent(new win.KeyboardEvent(down ? 'keydown' : 'keyup', { code, key:code==='Space'?' ':code, bubbles:true, cancelable:true })); }
@@ -27,7 +28,7 @@ async function boot() {
   await wait(()=>game.scene.isActive('IntroScene'),'Intro'); await start('JungleScene');
   const sound=game.sound,play=sound.play.bind(sound);game.motionSounds=[];sound.play=(key,...args)=>{game.motionSounds.push(key);return play(key,...args)};
   const view=new URLSearchParams(location.search).get('gallery');
-  if(view==='melee')await gallery(false);else if(view==='proportions')await gallery('proportions');else if(['sword','hands'].includes(view))await gallery(view);
+  if(view==='melee')await gallery(false);else if(view==='proportions')await gallery('proportions');else if(['sword','hands','hammer','arms'].includes(view))await gallery(view);
 }
 async function start(name) {
   galleryMode = null; document.getElementById('sword-tools').hidden = true;
@@ -44,8 +45,114 @@ function show(extra='') {
   const s=current,p=s?.player,a=s?.playerAnimation;
   status.textContent=`${s?.sys.settings.key} · ${game.registry.get('saveData')?.playerGender||'male'} · ${s?.equipped?.weapon||'ohne Waffe'} · ${a?.state} · Bild ${a?.currentFrame?.index} · Körper ${p?.body?.width}×${p?.body?.height}\n${extra}\n${win.motionErrors.length?'FEHLER: '+win.motionErrors.join('\n'):'Keine Laufzeitfehler'}`;
 }
+async function inventoryReview(){
+  game.registry.get('saveData').settings.controlProfile='ipadKeyboard';
+  await start('JungleScene');current.toggleInventory();await steps(3);inventoryInfo();
+}
+function inventoryInfo(){
+  const s=current,o=s.inventoryOverlay;
+  show('Inventar '+(o?.isOpen?'offen':'geschlossen')+' · '+JSON.stringify(s.equipped)
+    +(o?.isOpen?'\nGewählter Platz: '+o.columns[o.selection.col].title+' · Alle Alternativen rechts sichtbar':''));
+}
+document.getElementById('inventory-open').onclick=()=>inventoryReview().catch(fail);
+document.getElementById('inventory-info').onclick=inventoryInfo;
+document.getElementById('controls-test').onclick=async()=>{
+  const passed=[],assert=(v,m)=>{if(!v)throw Error(m);passed.push('✓ '+m);status.textContent=passed.join('\n');};
+  const tap=async code=>{key(code);await steps(2);key(code,false);await steps(2);};
+  try{
+    for(const profile of ['ipadKeyboard','pc','ipadTouch'])for(const name of ['DesertRuinScene','UndergroundDigScene','JungleScene','JungleMapScene']){
+      game.registry.get('saveData').settings.controlProfile=profile;
+      if(name.endsWith('MapScene')){
+        release();for(const s of game.scene.getScenes(true))game.scene.stop(s.sys.settings.key);
+        game.scene.start(name);await wait(()=>game.scene.isActive(name)&&game.scene.getScene(name).toggleInventory,'Karte');
+        current=game.scene.getScene(name);await wait(()=>!current.isRevealingMap,'Kartenpfade',12000);await steps(4);
+      }else await start(name);
+      const s=current,c=game.portableControls,button=win.document.querySelector('#game-controls [data-action="inventory"]');
+      await steps(3);const before=button.getBoundingClientRect();
+      const toggle=async()=>{if(profile==='ipadTouch'){button.click();await steps(3);}else await tap(profile==='pc'?'Tab':'KeyI');};
+      const pause=async()=>{if(profile==='ipadTouch'){win.document.querySelector('#game-controls [data-action="pause"]').click();await steps(3);}else await tap('KeyP');};
+      await toggle();assert(s.inventoryOverlay.isOpen,profile+' · '+name+': Inventar öffnet');
+      const after=button.getBoundingClientRect();
+      assert(button.textContent.includes('Schließen')&&!button.disabled&&Math.abs(after.x-before.x)<.6&&Math.abs(after.y-before.y)<.6,
+        profile+': Schließen bleibt am Öffnen-Platz');
+      const o=s.inventoryOverlay;o.chooseSlot(0,o.columns[0].options.findIndex(v=>v.id==='powerHammer'));
+      await tap('Enter');assert(s.equipped.weapon==='powerHammer'&&o.isOpen,'Enter rüstet aus, ohne ein Level zu starten');
+      await tap('Escape');assert(!o.isOpen&&!s.inventoryOpen&&!s.isPaused,'Esc schließt das Inventar und setzt das Spiel fort'
+        +' '+JSON.stringify({overlay:o.isOpen,inventory:s.inventoryOpen,paused:s.isPaused,asking:s.confirmation?.isOpen}));
+      await toggle();await toggle();assert(!o.isOpen,'Gleiche Taste / gleiche Schaltfläche schließt wieder');
+      if(s.player){
+        await tap('Escape');assert(s.confirmation?.isOpen,'Esc öffnet die Rückfrage zum Verlassen');
+        await tap('Escape');assert(!s.confirmation?.isOpen&&!s.isPaused,'Esc lehnt die Rückfrage ab');
+        await pause();await steps(3);assert(c.pausedScene===s,'Pause geöffnet');
+        await tap('Enter');await steps(3);assert(!c.pausedScene&&game.scene.isActive(name),'Enter setzt aus Pause fort');
+        await pause();await steps(3);await tap('Escape');await steps(3);assert(!c.pausedScene,'Esc schließt Pause');
+        await tap('Escape');await tap('Enter');await steps(5);
+        assert(!game.scene.isActive(name),'Enter akzeptiert das Verlassen');
+      }
+    }
+    assert(!win.motionErrors.length,'Keine Laufzeitfehler');
+    status.textContent=passed.join('\n')+'\nALLE TASTEN- UND INVENTARPRÜFUNGEN BESTANDEN ('+passed.length+')';
+  }catch(e){status.textContent=passed.join('\n')+'\nFEHLER: '+e.stack;}
+  finally{game.registry.get('saveData').settings.controlProfile='ipadKeyboard';}
+};
+document.getElementById('hammer-test').onclick=async()=>{
+  const passed=[],assert=(v,m)=>{if(!v)throw Error(m);passed.push('✓ '+m);status.textContent=passed.join('\n');};
+  try{
+    game.registry.get('saveData').settings.controlProfile='ipadKeyboard';
+    for(const name of ['UndergroundDigScene','JungleScene'])for(const gender of ['male','female'])for(const direction of [-1,1]){
+      game.registry.get('saveData').playerGender=gender;await start(name);
+      const s=current;s.equipped.weapon='powerHammer';applyWeaponAppearance(s);s.autoAimEnabled=false;s.facingX=direction;
+      for(const stance of ['stand','crouch','jump']){
+        release();await wait(()=>s.player.body.blocked.down||s.player.body.touching.down,'Boden',7000);await steps(3);
+        if(stance==='crouch'){key('ArrowDown');held=['ArrowDown'];await steps(8);}
+        if(stance==='jump'){key('ArrowUp');held=['ArrowUp'];await steps(7);}
+        const body=s.player.body,width=body.width,height=body.height;let pose,stable=true,thick=true,anatomy=true,wristNatural=true;
+        const record=()=>{
+          if(!s.isSwinging)return;
+          const a=s.meleeAnimation,p=a.lastPose;if(p?.renderer!=='hammer')return;
+          pose={...p};stable&&=body.width===width&&body.height===height;
+          const u={x:p.elbow.x-p.shoulder.x,y:p.elbow.y-p.shoulder.y};
+          const f={x:p.wrist.x-p.elbow.x,y:p.wrist.y-p.elbow.y};
+          const bend=Math.atan2(u.x*f.y-u.y*f.x,u.x*f.x+u.y*f.y);
+          anatomy&&=bend<=.0001&&bend>=-Math.PI*5/6-.0001;
+          if(p.phase.stage==='strike'){
+            const h={x:p.hand.x-p.wrist.x,y:p.hand.y-p.wrist.y};
+            const wrist=Math.abs(Math.atan2(f.x*h.y-f.y*h.x,f.x*h.x+f.y*h.y));
+            wristNatural&&=wrist<=Math.PI*70/180+.001;
+          }
+          thick&&=Math.abs(a.upper.scaleY*a.parts.upper.thickness-11*p.scale/.6)<.01
+            &&Math.abs(a.forearm.scaleY*a.parts.forearm.thickness-10*p.scale/.6)<.01;
+        };
+        game.events.on('poststep',record);
+        try{
+          key('Space');await steps(2);key('Space',false);
+          await wait(()=>!s.isSwinging&&!s.hammerCharge.pendingRelease&&!s.weaponSwitch.pending,'Ende des Hammerschlags',3000);
+          await steps(2);
+        }finally{key('Space',false);game.events.off('poststep',record);}
+        assert(pose?.renderer==='hammer'&&pose.stance===stance,name+' · '+gender+' · '+direction+' · '+stance+': eigener Hammerablauf');
+        assert(thick&&stable,'Feste Rüstungsbreite und unveränderte Körpermaße');
+        assert(anatomy,'Ellbogen beugt natürlich und bleibt innerhalb seiner Gelenkgrenze');
+        assert(wristNatural,'Die gemalte Griffhand verdreht das Handgelenk im Schlag nicht nach hinten');
+        assert(direction<0?s.meleeAnimation.body.depth>s.meleeAnimation.weapon.depth:!s.meleeAnimation.body.flipX,'Rechter Hammerarm vorn / hinten korrekt');
+        if(stance==='crouch')assert(Math.abs(pose.angle+.035)<.001,'Geduckter Angriff bleibt ein Vorstoß');
+        else assert(Math.abs(pose.angle)<.01&&Math.abs(pose.hand.y+pose.bounds.bottom+2*pose.scale/.6)<.01,'Stehender / Luftschlag endet mit der Schlagfläche am Boden');
+        assert(pose.gripKind==='hammer-overhand'&&Math.abs(pose.handAngle-pose.angle-Math.PI/2)<.001,'Griffhand folgt dem Stiel durch den ganzen Hammerschlag');
+        release();await steps(15);
+      }
+    }
+    assert(!win.motionErrors.length,'Keine Laufzeitfehler');
+    status.textContent=passed.join('\n')+'\nALLE HAMMERPRÜFUNGEN BESTANDEN ('+passed.length+')';
+  }catch(e){status.textContent=passed.join('\n')+'\nFEHLER: '+e.stack;}
+};
 async function action(name) {
-  const s=current;
+  let s=current;
+  if(['trainer','trainer-super','trainer-jump'].includes(name)){
+    await start('HammerTrainingScene');s=current;
+    if(name==='trainer-super'){s.drillIndex=1;s.beginDrill();await wait(()=>s.mentor.hammerCharge.elapsed>=1560,'Blaue Ladung',6000);}
+    else if(name==='trainer-jump'){s.drillIndex=2;s.beginDrill();await wait(()=>s.mentor.demoKeys?.down,'Muck drückt nach unten',5000);}
+    else await wait(()=>s.mentor.isSwinging&&s.mentor.worldTime-s.mentor.swingStartedAt>160,'Trainer trifft',5000);
+    s.isPaused=true;s.time.paused=true;s.physics.world.pause();await steps(3);
+  }
   if(name==='walk'||name==='run'){
     if(s.equipped)s.equipped.shoes=name==='run'?'shoes':null;
     if(s.equipment)s.equipment.shoes=name==='run'; s.hasShoes=name==='run';
@@ -71,11 +178,17 @@ document.getElementById('gender').onclick=async()=>{const save=game.registry.get
 document.getElementById('weapon').onclick=()=>{if(!current.equipped)return;current.equipped.weapon=current.equipped.weapon==='powerHammer'?'sword':'powerHammer';applyWeaponAppearance(current);show();};
 document.getElementById('shoes').onclick=()=>{if(current.equipped)current.equipped.shoes=current.equipped.shoes?null:'shoes';show();};
 async function gallery(motion=false){
-  galleryMode = motion; document.getElementById('sword-tools').hidden = !['sword','hands'].includes(motion);
-  document.getElementById('sword-direction').hidden=motion==='hands';document.getElementById('hand-state').parentElement.hidden=motion!=='hands';
+  galleryMode = motion; document.getElementById('sword-tools').hidden = !['sword','hands','hammer','arms'].includes(motion);
+  document.getElementById('hammer-kind-label').hidden=!['hammer','arms'].includes(motion);
+  document.getElementById('arm-weapon-label').hidden=motion!=='arms';
+  document.getElementById('sword-frame').max=motion==='hammer'?359:WEAPON_STATS.sword.swingMs-1;
+  if(motion==='hammer')swordElapsed=260;
+  document.getElementById('sword-frame').value=swordElapsed;
+  document.getElementById('sword-direction').hidden=motion==='hands';document.getElementById('hand-state').parentElement.hidden=!['hands','arms'].includes(motion);
   release();for(const s of game.scene.getScenes(true))game.scene.stop(s.sys.settings.key);
   const mod=await win.qaMelee();
   const playerMod=await win.qaPlayer();
+  const {hammerAttackForHold}=await import(new URL('src/utils/hammerRules.js',root));
   const {motionFrame}=await import(new URL('src/utils/PlayerAnimation.js',root));
   const {default:KnightGait}=await import(new URL('src/utils/KnightGait.js',root));
   const Phaser=win.Phaser;
@@ -83,9 +196,26 @@ async function gallery(motion=false){
     constructor(){super('MotionGallery')}
     create(){
       this.add.rectangle(480,300,960,600,0x253943);
-      this.add.text(26,16,motion==='hands'?'Feste Kamera · rechte Schulter hinten / vorn':motion==='sword'?'Schwert B · Stehend / Geduckt / In der Luft':motion==='proportions'?'Standpose, Gehen und Rennen · gleiche Proportionen':motion?'Gehen / Rennen / Übergänge / Helfer':'Schulter → Oberarm → Unterarm → Waffe',{fontSize:'23px',color:'#ffedba'});
+      this.add.text(26,16,motion==='arms'?'Standpose und echte Schlagphasen · identischer Maßstab':motion==='hammer'?'Power Hammer · Überkopf / Vorstoß / In der Luft':motion==='hands'?'Feste Kamera · rechte Schulter hinten / vorn':motion==='sword'?'Schwert B · Stehend / Geduckt / In der Luft':motion==='proportions'?'Standpose, Gehen und Rennen · gleiche Proportionen':motion?'Gehen / Rennen / Übergänge / Helfer':'Schulter → Oberarm → Unterarm → Waffe',{fontSize:'23px',color:'#ffedba'});
       const assets=this.registry.get('level-motion-assets');
-      this.gaits=[];
+      this.gaits=[];this.jointGraphics=this.add.graphics().setDepth(10000);
+      if(motion==='arms'){
+        this.armActors=[];
+        for(let row=0;row<2;row++)for(let col=0;col<4;col++){
+          const x=125+col*235,y=270+row*270,unit=1.6,scale=.6*unit,p=this.add.image(x,y,'knight-standing').setOrigin(.5,1).setScale(scale);
+          p.setData('standingTexture','knight-standing');p.body={blocked:{down:true},touching:{down:false},velocity:{x:0,y:0},destroy(){}};
+          const save=this.registry.get('saveData'),registry={get:k=>k==='saveData'?{...save,playerGender:row?'female':'male'}:this.registry.get(k)};
+          const fake={add:this.add,registry,events:this.events,sys:{settings:{key:'ArmComparison'}},gameMode:'jump',time:this.time,
+            player:p,equipped:{weapon:'powerHammer'},facingX:1,isSwinging:col>0,swingStartedAt:0,worldTime:0,
+            getMeleeBounds:()=>({x:swordDirection>0?x:x-(fake.equipped.weapon==='sword'?WEAPON_STATS.sword.width:60)*unit,
+              y:y-(fake.isDucking?38:76)*unit,width:(fake.equipped.weapon==='sword'?WEAPON_STATS.sword.width:60)*unit,height:(fake.isDucking?38:76)*unit})};
+          this.add.line(0,0,x-105,y,x+105,y,0x718783).setOrigin(0);
+          const a=col?new mod.default(fake):new playerMod.default(fake);
+          this.armActors.push({a,fake,col});this.events.once('shutdown',()=>a.destroy());
+          this.add.text(x,y+10,(row?'Ritterin':'Ritter')+' · '+['Referenz','Ausholen','Treffer','Nachschwung'][col],{fontSize:'15px',color:'#ffedba'}).setOrigin(.5,0);
+        }
+        return;
+      }
       if(motion==='hands'){
         this.swords=[];this.handIdles=[];
         for(let row=0;row<2;row++)for(let col=0;col<4;col++){
@@ -94,7 +224,7 @@ async function gallery(motion=false){
           p.setData('standingTexture','knight-standing');p.body={blocked:{down:true},touching:{down:false},velocity:{x:0,y:0},destroy(){}};
           const save=this.registry.get('saveData'),registry={get:k=>k==='saveData'?{...save,playerGender:row?'female':'male'}:this.registry.get(k)};
           const fake={add:this.add,registry,events:this.events,sys:{settings:{key:'HandGallery'}},gameMode:'jump',time:this.time,player:p,equipped:{weapon:'sword'},facingX:direction,isDucking:false,isSwinging:attack,swingStartedAt:0,worldTime:swordElapsed,
-            getMeleeBounds:()=>({x:direction>0?x:x-48*unit,y:y-(fake.isDucking?38:76)*unit,width:48*unit,height:(fake.isDucking?38:76)*unit})};
+            getMeleeBounds:()=>({x:direction>0?x:x-WEAPON_STATS.sword.width*unit,y:y-(fake.isDucking?38:76)*unit,width:WEAPON_STATS.sword.width*unit,height:(fake.isDucking?38:76)*unit})};
           this.add.line(0,0,x-105,y,x+105,y,0x718783).setOrigin(0);
           const a=attack?new mod.default(fake):new playerMod.default(fake);a.update(16);
           if(!attack)a.nextSpecial=Infinity;
@@ -105,7 +235,7 @@ async function gallery(motion=false){
         }
         return;
       }
-      if(motion==='sword'){
+      if(motion==='sword'||motion==='hammer'){
         this.swords=[];
         for(let row=0;row<2;row++)for(let col=0;col<3;col++){
           const x=160+col*310,y=280+row*270,unit=1.6,scale=.6*unit,tile=38*unit,stance=['stand','crouch','jump'][col];
@@ -113,8 +243,9 @@ async function gallery(motion=false){
           const p=this.add.image(x,y,'knight-standing').setOrigin(.5,1).setScale(scale);
           p.setData('standingTexture','knight-standing'); p.body={blocked:{down:stance!=='jump'},touching:{down:false},velocity:{x:0,y:stance==='jump'?-150:0},destroy(){}};
           const registry={get:k=>k==='saveData'?{...save,playerGender:row?'female':'male'}:this.registry.get(k)};
-          const fake={add:this.add,registry,gameMode:'jump',time:this.time,player:p,equipped:{weapon:'sword'},facingX:1,isDucking:stance==='crouch',isSwinging:true,swingStartedAt:0,worldTime:swordElapsed,
-            getMeleeBounds:()=>({x:swordDirection>0?x:x-48*unit,y:y-(stance==='crouch'?tile:tile*2),width:48*unit,height:stance==='crouch'?tile:tile*2})};
+          const reach=(motion==='hammer'?60:WEAPON_STATS.sword.width)*unit;
+          const fake={add:this.add,registry,gameMode:'jump',time:this.time,player:p,equipped:{weapon:motion==='hammer'?'powerHammer':'sword'},facingX:1,isDucking:stance==='crouch',isSwinging:true,swingStartedAt:0,worldTime:swordElapsed,
+            getMeleeBounds:()=>({x:swordDirection>0?x:x-reach,y:y-(stance==='crouch'?tile:tile*2),width:reach,height:stance==='crouch'?tile:tile*2})};
           this.add.line(0,0,x-135,y,x+135,y,0x718783).setOrigin(0);
           fake.targets=[];
           for(let n=0;n<2;n++)fake.targets.push(this.add.rectangle(x+90,y-(n+.5)*tile,50,tile-2,0x678c7f,stance==='crouch'&&n===1?.07:.22).setStrokeStyle(1,0x8caea0,.5));
@@ -156,12 +287,37 @@ async function gallery(motion=false){
           const save=this.registry.get('saveData');this.registry.set('saveData',{...save,playerGender:female?'female':'male'});
           const fake={add:this.add,registry:this.registry,textures:this.textures,gameMode:'isometric',facing:{x:1,y:0},worldTime:elapsed,time:this.time,
             player:p,equipped:{weapon},facingX:1,isSwinging:true,swingStartedAt:0,
-            getMeleeBounds:()=>({x,y:y-76,width:weapon==='sword'?48:60,height:weapon==='sword'?38:44})};
+            getMeleeBounds:()=>({x,y:y-76,width:weapon==='sword'?WEAPON_STATS.sword.width:60,height:weapon==='sword'?38:44})};
           const a=new mod.default(fake);a.update();this.add.text(x-55,y+6,(female?'Ritterin ':'Ritter ')+elapsed+'ms',{fontSize:'12px'});this.registry.set('saveData',save);
         }
       }
     }
     update(_time,delta){
+      for(const {a,fake,col}of this.armActors||[]){
+        const stance=document.getElementById('hand-state').value,kind=document.getElementById('hammer-kind').value;
+        fake.equipped.weapon=document.getElementById('arm-weapon').value;fake.facingX=swordDirection;
+        fake.isDucking=stance==='crouch';fake.player.body.blocked.down=stance!=='jump';
+        fake.player.body.velocity.y=stance==='jump'?-100:0;
+        fake.hammerAttack=null;fake.hammerCharge=null;fake.hammerSlamActive=false;
+        if(!col){
+          a.state=stance==='crouch'?'crouch':stance==='jump'?'rise':'idle';a.elapsed=500;a.nextSpecial=Infinity;a.update(0);continue;
+        }
+        fake.worldTime=(fake.equipped.weapon==='sword'?[0,17,51,94]:[0,65,150,260])[col];
+        if(fake.equipped.weapon==='powerHammer'){
+          if(kind==='charge')fake.hammerCharge={holding:true,ready:true,sequence:1,elapsed:[0,400,1050,1750][col]};
+          else if(['quick','power','super'].includes(kind)){
+            fake.hammerAttack=hammerAttackForHold({quick:400,power:1050,super:1750}[kind]);
+            fake.worldTime=[0,40,140,210][col];
+          }else if(kind==='slam'){fake.hammerSlamActive=true;fake.worldTime=[0,20,70,150][col];}
+        }
+        fake.isSwinging=true;
+        a.state=null;a.lastClock=undefined;a.update();
+        if(fake.equipped.weapon==='powerHammer'&&kind==='recovery'){
+          fake.worldTime=319;a.state=null;a.lastClock=undefined;a.update();
+          fake.isSwinging=false;a.update();
+          fake.worldTime=319+[0,1,45,89][col];a.update();
+        }
+      }
       if(this.handIdles){
         const state=document.getElementById('hand-state').value;
         const apply=f=>{f.isDucking=state==='crouch';f.dashActive=state==='run';f.player.body.blocked.down=state!=='jump';f.player.body.velocity={x:['walk','run'].includes(state)?f.facingX*100:0,y:state==='jump'?-150:0};};
@@ -170,22 +326,83 @@ async function gallery(motion=false){
       }
       for(const {g,torso,config}of this.gaits||[]){g.update({delta,...config});const bob=(config.running?Math.abs(Math.sin(g.phase))*1.5:Math.cos(g.phase*2)*.6)*config.scale;torso.y=config.feetY-bob;}
       if(this.swords){
-        if(swordPlaying)swordElapsed=(swordElapsed+Math.min(delta,40)*.45)%140;
-        for(const {a,fake}of this.swords){fake.worldTime=swordElapsed;if(fake.targets){fake.facingX=swordDirection;fake.targets.forEach(t=>t.x=fake.player.x+swordDirection*90);}a.state=null;a.lastClock=undefined;a.update();}
+        if(swordPlaying)swordElapsed=(swordElapsed+Math.min(delta,40)*.45)%(motion==='hammer'?360:WEAPON_STATS.sword.swingMs);
+        for(const {a,fake}of this.swords){
+          fake.worldTime=swordElapsed;
+          if(motion==='hammer'){
+            const kind=document.getElementById('hammer-kind').value;
+            fake.hammerAttack=['quick','power','super'].includes(kind)?hammerAttackForHold({quick:400,power:1050,super:1750}[kind]):undefined;
+            fake.hammerCharge=kind==='charge'?{holding:true,ready:true,sequence:1,elapsed:swordElapsed/359*1750}:null;
+            fake.hammerSlamActive=kind==='slam';
+          }
+          if(fake.targets){fake.facingX=swordDirection;fake.targets.forEach(t=>t.x=fake.player.x+swordDirection*90);}a.state=null;a.lastClock=undefined;a.update();
+        }
       }
       for(const a of this.handIdles||[])a.update(delta);
+      this.jointGraphics.clear();
+      if(showJoints)for(const {a}of [...(this.armActors||[]),...(this.swords||[])]){
+        const p=a.lastPose;if(!p?.elbow)continue;
+        const points=[p.shoulder,p.elbow,p.wrist,p.hand].map(v=>({x:p.x+p.direction*v.x,y:p.feetY+v.y}));
+        this.jointGraphics.lineStyle(1.5,0x60f3d0,1).beginPath().moveTo(points[0].x,points[0].y);
+        points.slice(1).forEach(v=>this.jointGraphics.lineTo(v.x,v.y));this.jointGraphics.strokePath();
+        points.forEach((v,i)=>this.jointGraphics.fillStyle(i===1?0xffb43d:0x60f3d0,1).fillCircle(v.x,v.y,2.8));
+      }
     }
   }
   if(game.scene.getScene('MotionGallery'))game.scene.remove('MotionGallery');game.scene.add('MotionGallery',Review,true);current=game.scene.getScene('MotionGallery');
-  status.textContent=motion==='hands'?'Derselbe rechtshändige Schlag aus beiden Ansichten: Beim Blick nach links verdeckt der Körper die rechte Schulter. Beim Blick nach rechts liegt sie vorn.':motion==='sword'?'Echte Schwertanimation aus dem Spiel, vergrößert. Ganze gemalte Posen, feste Proportionen. Grüne Felder zeigen die beiden Tile-Höhen.':'Originale Bildfolgen aus dem gemeinsamen Animator.';
+  status.textContent=motion==='hammer'?'Produktionsanimation, vergrößert: voller rechter Arm, fester Handschuh. Stehend durch beide Reihen zum Boden; geduckt ein niedriger Vorstoß.':motion==='hands'?'Derselbe rechtshändige Schlag aus beiden Ansichten: Beim Blick nach links verdeckt der Körper die rechte Schulter. Beim Blick nach rechts liegt sie vorn.':motion==='sword'?'Echte Schwertanimation aus dem Spiel, vergrößert. Ganze gemalte Posen, feste Proportionen. Grüne Felder zeigen die beiden Tile-Höhen.':'Originale Bildfolgen aus dem gemeinsamen Animator.';
 }
 document.getElementById('gallery').onclick=()=>gallery().catch(fail);document.getElementById('motion-gallery').onclick=()=>gallery(true).catch(fail);
 document.getElementById('proportions').onclick=()=>gallery('proportions').catch(fail);
 document.getElementById('sword-gallery').onclick=()=>gallery('sword').catch(fail);
 document.getElementById('hands-gallery').onclick=()=>gallery('hands').catch(fail);
+document.getElementById('hammer-gallery').onclick=()=>gallery('hammer').catch(fail);
+document.getElementById('arm-compare').onclick=()=>gallery('arms').catch(fail);
+document.getElementById('joint-overlay').onclick=e=>{showJoints=!showJoints;e.target.setAttribute('aria-pressed',String(showJoints));e.target.textContent=showJoints?'Gelenke ausblenden':'Gelenke anzeigen';};
+document.getElementById('capture-comparison').onclick=()=>{
+  game.events.once('postrender',()=>{
+    document.getElementById('review-capture')?.remove();
+    const image=document.createElement('img');image.id='review-capture';
+    image.alt='Vergleich direkt aus der Spiel-Darstellung';image.style.width='100%';
+    image.src=game.canvas.toDataURL('image/png');frame.after(image);
+  });
+};
 document.getElementById('sword-play').onclick=e=>{swordPlaying=!swordPlaying;e.target.textContent=swordPlaying?'Pause':'Abspielen';};
 document.getElementById('sword-frame').oninput=e=>{swordPlaying=false;swordElapsed=Number(e.target.value);document.getElementById('sword-play').textContent='Abspielen';};
 document.getElementById('sword-direction').onclick=()=>{swordDirection*=-1;};
+document.getElementById('training-test').onclick=async()=>{
+ const passed=[],assert=(v,m)=>{if(!v)throw Error(m);passed.push('✓ '+m);status.textContent=passed.join('\n');};
+ try{
+  game.registry.get('saveData').settings.controlProfile='ipadKeyboard';await start('HammerTrainingScene');const s=current;
+  s.beginDrill();await steps(2);
+  assert(s.progressDots.length===3&&s.lessonTitle.text.startsWith('1 / 3'),'Drei Übungen: normal, voll aufgeladen, Sprung');
+  assert(s.keyPanels[1].caps[0].wasPressed&&!s.keyPanels[0].caps[0].wasPressed,'Mucks echte Tastendrücke leuchten getrennt vom Spieler');
+  key('Space');await steps(2);assert(s.keyPanels[0].caps[0].wasPressed,'Die eigene gedrückte Taste leuchtet ebenfalls');key('Space',false);
+  await wait(()=>s.phase==='success','Normaler Schlag');assert(!s.mentor.hammerCharge.holding&&!s.mentor.isSwinging,'Mitmachen beendet Mucks Vorführung sofort');
+  await wait(()=>s.drillIndex===1&&s.phase==='demo','Volle Ladung');
+  let blueSeen=false,releasedSeen=false;const observe=()=>{blueSeen ||= s.keyPanels[1].caps[0].wasPressed&&s.keyPanels[1].hint.text.includes('Blau');releasedSeen ||= !s.mentor.hammerCharge.holding&&s.keyPanels[1].hint.text==='Loslassen!';};
+  game.events.on('poststep',observe);
+  await wait(()=>s.demoReleased,'Mucks volle Vorführung',6000);
+  key('Space');await wait(()=>s.hammerCharge.elapsed>=1580,'Spieler lädt ganz auf',6000);key('Space',false);
+  await wait(()=>s.phase==='success','Voller Hammerschlag');game.events.off('poststep',observe);
+  assert(blueSeen&&releasedSeen,'Muck zeigt Halten bis Blau und anschließendes Loslassen');
+  await wait(()=>s.drillIndex===2&&s.phase==='demo','Sprungschlag');await steps(2);
+  assert(s.keyPanels[1].caps.length===2&&s.keyPanels[1].caps[0].wasPressed&&!s.keyPanels[1].caps[1].wasPressed,'Sprungtaste kommt vor der Abwärtstaste');
+  game.registry.get('saveData').settings.controlProfile='ipadTouch';await steps(2);
+  assert(s.keyPanels[0].caps[0].label.text==='Springen'&&s.keyPanels[0].caps[1].label.text==='Nach unten','Touch-Profil zeigt Aktionen ohne Tastaturbuchstaben');
+  game.registry.get('saveData').settings.controlProfile='ipadKeyboard';await steps(2);
+  await wait(()=>s.mentor.hammerSlamActive&&s.keyPanels[1].caps[1].wasPressed,'Mucks Abwärtstaste');
+  assert(s.mentor.player.y<420,'Muck drückt erst in der Luft nach unten');
+  key('ArrowUp');await steps(3);key('ArrowUp',false);await wait(()=>!s.player.body.blocked.down,'Spieler springt');
+  key('ArrowDown');await steps(2);key('ArrowDown',false);
+  await wait(()=>s.phase==='success','Sprunglandung');await wait(()=>s.isComplete,'Training fertig');
+  assert(s.doneButton.visible&&s.keyPanels.every(p=>!p.container.visible),'Nach drei Treffern ist die Stunde fertig');
+  assert(game.registry.get('saveData').tutorials.powerHammer.completed,'Trainingsabschluss wird gespeichert');
+  key('Enter');key('Enter',false);await wait(()=>game.scene.isActive('UndergroundShopScene'),'Rückkehr nach Enter');
+  assert(!win.motionErrors.length,'Keine Laufzeitfehler');
+  status.textContent=passed.join('\n')+'\nDREI HAMMERÜBUNGEN BESTANDEN';
+ }catch(e){release();key('Space',false);key('ArrowUp',false);key('ArrowDown',false);status.textContent=passed.join('\n')+'\nFEHLER: '+e.stack;}
+};
 document.getElementById('sword-test').onclick=async()=>{
   const passed=[],assert=(v,m)=>{if(!v)throw Error(m);passed.push('✓ '+m);status.textContent=passed.join('\n');};
   try{
@@ -207,7 +424,7 @@ document.getElementById('sword-test').onclick=async()=>{
         assert(direction<0?pose.view==='far'&&s.meleeAnimation.body.depth>s.meleeAnimation.weapon.depth:s.meleeAnimation.sword.body.flipX===false,
           `${gender} · ${direction}: rechte Schulter ${direction<0?'hinter dem Körper':'vorn'}`);
         assert(swordVisible&&!legacyVisible&&bodyStable,`${expected}: keine zweite Waffe, Körpermaße bleiben gleich`);
-        assert(width===48,`${expected}: horizontale Reichweite bleibt 48`);
+        assert(Math.abs(width-50.4)<.001,`${expected}: horizontale Schwertreichweite beträgt 50,4`);
         await steps(24);
       }
       // Test the actual scene's hit band, not a copied rectangle formula.

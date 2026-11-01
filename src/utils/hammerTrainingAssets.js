@@ -1,4 +1,4 @@
-import { registerMeleeBodyRow } from './MeleeAnimation.js';
+import { registerMeleeBodyRow, measureLimbThickness } from './MeleeAnimation.js';
 
 // Each pose shares a boot anchor. The open shoulder socket takes the same
 // articulated hammer arm as the hero, so the trainer demonstrates real swings.
@@ -16,12 +16,17 @@ export function registerHammerTrainingTextures(scene) {
   const cutPart = (id, rect, pivot, end, height, wristRatio) => {
     const [x, y, width, sourceHeight] = rect, key = 'melee-trainer-' + id;
     const texture = scene.textures.createCanvas(key, width, sourceHeight);
-    texture.getContext().drawImage(atlas, x, y, width, sourceHeight, 0, 0, width, sourceHeight); texture.refresh();
+    const ctx = texture.getContext();
+    ctx.drawImage(atlas, x, y, width, sourceHeight, 0, 0, width, sourceHeight); texture.refresh();
     const dx = pivot[0] - end[0], dy = end[1] - pivot[1];
     return { key, originX: (pivot[0] - x) / width, originY: (pivot[1] - y) / sourceHeight,
-      length: Math.hypot(dx, dy), angle: Math.atan2(dy, dx), height, wristRatio };
+      length: Math.hypot(dx, dy), angle: Math.atan2(dy, dx), height, wristRatio,
+      thickness: measureLimbThickness(ctx.getImageData(0,0,width,sourceHeight).data, width, sourceHeight,
+        {x:pivot[0]-x,y:pivot[1]-y},{x:end[0]-x,y:end[1]-y}) };
   };
   assets.trainerParts = { ...assets.parts,
+    hammerHandNear: assets.parts.hammerHandTrainerNear,
+    hammerHandFar: assets.parts.hammerHandTrainerFar,
     upper: cutPart('upper', [140, 762, 292, 192], [173, 864], [402, 858], 192),
     forearm: cutPart('forearm', [621, 793, 314, 153], [895, 869], [653, 874], 153),
     hand: cutPart('hand', [1181, 797, 227, 155], [1378, 877], [1242, 877], 155, 1.1),

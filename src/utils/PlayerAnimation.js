@@ -117,18 +117,18 @@ export default class PlayerAnimation {
     const part = s.registry.get('melee-animation-assets')?.parts[weapon];
     const switching = s.weaponSwitch?.pending;
     const fold = switching ? Math.sin(clamp(1 - (switching.readyAt - s.weaponSwitch.now) / 200) * Math.PI) : 0;
-    const grip = weapon === 'sword' && !bow ? swordHand(frame, this.direction) : frame.hand;
+    const grip = !bow ? swordHand(frame, this.direction) : frame.hand;
     const hand = { x: grip.x * scale, y: grip.y * scale + fold * 9 };
     if (bow) {
       this.weapon.setTexture('item-bow').setOrigin(.5).setDisplaySize(28 * scale / .6, 34 * scale / .6)
         .setPosition(p.x + this.direction * (hand.x + 7), feetY + hand.y - 9).setFlipX(this.direction < 0).setRotation(0);
     } else if (part) {
       const length = (weapon === 'sword' ? 38 : 33) * scale / .6, partScale = length / part.length;
-      const angle = (weapon === 'sword' && this.direction > 0 ? -2 : -1.15) + fold * .8 + (this.state === 'run' ? Math.sin(this.elapsed / 66) * .09 : 0);
+      const angle = (this.direction > 0 ? -2 : -1.15) + fold * .8 + (this.state === 'run' ? Math.sin(this.elapsed / 66) * .09 : 0);
       this.weapon.setTexture(part.key).setOrigin(part.originX, part.originY).setPosition(p.x + this.direction * hand.x, feetY + hand.y)
         .setScale(-this.direction * partScale, partScale).setRotation(this.direction * (angle - part.angle));
     }
-    this.weapon.setDepth(p.depth + (weapon === 'sword' && !bow && this.direction < 0 ? .005 : .02)).setAlpha(p.alpha).setVisible(p.visible);
+    this.weapon.setDepth(p.depth + (!bow && this.direction < 0 ? .005 : .02)).setAlpha(p.alpha).setVisible(p.visible);
   }
   destroy() { this.restore(); this.body?.destroy(); this.weapon?.destroy(); this.gait?.destroy(); this.scene.events.off('player-hurt', this.hurt); }
 }

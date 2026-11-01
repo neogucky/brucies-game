@@ -23,7 +23,7 @@ function fixture(gender='male',stance='stand',direction=1){
 }
 for(const gender of ['male','female'])for(const stance of ['stand','crouch','jump'])for(const direction of [-1,1])test(`${gender}, ${stance}, facing ${direction}: plays complete Variant B poses and preserves the physics actor`,()=>{
  const {scene:s,animation:a}=fixture(gender,stance,direction),body=s.player.body,seen=new Set();
- for(let t=0;t<140;t+=8){s.worldTime=t;a.update();seen.add(a.lastPose.frameIndex);
+ for(let t=0;t<120;t+=8){s.worldTime=t;a.update();seen.add(a.lastPose.frameIndex);
   assert.equal(a.lastPose.renderer,'sword-b');assert.equal(a.lastPose.stance,stance);assert.match(a.lastPose.frame,new RegExp('^'+gender+'-'+stance));
   assert.equal(s.player.body,body);assert.equal(s.player.scaleY,.6);assert.equal(body.height,64.8);
   if(direction>0){
@@ -31,7 +31,7 @@ for(const gender of ['male','female'])for(const stance of ['stand','crouch','jum
    assert.equal(a.sword.body.alpha,.45);assert.equal(a.sword.body.flipX,false);
    assert.equal(Math.abs(a.sword.body.scaleX),a.sword.body.scaleY,'no thinning or vertical squash');
    const edge=300+a.lastPose.offsetX+metadata[gender+'-'+stance].maxReach*.6;
-   assert.ok(Math.abs(edge-348)<1e-8,'longest visible cut ends at real horizontal reach');
+   assert.ok(Math.abs(edge-350.4)<1e-8,'longest visible cut ends at real horizontal reach');
   }else{
    assert.equal(a.lastPose.view,'far');assert.equal(a.sword.body.visible,false);
    assert.ok(a.body.depth>a.upper.depth&&a.body.depth>a.hand.depth&&a.body.depth>a.weapon.depth,'body occludes the right shoulder and sword arm');

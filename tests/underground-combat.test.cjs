@@ -427,7 +427,7 @@ test('inactive monsters and players cannot cause damage', () => {
   assert.equal(scene.saves, 0);
 });
 
-test('sword reaches 48px in front after the 20% reduction, also when crouching', () => {
+test('sword reaches 50.4px in front, also when crouching', () => {
   const { scene } = setup();
   withSword(scene);
   for (const facing of [-1, 1]) {
@@ -436,7 +436,7 @@ test('sword reaches 48px in front after the 20% reduction, also when crouching',
       scene.isDucking = crouching;
       scene.updateSwordHitbox();
       const box = scene.swordHitbox.getBounds();
-      assert.equal(facing > 0 ? box.right : box.x, scene.player.x + facing * 48);
+      assert.equal(facing > 0 ? box.right : box.x, scene.player.x + facing * 50.4);
       assert.ok(box.x <= scene.player.x && box.right >= scene.player.x);
     }
   }
@@ -466,7 +466,23 @@ for (const weapon of ['sword', 'powerHammer']) for (const facing of [-1, 1]) {
   });
 }
 
-test('one swing can damage an enemy only once, with a new swing after 140ms', () => {
+for(const facing of [-1,1])for(const crouching of [false,true]){
+  test(`new sword boundary ${facing}, crouching ${crouching}: hits just inside 50.4px and misses just outside`,()=>{
+    const {scene,monster}=setup();monster.active=false;withSword(scene);
+    scene.facingX=facing;scene.isDucking=crouching;scene.player.body.bottom=160;
+    scene.applyAutoAim=()=>{};scene.hasLineOfSight=()=>true;
+    const edge=scene.player.x+facing*50.4;
+    const inside=actor(edge-facing*.5,145,{hp:3}),outside=actor(edge+facing*.51,145,{hp:3});
+    inside.getBounds=()=>new Rectangle(facing>0?edge-1:edge,138,1,10);
+    outside.getBounds=()=>new Rectangle(facing>0?edge+.01:edge-1.01,138,1,10);
+    scene.molesGroup={getChildren:()=>[inside,outside]};
+    scene.damageMole=m=>m.setData('hp',m.getData('hp')-1);
+    scene.startSwing();scene.swingTimer.elapsed=30;scene.hitSwordEnemies();
+    assert.equal(inside.getData('hp'),2);assert.equal(outside.getData('hp'),3);
+  });
+}
+
+test('one swing can damage an enemy only once, with a new sword swing after 120ms', () => {
   const { scene, monster } = setup({ hp: 5 });
   withSword(scene);
   monster.x = 455;
@@ -474,13 +490,13 @@ test('one swing can damage an enemy only once, with a new swing after 140ms', ()
   scene.digBlock();
   scene.digBlock();
   assert.equal(monster.getData('hp'), 4);
-  advance(scene, 139);
+  advance(scene, 119);
   scene.digBlock();
   assert.equal(monster.getData('hp'), 4);
-  advance(scene, 140);
+  advance(scene, 120);
   scene.digBlock();
   assert.equal(monster.getData('hp'), 3);
-  assert.equal(monster.getData('stateUntil'), 640);
+  assert.equal(monster.getData('stateUntil'), 620);
 });
 
 test('an enemy entering reach during the swing is hit once and immediately stunned', () => {

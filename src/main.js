@@ -40,6 +40,10 @@ const config = {
     fullscreenTarget: document.getElementById("play-shell"),
   },
   backgroundColor: "#1f1a12",
+  // PortableControls captures on window before Phaser receives document
+  // events. Keyboard covers can target window itself: those must not be
+  // processed by Phaser first and then dispatched a second time.
+  input: { keyboard: { target: document } },
   physics: {
     default: "arcade",
     arcade: {

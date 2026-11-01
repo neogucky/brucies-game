@@ -1,0 +1,12 @@
+{
+  "mode": "built-in image_gen",
+  "nearBodies": {
+    "file": "near-bodies-v1.png",
+    "prompt": "Use case: illustration-story. Asset type: production armless RIGHT-FACING body atlas for the existing cute game knight. Reference1 defines character identity, near-side right shoulder socket and chunky body proportions; reference2 defines exact stand/crouch/airborne layout and matching opposite-side camera. Create a matching RIGHT-facing atlas with exactly18 complete bodies, 3columns by6rows on a transparent tall1024x2048 PNG.\nThe anatomical RIGHT ARM is the near-side weapon arm on VIEWER LEFT. It is ABSENT below its rounded blue shoulder socket, ready for a separately animated thick armor arm. Show NO right forearm or right glove. The only complete arm visible is the LEFT arm on VIEWER RIGHT, EMPTY gloved hand near chest or out for balance. NO shields, swords, hammers, extra hands, weapons, ground, text or shadows. Keep same thick limbs and large head, silver-blue armor, blue plume, red cape, brown boots/glove. Never skinny adult proportions.\nRows1-3 MALE short brown hair; rows4-6 FEMALE blonde ponytail.\nRow1 male STANDING: neutral ready; slight hip/shoulder coil back; forward weight transfer into a right-facing blow. Feet same baseline.\nRow2 male DEEPLY CROUCHING: low ready; low coil; low forward push. Always crouched.\nRow3 male AIRBORNE: tucked knees ready; airborne coil; airborne forward lean. No planted feet.\nRow4 female STANDING same3poses.\nRow5 female CROUCHING same3poses.\nRow6 female AIRBORNE same3poses.\nCamera fixed in all cells, front-three-quarter facing RIGHT. Each character fits completely in its own cell with clear transparent margins, entire plume/cape/boots visible, no overlap. Head size and armor proportions remain consistent across all18 poses. Genuine transparent alpha.",
+    "source": "/Users/timrasim/.codex/generated_images/01a16e8d-beb4-7492-b60b-ede7bf169f35/exec-17f43933-bd49-4f45-89a9-93547b59b05b.png",
+    "references": [
+      "assets/common/characters/sword-b/right-bodies-v1.png",
+      "assets/common/characters/sword-b/left-far-bodies-v1.png"
+    ]
+  }
+}

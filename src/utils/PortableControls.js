@@ -20,7 +20,8 @@ export function resetSceneKeys(scene) {
 }
 
 export function controlBarActions(scene, paused = false) {
-  if (!scene || paused || scene.isIntro || scene.isInteractingWithLever || scene.confirmation?.isOpen || scene.settingsBox?.visible || scene.inventoryOverlay?.isOpen) return [];
+  if (!scene || paused || scene.isIntro || scene.isInteractingWithLever || scene.confirmation?.isOpen || scene.settingsBox?.visible) return [];
+  if (scene.inventoryOverlay?.isOpen) return scene.player ? ['inventory', 'pause', 'back'] : ['inventory', 'back'];
   if (scene.dialog?.container?.visible) return ['back'];
   if (scene.isGameOver) return ['confirm', 'back'];
   if (scene.levelCompleted || scene.isComplete) return ['confirm'];
@@ -115,7 +116,7 @@ export default class PortableControls {
     this.resumeButton = document.createElement('button'); this.resumeButton.type = 'button';
     this.resumeButton.addEventListener('click', () => { this.resume(); this.focus(); });
     const exit = document.createElement('button'); this.exitButton = exit; exit.type = 'button'; exit.textContent = 'Level verlassen';
-    exit.addEventListener('click', () => { this.dispatch('back'); this.focus(); });
+    exit.addEventListener('click', () => { const s=this.pausedScene; this.resume(); this.dispatch('back',s); this.focus(); });
     this.overlay.append(title, this.resumeButton, exit); document.getElementById('play-shell')?.appendChild(this.overlay);
   }
   update() {
@@ -149,22 +150,28 @@ export default class PortableControls {
     const modal = scene.isInteractingWithLever || scene.confirmation?.isOpen || scene.inventoryOverlay?.isOpen || scene.dialog?.container?.visible || scene.settingsBox?.visible;
     const finished = scene.isGameOver || scene.levelCompleted || scene.isComplete;
     const showTouch = Boolean(touch && scene.player && !modal && !finished && !this.pausedScene);
-    this.touchPad.hidden = !showTouch; document.body.classList.toggle('touch-profile', showTouch);
+    const inventoryOpen=Boolean(scene.inventoryOverlay?.isOpen), reserveTouch=Boolean(touch&&scene.player&&inventoryOpen);
+    this.touchPad.hidden = !showTouch&&!reserveTouch;
+    if(this.touchPad.style)this.touchPad.style.visibility=reserveTouch?'hidden':'';
+    document.body.classList.toggle('touch-profile', showTouch||reserveTouch);
     document.body.classList.toggle('cinematic-mode', intro);
     if (scene.currentNode && scene.hintText) {
       const hint = mapControlHint(profile, scene.sys.settings.key === 'WaterMapScene');
       if (scene.hintText.text !== hint) scene.hintText.setText(hint);
     }
     const actions = new Set(controlBarActions(scene, Boolean(this.pausedScene)));
-    Object.entries(this.buttons).forEach(([action, button]) => { button.hidden = !actions.has(action); });
+    Object.entries(this.buttons).forEach(([action, button]) => {
+      button.hidden = !actions.has(action);
+      if(button.style)button.style.visibility=inventoryOpen&&action!=='inventory'?'hidden':'';
+    });
     this.toolbar.hidden = actions.size === 0;
     document.body.classList.toggle('has-action-bar', actions.size > 0);
     const disabled = (button, value) => { button.disabled = Boolean(value); };
-    disabled(this.buttons.inventory, scene.isRevealingMap || this.pausedScene || scene.confirmation?.isOpen || scene.inventoryOverlay?.isOpen || scene.dialog?.container?.visible || !scene.toggleInventory || scene.isGameOver || scene.levelCompleted || scene.isComplete);
+    disabled(this.buttons.inventory, scene.isRevealingMap || this.pausedScene || scene.confirmation?.isOpen || scene.dialog?.container?.visible || !scene.toggleInventory || scene.isGameOver || scene.levelCompleted || scene.isComplete);
     disabled(this.buttons.pause, !this.pausedScene && (!scene.player || scene.isPaused || scene.isGameOver || scene.levelCompleted || scene.isComplete));
     const asking = scene.confirmation?.isOpen;
     const won = !scene.isGameOver && (scene.levelCompleted || scene.isComplete);
-    disabled(this.buttons.back, won || (scene.sys.settings.key === 'MainMenuScene' && !asking && !scene.settingsBox?.visible));
+    disabled(this.buttons.back, inventoryOpen || won || (scene.sys.settings.key === 'MainMenuScene' && !asking && !scene.settingsBox?.visible));
     disabled(this.buttons.confirm, Boolean(scene.isRevealingMap || this.pausedScene || (intro && scene.started && !scene.suspended)));
     Object.entries(this.touchButtons).forEach(([action, button]) => {
       const potion = action === 'potion1' ? scene.equipped?.consumable : scene.equipped?.consumable2;
@@ -174,13 +181,13 @@ export default class PortableControls {
       }
       button.hidden = action === 'shoot' ? !scene.bow?.equipped()
         : action.startsWith('potion') ? !potion || !scene.inventory?.consumables?.honey : false;
-      button.disabled = Boolean(this.pausedScene || scene.confirmation?.isOpen || scene.isGameOver || scene.levelCompleted || scene.isComplete
+      button.disabled = Boolean(this.pausedScene || inventoryOpen || scene.confirmation?.isOpen || scene.isGameOver || scene.levelCompleted || scene.isComplete
         || (['attack','shoot'].includes(action) && scene.climbingVine));
     });
     this.buttons.confirm.textContent = actionLabel(profile, asking ? 'yes' : 'confirm', asking ? 'Ja' : 'Bestätigen');
     this.buttons.back.textContent = actionLabel(profile, asking ? 'no' : 'back', asking ? 'Nein'
       : scene.dialog?.container?.visible ? 'Schließen' : scene.currentNode ? 'Menü' : scene.player && !finished ? 'Verlassen' : 'Zurück');
-    this.buttons.inventory.textContent = actionLabel(profile, 'inventory', 'Inventar');
+    this.buttons.inventory.textContent = actionLabel(profile, 'inventory', inventoryOpen ? 'Schließen' : 'Inventar');
     this.buttons.pause.textContent = actionLabel(profile, 'pause', this.pausedScene ? 'Fortsetzen' : 'Pause');
     this.resumeButton.textContent = actionLabel(profile, 'pause', 'Weiterspielen');
     this.exitButton.textContent = actionLabel(profile, 'back', 'Level verlassen');
@@ -199,27 +206,30 @@ export default class PortableControls {
   dispatch(action, targetScene = this.activeScene()) {
     if (this.game?.debugMenu?.isOpen) return;
     if (this.pausedScene) {
-      const pausedScene = this.pausedScene;
-      if (action === 'pause') this.resume();
-      else if (action === 'back') { this.resume(); this.dispatch('back', pausedScene); }
+      if (['pause','back','confirm'].includes(action)) this.resume();
       return;
     }
     const s = targetScene; if (!s) return;
     if (s.isInteractingWithLever) return;
     if (s.isRevealingMap && !['back', 'fullscreen'].includes(action)) return;
     if (s.isIntro) {
-      if ((action === 'attack' || action === 'confirm') && s.canSkip !== false) s.finish();
+      if (['attack','confirm','back'].includes(action) && s.canSkip !== false) s.finish();
       else if (action === 'fullscreen') this.emitKey(s, 'KeyF');
       return;
     }
-    // Yes/no questions have their own J/N bindings. Menu confirm/back must not
-    // become extra answers when the active keyboard profile changes.
-    if (s.confirmation?.isOpen) { if (['yes','no'].includes(action)) s.confirmation.choose(action === 'yes'); return; }
+    if (s.confirmation?.isOpen) {
+      if (['yes','no','confirm','back'].includes(action)) s.confirmation.choose(action === 'yes'||action === 'confirm');
+      return;
+    }
     if (s.settingsActions && s.settingsBox?.visible) { s.settingsActions[action]?.(); return; }
     if (action === 'pause') { this.pause(s); return; }
     if (s.inventoryOverlay?.isOpen) {
       if (action === 'confirm') { if (s.inventoryOverlay.confirm) s.inventoryOverlay.confirm(); else s.inventoryOverlay.applySelection(); }
-      if (action === 'back') { s.inventoryOverlay.close(); s.inventoryOverlay.onClose?.(); }
+      if (action === 'back'||action === 'inventory') {
+        this.clearHeld();
+        if(s.inventoryOverlay.requestClose)s.inventoryOverlay.requestClose();
+        else {s.inventoryOverlay.close();s.inventoryOverlay.onClose?.();}
+      }
       return;
     }
     if (s.dialog?.container?.visible) {
@@ -227,12 +237,12 @@ export default class PortableControls {
       else if (action === 'confirm') { const page = s.dialog.pages[s.dialog.index]; if (page?.options?.length) s.dialog.selectOption(page.options); else s.dialog.nextPage(); }
       return;
     }
-    if (action === 'inventory') { s.toggleInventory?.(); return; }
+    if (action === 'inventory') { this.clearHeld(); s.toggleInventory?.(); return; }
     if (action === 'shoot') { s.bow?.tryShoot(); return; }
     if (action === 'attack' && s.hammerCharge) { s.hammerCharge.press(); return; }
     if (action === 'back' && s.isDialogOpen && s.isPaused && !s.isGameOver && !s.levelCompleted) { this.emitKey(s, 'Escape'); return; }
     if (action === 'back' && (s.isGameOver || s.levelCompleted || s.isComplete)) {
-      if (!s.isGameOver) return;
+      if (!s.isGameOver) { this.emitKey(s,'Enter'); return; }
       const map = s.sys.settings.key === 'JungleScene' ? 'JungleMapScene' : s.sys.settings.key === 'UndergroundDigScene' ? 'UndergroundMapScene'
         : ['DesertRuinScene','DesertEndlessScene','DesertTunnelScene'].includes(s.sys.settings.key) ? 'DessertMapScene' : null;
       if (map) {
@@ -305,6 +315,7 @@ export default class PortableControls {
       this.pressedKeys ||= new Set(); this.pressedKeys.add(code);
       if (code === 'Space') this.dispatch('attack', scene);
       else if (code === 'Enter') this.dispatch('confirm', scene);
+      else if (code === 'Escape') this.dispatch('back', scene);
       else if (code === 'KeyF') this.dispatch('fullscreen', scene);
       return;
     }

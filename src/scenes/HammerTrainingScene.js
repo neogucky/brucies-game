@@ -1,5 +1,5 @@
 import { saveProgress } from '../saveManager.js';
-import { HAMMER_DRILLS, hammerTrainingFeedback, withHammerTrainingState } from '../utils/hammerRules.js';
+import { HAMMER_DRILLS, HAMMER_CHARGE, HAMMER_JUMP_DEMO, hammerJumpDemonstration, hammerTrainingFeedback, withHammerTrainingState } from '../utils/hammerRules.js';
 import { getAttackStats, applyWeaponAppearance } from '../utils/weapons.js';
 import HammerCharge, { applyHammerWave } from '../utils/HammerCharge.js';
 import MeleeAnimation from '../utils/MeleeAnimation.js';
@@ -37,12 +37,11 @@ export default class HammerTrainingScene extends Phaser.Scene {
     this.add.text(675, 505, 'Meister Muck', { ...style, fontSize: '19px' }).setOrigin(.5);
     this.add.text(480, 24, 'HAMMERSTUNDE MIT MEISTER MUCK', { ...style, fontFamily: 'Georgia, serif', fontSize: '27px' }).setOrigin(.5, 0);
     this.lessonTitle = this.add.text(480, 72, '', { ...style, fontSize: '21px', fontStyle: 'bold' }).setOrigin(.5);
-    this.add.rectangle(480, 174, 870, 140, 0x203e4a, .98).setStrokeStyle(2, 0xbaa36c).setDepth(30);
-    this.lessonText = this.add.text(78, 124, '', { ...style, fontSize: '21px', lineSpacing: 6, wordWrap: { width: 805 } }).setDepth(31);
-    this.turnText = this.add.text(480, 280, '', { ...style, fontSize: '25px', fontStyle: 'bold' }).setOrigin(.5).setDepth(31);
-    this.progressDots = HAMMER_DRILLS.map((_, i) => this.add.circle(432 + i * 24, 320, 6, 0x60717a).setDepth(31));
-    this.add.text(480, 557, '{move}: Bewegen · {attack}: antippen / halten / loslassen · {jump}: Springen · ↓: Hammerschlag',
-      { ...style, fontSize: '14px', align: 'center', wordWrap: { width: 880 } }).setOrigin(.5).setDepth(31);
+    this.add.rectangle(480, 162, 870, 112, 0x203e4a, .98).setStrokeStyle(2, 0xbaa36c).setDepth(30);
+    this.lessonText = this.add.text(78, 122, '', { ...style, fontSize: '21px', lineSpacing: 6, wordWrap: { width: 805 } }).setDepth(31);
+    this.turnText = this.add.text(480, 253, '', { ...style, fontSize: '25px', fontStyle: 'bold' }).setOrigin(.5).setDepth(31);
+    this.progressDots = HAMMER_DRILLS.map((_, i) => this.add.circle(480 + (i - (HAMMER_DRILLS.length - 1) / 2) * 24, 292, 6, 0x60717a).setDepth(31));
+    this.createKeyPanels();
     this.exit = this.add.text(920, 29, 'Später', { ...style, fontSize: '17px' }).setOrigin(1, 0)
       .setInteractive({ useHandCursor: true }).on('pointerdown', () => this.finish(false));
     this.doneButton = this.add.text(480, 367, 'Weiter ins Abenteuer · {confirm}', { ...style, fontSize: '22px',
@@ -58,6 +57,63 @@ export default class HammerTrainingScene extends Phaser.Scene {
     this.events.on('pause', pauseCoach);
     this.events.once('shutdown', () => {
       this.events.off('pause', pauseCoach); this.mentor.hammerCharge.destroy(); this.mentor.meleeAnimation.destroy();
+    });
+  }
+  createKeyPanels() {
+    this.keyPanels = [330,675].map(x => ({
+      container: this.add.container(x,555).setDepth(32), caps: [],
+      hint: this.add.text(x,523,'',{...style,fontSize:'14px',align:'center'}).setOrigin(.5).setDepth(32),
+    }));
+  }
+  configureKeyPanels(drill) {
+    if (!this.keyPanels) return;
+    this.keyPanels.forEach(panel => {
+      panel.container.removeAll(true); panel.caps = [];
+      drill.keys.forEach((action,index) => {
+        const x = (index-(drill.keys.length-1)/2)*126, width = action==='attack'?178:112;
+        const box = this.add.rectangle(x,0,width,40,0x203e4a).setStrokeStyle(2,0x70878d);
+        const label = this.add.text(x,0,action==='up'?'{jump}':action==='down'?'{down}':'{attack}',
+          {...style,fontSize:'20px',fontStyle:'bold',strokeThickness:1}).setOrigin(.5);
+        panel.container.add([box,label]);
+        if(drill.keys.length>1)panel.container.add(this.add.text(x-width/2+8,-16,String(index+1),
+          {...style,fontSize:'11px',strokeThickness:0}));
+        panel.caps.push({action,box,label,wasPressed:false,releasedAt:-Infinity});
+      });
+    });
+  }
+  updateKeyPanels() {
+    if (!this.keyPanels) return;
+    const drill=HAMMER_DRILLS[this.drillIndex];
+    const live=this.phase==='demo'||this.phase==='practice', m=this.mentor;
+    const playerKeys={attack:Boolean(this.hammerCharge?.holding),
+      up:Boolean(this.cursors.up.isDown||this.wasd.W.isDown),
+      down:Boolean(this.cursors.down.isDown||this.wasd.S.isDown)};
+    const coachKeys=this.phase==='demo'?{attack:Boolean(m.hammerCharge.holding),...m.demoKeys}:{};
+    this.keyPanels.forEach((panel,index)=>{
+      const keys=index?coachKeys:playerKeys;
+      let released=false;
+      panel.caps.forEach(cap=>{
+        const pressed=live&&Boolean(keys[cap.action]);
+        if(cap.wasPressed&&!pressed&&live)cap.releasedAt=this.worldTime;
+        cap.wasPressed=pressed;
+        const flash=live&&this.worldTime-cap.releasedAt<220;released ||= flash;
+        cap.box.setFillStyle(pressed?0xffd578:flash?0x8bd5a3:0x203e4a)
+          .setStrokeStyle(2,pressed?0xffefad:flash?0xb9f1c6:0x70878d);
+        cap.label.setColor(pressed||flash?'#18313c':'#fff0c5');
+      });
+      let hint=this.phase==='success'?'Geschafft!':'';
+      if(live&&drill){
+        if(index&&this.phase!=='demo')hint='Jetzt du!';
+        else if(drill.id==='slam'){
+          hint=keys.up?'Springen!':keys.down?'Nach unten!':index&&this.demoLanded?'Landung!'
+            :index&&this.worldTime-this.phaseStartedAt>=HAMMER_JUMP_DEMO.slamAtMs?'Landung!':'Erst springen, dann nach unten';
+        }else{
+          const charge=index?m.hammerCharge:this.hammerCharge;
+          hint=released?'Loslassen!':drill.id==='normal'?'Kurz antippen und loslassen'
+            :charge?.holding&&charge.elapsed>=HAMMER_CHARGE.superMs?'Blau! Jetzt loslassen!':'Halten, bis die Blitze blau sind';
+        }
+      }
+      panel.hint.setText(hint);
     });
   }
   createMentor() {
@@ -94,7 +150,7 @@ export default class HammerTrainingScene extends Phaser.Scene {
     if (this.drillIndex >= HAMMER_DRILLS.length) { this.completeTraining(); return; }
     const drill = HAMMER_DRILLS[this.drillIndex];
     this.hammerCharge?.cancel(); this.isSwinging = false; this.hammerSlamActive = false;
-    this.attackInputLocked = false; this.phase = 'demo'; this.phaseStartedAt = this.worldTime; this.demoReleased = false; this.demoLanded = false;
+    this.attackInputLocked = false; this.phase = 'demo'; this.phaseStartedAt = this.worldTime; this.demoReleased = false; this.demoLanded = false; this.demoSlamStarted = false;
     // reset() also resets Arcade's previous position. Resyncing the body again
     // during update would add the hitbox offset as movement in postUpdate and
     // push the hero through the floor on the next drill.
@@ -102,18 +158,19 @@ export default class HammerTrainingScene extends Phaser.Scene {
     this.facingX = 1; this.player.setFlipX(true);
     this.lessonTitle.setText((this.drillIndex + 1) + ' / ' + HAMMER_DRILLS.length + ' · ' + drill.title);
     this.lessonText.setText(this.retryMessage || (this.drillIndex === 0 ? 'Ich bin Meister Muck. Ein guter Hammer braucht Gefühl!\n' : '') + drill.text);
-    this.retryMessage = null;
+    this.retryMessage = null; this.configureKeyPanels(drill);
     this.turnText.setText('Mach mit! Meister Muck zeigt es dir.').setColor('#ffd184');
     this.progressDots.forEach((dot, i) => dot.setFillStyle(i < this.drillIndex ? 0x88de9c : i === this.drillIndex ? 0xffd871 : 0x60717a));
     const m = this.mentor; m.hammerCharge.cancel(); m.isSwinging = false; m.hammerSlamActive = false; m.player.setPosition(675, FLOOR + 1.8);
     m.worldTime = this.worldTime;
-    if (drill.id === 'slam') { m.isSwinging = true; m.hammerSlamActive = true; m.swingStartedAt = this.worldTime; m.swingVisualKind = 'slam'; }
+    m.demoKeys = null;
+    if (drill.id === 'slam') this.sound.play('sfx-jump',{volume:.16});
     else m.hammerCharge.press();
   }
   stopDemonstration() {
     const m = this.mentor; if (!m) return;
     m.hammerCharge.cancel(); m.hammerCharge.pendingWave = null;
-    m.isSwinging = false; m.hammerSlamActive = false; m.hammerAttack = null;
+    m.isSwinging = false; m.hammerSlamActive = false; m.hammerAttack = null; m.demoKeys = null;
     m.impactDone = true; m.swingReadyAt = Infinity; m.swingUntil = 0;
     m.player.setPosition(675, FLOOR + 1.8);
     m.meleeAnimation.state = null; m.meleeAnimation.lastPose = null; m.meleeAnimation.restore();
@@ -143,16 +200,15 @@ export default class HammerTrainingScene extends Phaser.Scene {
     this.retryMessage = feedback;
     this.phase = feedback ? 'retry' : 'success'; this.phaseStartedAt = this.worldTime; this.attackInputLocked = true;
     this.hammerCharge?.cancel(); resetSceneKeys(this);
-    this.lessonText.setText(feedback || ['Genau! Ein schneller Schlag hilft auch im Sprung.', 'Prima! Du hast die gelben Funken erwischt.',
-      'Sehr gut! Das war ein richtiger Power-Schlag.', 'Wunderbar! Blaue Blitze, starker Schlag und Druckwelle.',
-      'Saubere Landung! Den Sprung-Hammerschlag behältst du natürlich.'][this.drillIndex]);
+    this.lessonText.setText(feedback || HAMMER_DRILLS[this.drillIndex].success);
     this.turnText.setText(feedback ? 'Schau noch einmal zu …' : 'Geschafft!').setColor(feedback ? '#ffcc9c' : '#a7f1b4');
   }
   completeTraining() {
     this.phase = 'complete'; this.attackInputLocked = true; this.isComplete = true; this.hammerCharge?.cancel();
     this.lessonTitle.setText('Hammerstunde geschafft!');
-    this.lessonText.setText('Antippen, gelb, rot oder blau – du bestimmst die Kraft.\nBeim Aufladen gehst du etwas langsamer. Dein Sprungschlag bleibt bereit!\nRüste den Hammer im Inventar aus · {inventory}.');
+    this.lessonText.setText('Kurz antippen, ganz aufladen oder im Sprung zuschlagen – du kannst jetzt alle drei!\nDen Hammer findest du im Inventar · {inventory}.');
     this.turnText.setText('Meister Muck ist stolz auf dich.').setColor('#a7f1b4');
+    this.keyPanels?.forEach(panel=>{panel.container.setVisible(false);panel.hint.setVisible(false);});
     this.progressDots.forEach(dot => dot.setFillStyle(0x88de9c)); this.doneButton.setVisible(true); this.exit.setVisible(false);
     const next = withHammerTrainingState(this.registry.get('saveData') || {}, { offered: true, completed: true });
     this.registry.set('saveData', next); saveProgress(next);
@@ -171,18 +227,23 @@ export default class HammerTrainingScene extends Phaser.Scene {
     const m = this.mentor, drill = HAMMER_DRILLS[Math.min(this.drillIndex, HAMMER_DRILLS.length - 1)]; m.worldTime = this.worldTime;
     if (this.phase === 'demo') {
       if (drill.id === 'slam') {
-        const progress = Math.min(1, (this.worldTime - this.phaseStartedAt) / 720);
-        m.player.y = FLOOR + 1.8 - Math.sin(progress * Math.PI) * 105;
-        if (progress === 1 && !this.demoLanded) {
+        const cue=hammerJumpDemonstration(this.worldTime-this.phaseStartedAt);
+        m.demoKeys={up:cue.up,down:cue.down};
+        m.player.y=FLOOR+1.8-cue.height;
+        if(cue.slamming&&!this.demoSlamStarted){
+          this.demoSlamStarted=true;m.isSwinging=true;m.hammerSlamActive=true;
+          m.swingStartedAt=this.worldTime;m.swingVisualKind='slam';
+        }
+        if (cue.landed && !this.demoLanded) {
           this.demoLanded = true; m.hammerSlamActive = false; m.hammerAttack = null; m.swingVisualKind = 'landing';
           m.swingStartedAt = this.worldTime; m.swingUntil = this.worldTime + 320; m.swingReadyAt = Infinity;
-          applyHammerWave(m, { multiplier: 1.5 }); this.hitDummy(this.demoDummy);
+          m.impactDone=true;applyHammerWave(m, { multiplier: 1.5 }); this.hitDummy(this.demoDummy);
         }
       } else {
         m.hammerCharge.update(dt);
         if (!this.demoReleased && m.hammerCharge.elapsed >= drill.holdMs) { m.hammerCharge.release(); this.demoReleased = true; }
       }
-      const demoMs = drill.id === 'slam' ? 1600 : drill.holdMs + 950;
+      const demoMs = drill.id === 'slam' ? HAMMER_JUMP_DEMO.endMs : drill.holdMs + 950;
       if (this.worldTime - this.phaseStartedAt > demoMs) this.beginPractice();
     } else if (this.phase === 'retry' && this.worldTime - this.phaseStartedAt > 1500) this.beginDrill();
     else if (this.phase === 'success' && this.worldTime - this.phaseStartedAt > 1000) { this.drillIndex++; this.beginDrill(); }
@@ -215,5 +276,6 @@ export default class HammerTrainingScene extends Phaser.Scene {
       }
       if (this.worldTime >= this.swingUntil) this.isSwinging = false;
     }
+    this.updateKeyPanels();
   }
 }

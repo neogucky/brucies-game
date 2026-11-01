@@ -15,7 +15,7 @@ load('src/utils/hammerTraining.js'); load('src/scenes/HammerTrainingScene.js', '
 
 function graphic() {
   const g = { scene: {}, active: true };
-  for (const method of ['setVisible','setDepth','setOrigin','setText','setColor','setPosition','clear','lineStyle','strokePoints','setScale'])
+  for (const method of ['setVisible','setDepth','setOrigin','setText','setColor','setPosition','clear','lineStyle','strokePoints','setScale','setFillStyle','setStrokeStyle'])
     g[method] = function(...args) { this[method + 'Args'] = args; return this; };
   g.destroy = () => { g.active = false; g.scene = null; };
   return g;
@@ -173,9 +173,9 @@ test('existing hammer owners pause their level for practice and return without c
 });
 test('a wrong practice swing keeps the current drill and carries its precise correction into the next demonstration', () => {
   const s = Object.create(ctx.HammerTrainingScene.prototype), text = graphic();
-  Object.assign(s,{phase:'practice',drillIndex:2,worldTime:500,lessonText:text,turnText:graphic()});
-  s.resolvePractice('super',true); assert.equal(s.phase,'retry'); assert.equal(s.drillIndex,2); assert.ok(s.attackInputLocked);
-  assert.match(s.retryMessage,/zu lange/); assert.match(text.setTextArgs[0],/roten/);
+  Object.assign(s,{phase:'practice',drillIndex:1,worldTime:500,lessonText:text,turnText:graphic()});
+  s.resolvePractice('power',true); assert.equal(s.phase,'retry'); assert.equal(s.drillIndex,1); assert.ok(s.attackInputLocked);
+  assert.match(s.retryMessage,/noch zu kurz/); assert.match(text.setTextArgs[0],/blauen/);
 });
 
 function trainingFixture(drillIndex = 0) {
@@ -189,7 +189,7 @@ function trainingFixture(drillIndex = 0) {
     setVelocityX(x) { this.velocity.x = x; }, setVelocityY(y) { this.velocity.y = y; },
   };
   Object.assign(mentor, { player: { x: 675, y: 481.8, setPosition(x, y) { this.x = x; this.y = y; } },
-    meleeAnimation: { state: { kind: 'charge' }, lastPose: {}, update() {}, restore() {} } });
+    meleeAnimation: { state: { kind: 'charge' }, lastPose: {phase:{stage:'ready'}}, update() {}, restore() {} } });
   Object.assign(s, {
     sys: { settings: { key: 'HammerTrainingScene' } }, worldTime: 0, drillIndex, equipped: { weapon: 'powerHammer' },
     time: {}, input: { keyboard: new EventEmitter() }, mentor,
@@ -208,7 +208,7 @@ function trainingFixture(drillIndex = 0) {
 }
 
 test('the player can move, jump and charge while the teacher demonstrates', () => {
-  const { s, body } = trainingFixture(2);
+  const { s, body } = trainingFixture(1);
   assert.equal(s.phase, 'demo'); assert.equal(s.attackInputLocked, false);
   s.cursors.right.isDown = true; s.cursors.up.justDown = true;
   assert.equal(s.hammerCharge.press(), true);
@@ -226,7 +226,7 @@ test('a real hammer tap hitting the dummy is accepted before the demonstration e
 });
 
 test('the player can land a jump attack while the teacher is still in the air', () => {
-  const { s, mentor, body } = trainingFixture(4);
+  const { s, mentor, body } = trainingFixture(2);
   body.blocked.down = false; s.activateHammerSlam();
   assert.equal(s.hammerSlamActive, true);
   body.blocked.down = true; body.velocity.y = 0; s.update(0, 16);
@@ -234,7 +234,7 @@ test('the player can land a jump attack while the teacher is still in the air', 
   assert.equal(mentor.hammerSlamActive, false); assert.equal(mentor.player.y, 481.8);
 });
 
-for (const [index, id] of ['normal', 'quick', 'power', 'super', 'slam'].entries()) {
+for (const [index, id] of ['normal', 'super', 'slam'].entries()) {
   test(id + ': a correct demonstration-time attempt stops the teacher immediately', () => {
     const { s, mentor } = trainingFixture(index);
     mentor.hammerCharge.pendingWave = { remaining: 1, attack: ctx.hammerAttackForHold(1750) };
@@ -248,18 +248,18 @@ for (const [index, id] of ['normal', 'quick', 'power', 'super', 'slam'].entries(
 }
 
 test('a wrong or missed swing during a demonstration gives a tip without freezing or restarting the player', () => {
-  const { s, mentor } = trainingFixture(2);
+  const { s, mentor } = trainingFixture(1);
   s.cursors.right.isDown = true;
-  for (const [actual, hit, message] of [['super', true, /zu lange/], ['normal', true, /noch zu kurz/], ['power', false, /erreichen/]]) {
+  for (const [actual, hit, message] of [['power', true, /noch zu kurz/], ['normal', true, /noch zu kurz/], ['quick', false, /erreichen/]]) {
     s.resolvePractice(actual, hit);
     assert.equal(s.phase, 'demo'); assert.equal(s.attackInputLocked, false);
     assert.equal(s.cursors.right.isDown, true); assert.equal(mentor.hammerCharge.holding, true);
-    assert.equal(s.drillIndex, 2); assert.match(s.lessonText.setTextArgs[0], message);
+    assert.equal(s.drillIndex, 1); assert.match(s.lessonText.setTextArgs[0], message);
   }
 });
 
 test('the end of a demonstration preserves a held movement key and a player charge already in progress', () => {
-  const { s, mentor, body } = trainingFixture(2);
+  const { s, mentor, body } = trainingFixture(1);
   s.wasd.D.isDown = true; s.hammerCharge.press(); s.hammerCharge.update(.05);
   s.beginPractice(); s.update(0, 16);
   assert.equal(s.phase, 'practice'); assert.equal(s.wasd.D.isDown, true); assert.equal(s.wasd.D.resets, 0);
@@ -269,10 +269,44 @@ test('the end of a demonstration preserves a held movement key and a player char
 
 test('an early success cannot be overwritten by the old demonstration or count twice', () => {
   const { s, mentor, advance } = trainingFixture(1);
-  s.resolvePractice('quick', true); s.resolvePractice('quick', true);
+  s.resolvePractice('super', true); s.resolvePractice('super', true);
   advance(900);
   assert.equal(s.phase, 'success'); assert.equal(s.drillIndex, 1); assert.equal(s.dummyHits || 0, 0);
   assert.equal(mentor.isSwinging, false);
   advance(120);
   assert.equal(s.drillIndex, 2); assert.equal(s.phase, 'demo'); assert.equal(s.attackInputLocked, false);
+});
+
+test('hammer curriculum has only tap, fully charged hit and jump hit, with the required keys',()=>{
+ const drills=vm.runInContext('HAMMER_DRILLS',ctx);
+ assert.deepEqual(Array.from(drills,d=>d.id),['normal','super','slam']);
+ assert.deepEqual(Array.from(drills[2].keys),['up','down']);
+ assert.ok(drills[0].holdMs<180&&drills[1].holdMs>=1500);
+ assert.match(ctx.hammerTrainingFeedback('super','slam'),/Sprungschlag/);
+});
+function instructionPanels(s){
+ const make=()=>({container:graphic(),hint:graphic(),caps:vm.runInContext('HAMMER_DRILLS',ctx)[s.drillIndex].keys.map(action=>
+  ({action,box:graphic(),label:graphic(),wasPressed:false,releasedAt:-Infinity}))});
+ s.keyPanels=[make(),make()];
+}
+test('coach key display follows the real hold, full-charge cue and release while player input remains independent',()=>{
+ const {s,mentor,advance}=trainingFixture(1);instructionPanels(s);advance(20);
+ assert.equal(s.keyPanels[1].caps[0].wasPressed,true);assert.equal(s.keyPanels[0].caps[0].wasPressed,false);
+ s.hammerCharge.press();advance(1500);
+ assert.equal(s.keyPanels[0].caps[0].wasPressed,true);
+ assert.match(s.keyPanels[1].hint.setTextArgs[0],/Blau/);
+ advance(260);
+ assert.equal(mentor.hammerCharge.holding,false);assert.equal(s.keyPanels[1].caps[0].wasPressed,false);
+ assert.match(s.keyPanels[1].hint.setTextArgs[0],/Loslassen/);
+});
+test('jump demonstration highlights Up before Down and only starts the hammer slam in the air',()=>{
+ const {s,mentor,advance}=trainingFixture(2);instructionPanels(s);advance(20);
+ assert.equal(mentor.hammerSlamActive,false);assert.equal(s.keyPanels[1].caps[0].wasPressed,true);
+ assert.equal(s.keyPanels[1].caps[1].wasPressed,false);assert.ok(mentor.player.y<481.8);
+ advance(340);
+ assert.equal(mentor.hammerSlamActive,true);assert.equal(s.keyPanels[1].caps[0].wasPressed,false);
+ assert.equal(s.keyPanels[1].caps[1].wasPressed,true);assert.ok(mentor.player.y<410);
+ advance(260);
+ assert.equal(s.demoLanded,true);assert.equal(mentor.hammerSlamActive,false);assert.equal(mentor.player.y,481.8);
+ assert.equal(s.dummyHits,1,'one landing impact');
 });

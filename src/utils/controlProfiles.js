@@ -28,8 +28,11 @@ export function canonicalCode(event) {
 export function actionForKey(event, profile = DEFAULT_CONTROL_PROFILE) {
   if (event.isComposing || event.metaKey || event.ctrlKey || event.altKey) return null;
   const id = controlProfileId(profile), code = canonicalCode(event), keys = CONTROL_PROFILES[id].keys;
-  // Both movement layouts are always available on a keyboard. Confirmation
-  // and menu actions still have exactly the one key shown by the active profile.
+  // These two keys are universal, even if a touch profile is selected.
+  if (code === 'Enter') return 'confirm';
+  if (code === 'Escape') return 'back';
+  // Both movement layouts are always available on a keyboard. The profile's
+  // bindings remain available in addition to universal Enter and Escape.
   if (id !== 'ipadTouch') {
     const movement = { KeyW: 'up', KeyA: 'left', KeyS: 'down', KeyD: 'right' };
     if (movement[code]) return movement[code];
@@ -55,6 +58,7 @@ export function formatControlHint(template, profile = DEFAULT_CONTROL_PROFILE) {
     if (action === 'jump') return touch ? 'Springen' : '↑';
     if (action === 'climb') return touch ? '↑/↓' : '↑/↓';
     if (action === 'drop') return '↓↓';
+    if (touch && action === 'down') return 'Nach unten';
     if (touch) return ({ confirm: 'Antippen', back: 'Zurück', yes: 'Antippen', no: 'Antippen', inventory: 'Inventar', attack: 'Angriff', shoot: 'Bogen', pause: 'Pause', potion1: 'Trank 1', potion2: 'Trank 2' })[action] || '';
     return keyLabel(profile, action);
   });

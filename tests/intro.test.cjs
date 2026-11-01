@@ -55,11 +55,11 @@ test('credits use real elapsed time rather than an accelerated game-loop delta',
  }finally{ctx.performance.now=original}
 });
 for(const profile of ['ipadKeyboard','pc','ipadTouch'])test(profile+': Space and Enter skip once; unrelated keys never restart the intro',()=>{
- for(const code of ['Space','Enter']){
+ for(const code of ['Space','Enter','Escape']){
   let starts=0,skips=0;const s={isIntro:true,startIntro(){starts++},finish(){skips++}};
   const c=Object.create(ctx.PortableControls.prototype);c.activeScene=()=>s;c.getProfile=()=>profile;c.held=new Set();
-  for(const key of ['KeyE','KeyQ','Escape'])c.onKey({code:key,preventDefault(){},stopImmediatePropagation(){}},true);
-  c.dispatch('back');assert.equal(starts+skips,0);
+  for(const key of ['KeyE','KeyQ'])c.onKey({code:key,preventDefault(){},stopImmediatePropagation(){}},true);
+  assert.equal(starts+skips,0);
   c.onKey({code,preventDefault(){},stopImmediatePropagation(){}},true);
   c.onKey({code,repeat:true,preventDefault(){},stopImmediatePropagation(){}},true);
   c.onKey({code,repeat:false,preventDefault(){},stopImmediatePropagation(){}},true);

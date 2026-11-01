@@ -26,6 +26,14 @@ Die Druckwelle entsteht beim Bodenkontakt des Hammerkopfs und trifft einen
 bereits vom selben Schlag getroffenen Gegner nicht erneut. Wände blockieren
 sie. Der normale Schlag und der Sprung-Landungsschlag bleiben verfügbar.
 
+Die Hammerstunde übt genau drei Angriffe: kurz antippen, vollständig bis zu den
+blauen Blitzen aufladen und den Sprung-Landungsschlag. Gelbe und rote Ladung sind
+weiterhin im Spiel verfügbar, verlangen aber keine eigenen Prüfungen im Training.
+Zwei getrennte Tastenanzeigen zeigen die Eingaben von Spieler und Muck. Gedrückte
+Tasten werden gelb hervorgehoben, Loslassen kurz grün. Im Sprung zeigt Muck die
+Sprungtaste vor der Abwärtstaste; die Anzeigen und sein Bewegungsablauf verwenden
+dieselbe zeitliche Abfolge. Im Touch-Profil stehen Aktionsnamen auf den Anzeigen.
+
 Beim Kauf startet das Training einmalig. Bestehende Hammerbesitzer erhalten es
 beim ersten Level mit ausgerüstetem Hammer. „Später“ verlässt das Training;
 „Hammer üben“ im Unterwelt-Shop startet es erneut ohne weitere Kosten. Das
@@ -35,7 +43,7 @@ spät losgelassen wurde, und wiederholen die passende Vorführung.
 
 Prüfungen: `tests/hammer-charge.test.cjs`, `tests/melee-animation.test.cjs`,
 `tests/power-hammer-shop.test.cjs` und die bestehenden Kampfprüfungen. Zusätzlich
-wurden alle fünf Übungen, ein zu lange geladener Versuch, Kauf, Abschluss und
+wurden alle drei Übungen, falsche Ladung, Kauf, Abschluss und
 Rückkehr zum Shop im laufenden Spiel getestet. Beim Wechsel der Übungen darf
 die Physikposition nach `body.reset()` nicht erneut abgeglichen werden: Das
 würde die Kollisionsbox als zusätzliche Bewegung unter den Boden verschieben.

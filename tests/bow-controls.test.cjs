@@ -148,7 +148,7 @@ for (const [event, profile, action] of [
 ]) test(JSON.stringify(event) + ' maps to ' + profile + ' action ' + action, () => assert.equal(context.actionForKey(event, profile), action));
 test('legacy aliases, shortcuts and composing text do not activate the default iPad profile', () => {
   for (const event of [{ code: 'Enter', ctrlKey: true }, { code: 'KeyQ', metaKey: true }, { key: 'Enter', isComposing: true },
-    { code: 'KeyE' }, { code: 'Escape' }, { code: 'Tab' }, { code: 'Backspace' }, { metaKey: true, key: '.' }])
+    { code: 'KeyE' }, { code: 'Tab' }, { code: 'Backspace' }, { metaKey: true, key: '.' }])
     assert.equal(context.actionForKey(event), null);
 });
 function controls(scene) {

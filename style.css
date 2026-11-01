@@ -34,6 +34,7 @@ canvas { display: block; touch-action: none; }
   cursor: pointer; touch-action: manipulation; -webkit-user-select: none; user-select: none;
 }
 #game-controls button:active { background: #d2d4b7; }
+#game-controls button[data-action="inventory"] { min-width: 118px; }
 #game-controls button:disabled { opacity: .45; cursor: default; }
 button:focus-visible { outline: 3px solid #2772bb; outline-offset: 2px; }
 #game-controls[hidden], #game-controls button[hidden], #touch-controls[hidden], #touch-controls button[hidden] { display: none; }

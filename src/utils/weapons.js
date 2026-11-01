@@ -1,5 +1,5 @@
 export const WEAPON_STATS = {
-  sword: { icon: "item-sword", width: 48, height: 38, offset: 24, swingMs: 140, windupMs: 0, damage: 1, stoneMultiplier: 1 },
+  sword: { icon: "item-sword", width: 50.4, height: 38, offset: 25.2, cooldownMs: 300, swingMs: 120, windupMs: 0, damage: 1, stoneMultiplier: 1 },
   powerHammer: { icon: "item-power-hammer", width: 60, height: 44, offset: 30, swingMs: 320, windupMs: 110, damage: 1, stoneMultiplier: 2 },
 };
 

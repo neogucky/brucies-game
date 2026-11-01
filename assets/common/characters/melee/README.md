@@ -18,8 +18,9 @@ Die Physikfigur behält ihre bisherige Größe und Kollisionsform.
 
 Der Schulterdrehpunkt liegt innerhalb des Schulterpanzers. Ober- und Unterarm
 werden beim Heranziehen der Hand perspektivisch verkürzt; ihre Dicke und die
-Handschuhgröße bleiben erhalten. Der Ellbogen liegt zwischen Schulter und
-Handgelenk und kann dadurch nicht hinter die Hand zurückklappen. Bei eng
+Handschuhgröße bleiben erhalten. Beim Schwert liegt der Ellbogen zwischen Schulter und
+Handgelenk. Der Hammer nutzt einen eigenen Überkopfablauf mit nach vorn gebeugtem
+Ellbogen und einer gemalten Griffhand, die sich mit dem Stiel dreht. Bei eng
 angelegter Hand verdecken Rüstung und Handschuh die verkürzten Ärmel.
 
 Die aktuelle Schwertgrafik hat eine längere Klinge und einen kompakteren Griff.
@@ -41,6 +42,14 @@ Waffenhaltungen; die Landung erzeugt keinen zusätzlichen normalen Nahkampftreff
 Animation und Ausholen bleiben bei geöffneten Pausen- und Inventaransichten
 stehen. Bogenwechsel, Klettern, Niederlage und Szenenwechsel räumen die
 zusätzlichen Darstellungsebenen auf.
+
+Die aktuellen rechtshändigen Schwertfolgen liegen in
+[sword-b](../sword-b/README.md), die neuen Hammer-Körper in
+[hammer-motion](../hammer-motion/README.md). Der Hammer hat feste breitere
+Rüstungsteile und einen normalen Überkopfschlag bis zum Boden; geduckt stößt er
+waagerecht vor. Beim Ausholen und Zurücknehmen der Hand darf die sichtbare
+Waffe innerhalb ihrer maximalen Reichweite liegen. Die volle Streckung stimmt
+mit der Treffergrenze überein.
 
 Validierung: automatisierte Reichweiten-, Richtungs-, Haltungs-, Pausen-,
 Wechsel- und Aufräumtests in `tests/melee-animation.test.cjs`. Die Tests prüfen

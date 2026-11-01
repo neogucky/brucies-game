@@ -14,7 +14,9 @@ test('uncertain hardware always defaults to iPad with keyboard; profile choices 
 });
 for(const profile of ['ipadKeyboard','pc'])test(`${profile}: one key per menu action; WASD and arrows both control movement`,()=>{
  const keys=Object.values(profiles[profile].keys);assert.equal(new Set(keys).size,keys.length);assert.equal(Array.isArray(profiles[profile].keys.confirm),false);assert.equal(Array.isArray(profiles[profile].keys.back),false);
- assert.equal(ctx.actionForKey({code:'KeyE'},profile),null);assert.equal(ctx.actionForKey({code:profile==='pc'?'KeyQ':'Escape'},profile),null);
+ assert.equal(ctx.actionForKey({code:'KeyE'},profile),null);assert.equal(ctx.actionForKey({code:'Escape'},profile),'back');
+ assert.equal(ctx.actionForKey({code:'Enter'},profile),'confirm');
+ if(profile==='pc')assert.equal(ctx.actionForKey({code:'KeyQ'},profile),null);
  assert.equal(ctx.actionForKey({code:'Backspace'},profile),null);
  assert.equal(ctx.actionForKey({code:'KeyJ'},profile),'yes');assert.equal(ctx.actionForKey({code:'KeyN'},profile),'no');
  for(const [letter,arrow,action] of [['KeyW','ArrowUp','up'],['KeyA','ArrowLeft','left'],['KeyS','ArrowDown','down'],['KeyD','ArrowRight','right']]) { assert.equal(ctx.actionForKey({code:letter},profile),action); assert.equal(ctx.actionForKey({code:arrow},profile),action); }
@@ -23,7 +25,7 @@ for(const profile of Object.keys(profiles))test(`${profile}: displayed confirmat
  let yes=0,no=0;const s={confirmation:{isOpen:true,choose(answer){if(answer)yes++;else no++}}},c=controls(s,profile);
  if(profile==='ipadTouch'){
   assert.equal(ctx.actionLabel(profile,'yes','Ja'),'Ja');assert.equal(ctx.actionLabel(profile,'no','Nein'),'Nein');
-  for(const code of ['Enter','Escape','KeyE','KeyQ','KeyJ','KeyN'])c.onKey(event(code),true);
+  for(const code of ['KeyE','KeyQ','KeyJ','KeyN'])c.onKey(event(code),true);
   assert.equal(yes+no,0);c.dispatch('yes');c.dispatch('no');
  }else{
   const yesCode=profiles[profile].keys.yes,noCode=profiles[profile].keys.no;
@@ -43,22 +45,22 @@ test('touch map hints keep the named action instead of leaving empty colons',()=
  const text=ctx.formatControlHint('{move}: Bewegen · {confirm}: Betreten · {inventory}: Inventar · {back}: Menü','ipadTouch');
  assert.ok(text.includes('Antippen: Betreten'));assert.ok(text.includes('Zurück: Menü'));assert.ok(!text.includes('E:'));
 });
-test('only Back closes an inventory; its open key does not act as a second close key',()=>{
- let close=0,confirm=0;const s={inventoryOverlay:{isOpen:true,close(){close++},onClose(){},confirm(){confirm++}}},c=controls(s);c.dispatch('inventory');assert.equal(close,0);c.dispatch('confirm');assert.equal(confirm,1);c.dispatch('back');assert.equal(close,1);
+test('the inventory key and Back close its overlay; Confirm equips without closing',()=>{
+ let close=0,confirm=0;const s={inventoryOverlay:{isOpen:true,close(){close++},onClose(){},confirm(){confirm++}}},c=controls(s);c.dispatch('inventory');assert.equal(close,1);c.dispatch('confirm');assert.equal(confirm,1);c.dispatch('back');assert.equal(close,2);
 });
 test('Space never doubles as dialog confirmation',()=>{
  let pages=0;const s={dialog:{container:{visible:true},pages:[{}],index:0,nextPage(){pages++}}},c=controls(s);c.onKey(event('Space'),true);assert.equal(pages,0);c.onKey(event('Enter'),true);assert.equal(pages,1);
 });
-test('Back from pause opens the exit prompt even while Phaser is still queuing scene resume',()=>{
+test('Back closes pause and resumes without also opening an exit prompt',()=>{
  const keyboard=new EventEmitter();let prompts=0;keyboard.on('keydown-ESC',()=>prompts++);
  const s={input:{keyboard},time:{now:100},scene:{resume(){}}},c=controls(s);c.pausedScene=s;c.activeScene=()=>c.pausedScene;
- c.dispatch('back');assert.equal(c.pausedScene,null);assert.equal(prompts,1);
+ c.dispatch('back');assert.equal(c.pausedScene,null);assert.equal(prompts,0);
 });
 for(const [sceneKey,map] of [['DesertRuinScene','DessertMapScene'],['DesertEndlessScene','DessertMapScene'],['DesertTunnelScene','DessertMapScene'],['UndergroundDigScene','UndergroundMapScene'],['JungleScene','JungleMapScene']])test(`${sceneKey}: defeated Back returns to its map with full hearts`,()=>{
  let target,saved=0;const s={sys:{settings:{key:sceneKey}},isGameOver:true,health:0,maxHealth:5,time:{paused:true},scene:{start(key){target=key}},saveInventory(){saved++}},c=controls(s);c.dispatch('back');assert.equal(target,map);assert.equal(s.health,5);assert.equal(s.companionHealth,1);assert.equal(saved,1);assert.equal(s.time.paused,false);
 });
-test('winning screens continue with Confirm only; Back cannot become a duplicate continue key',()=>{
- const keyboard=new EventEmitter();let continueCount=0;keyboard.on('keydown-ENTER',()=>continueCount++);const s={input:{keyboard},levelCompleted:true},c=controls(s);c.dispatch('back');assert.equal(continueCount,0);c.dispatch('confirm');assert.equal(continueCount,1);
+test('Back closes a winning screen and Confirm accepts it',()=>{
+ const keyboard=new EventEmitter();let continueCount=0;keyboard.on('keydown-ENTER',()=>continueCount++);const s={input:{keyboard},levelCompleted:true},c=controls(s);c.dispatch('back');assert.equal(continueCount,1);c.dispatch('confirm');assert.equal(continueCount,2);
 });
 for(const [world,expert] of Object.entries(experts))test(`${world}: free professor location is saved in the right world and has enemy and equipment picture cards`,()=>{
  const save=ctx.normalizeWorldProgress({currentWorld:world,currentLevel:expert.id,coins:43,unlockedWorlds:[world],unlockedLevels:[]});

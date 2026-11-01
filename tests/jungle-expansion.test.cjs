@@ -86,7 +86,7 @@ test('buying the jungle shield costs 200, equips independently, and duplicate pu
 
 test('an open confirmation ignores inventory, shooting and pause actions',()=>{
  let choose=0,inventory=0;const s={confirmation:{isOpen:true,choose(){choose++}},toggleInventory(){inventory++}};
- const c=Object.create(ctx.PortableControls.prototype);c.activeScene=()=>s;c.dispatch('inventory');c.dispatch('shoot');c.dispatch('pause');c.dispatch('confirm');c.dispatch('back');assert.equal(choose,0);assert.equal(inventory,0);c.dispatch('yes');assert.equal(choose,1);
+ const c=Object.create(ctx.PortableControls.prototype);c.activeScene=()=>s;c.dispatch('inventory');c.dispatch('shoot');c.dispatch('pause');assert.equal(choose,0);assert.equal(inventory,0);c.dispatch('confirm');c.dispatch('back');assert.equal(choose,2);c.dispatch('yes');assert.equal(choose,3);
 });
 load('src/utils/UndergroundBats.js','UndergroundBats');
 test('the jungle shield also returns underground poison berries without player damage',()=>{

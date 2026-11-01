@@ -986,7 +986,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     if (this.isGameOver || this.isPaused) return;
     if (!isMeleeWeapon(this.equipped?.weapon)) return;
     const now = this.time.now;
-    if (now - this.lastAttackAt < (this.equipped.weapon === "powerHammer" ? this.attackCooldown * 1.8 : this.attackCooldown)) return;
+    if (now - this.lastAttackAt < (this.equipped.weapon === "powerHammer" ? this.attackCooldown * 1.8 : getWeaponStats("sword").cooldownMs)) return;
     this.lastAttackAt = now;
     this.hammerAttack = attack;
     this.swingStartedAt = now;
@@ -1032,8 +1032,8 @@ export default class DesertRuinScene extends Phaser.Scene {
 
   positionSword() {
     const stats = getWeaponStats(this.equipped.weapon) || getWeaponStats("sword");
-    const offset = this.equipped.weapon === "powerHammer" ? stats.offset : 20.8;
-    this.swordHitbox.setSize(this.equipped.weapon === "powerHammer" ? stats.width : 43.2, stats.height);
+    const offset = this.equipped.weapon === "powerHammer" ? stats.offset : stats.offset * 13 / 15;
+    this.swordHitbox.setSize(this.equipped.weapon === "powerHammer" ? stats.width : stats.width * .9, stats.height);
     this.swordHitbox.body.setSize(this.swordHitbox.width, this.swordHitbox.height);
     this.swordHitbox.setPosition(
       this.player.x + this.facing.x * offset,

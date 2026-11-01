@@ -85,10 +85,10 @@ Weltkarten und Menüs werden dort direkt angetippt.
 | Aktion | iPad mit Tastatur (Standard) | PC | iPad ohne Tastatur |
 | --- | --- | --- | --- |
 | Bestätigen / Gespräch weiter | Enter | Enter | Bestätigen antippen |
-| Zurück / Inventar schließen | Q | Esc | Zurück antippen |
+| Zurück / Schließen | Q oder Esc | Esc | Zurück antippen oder Esc |
 | Ja in Ja/Nein-Dialogen | J | J | Ja antippen |
 | Nein in Ja/Nein-Dialogen | N | N | Nein antippen |
-| Inventar öffnen | I | Tab | Inventar antippen |
+| Inventar öffnen / schließen | I | Tab | Inventar / Schließen antippen |
 | Bewegen / Auswahl | WASD / Pfeile | WASD / Pfeile | Richtungsknöpfe |
 | Springen | ↑ | ↑ | Springen antippen |
 | Nahkampf | Leertaste | Leertaste | Angriff antippen |
@@ -96,16 +96,18 @@ Weltkarten und Menüs werden dort direkt angetippt.
 | Pause / Fortsetzen | P | P | Pause / Weiterspielen antippen |
 | Trankslots 1 und 2 | T und G | T und G | Trank 1 / Trank 2 antippen |
 
-Menüaktionen haben pro Tastaturprofil genau eine Taste. Bewegen funktioniert
-mit WASD und Pfeilen. Ja/Nein-Fragen verwenden in beiden Tastaturprofilen
-ausschließlich J für Ja und N für Nein. Enter, Q und Esc beantworten diese Fragen
-nicht. Frühere Alternativen (E, Rückschritt, Esc beim iPad-Profil) lösen keine
-Menüaktionen aus. Offene Dialoge und Inventarhinweise wechseln sofort mit
-dem Profil. Im Touchprofil stehen an den Knöpfen keine Tastaturkürzel.
+Enter akzeptiert und Esc schließt oder lehnt ab, unabhängig vom Profil, auch
+bei ausgewähltem Touchprofil. J bedeutet weiterhin Ja, N bedeutet Nein.
+Die zusätzlichen Profilbindungen bleiben erhalten; E und Rückschritt haben keine
+Menüfunktion. WASD und Pfeile bewegen die Figur parallel. Im Touchprofil stehen
+an den Knöpfen keine Tastaturkürzel.
 
-Im Inventar schließt nur die Zurück-Aktion; die Inventartaste öffnet es. Ein
-Gespräch blättert nur mit Bestätigen weiter. Nach einem Sieg führt nur Bestätigen
-zur Karte, nach einer Niederlage startet Bestätigen neu und Zurück führt zur Karte.
+Die Inventartaste öffnet und schließt das Inventar; Esc schließt ebenfalls.
+Der Schließen-Knopf bleibt unten an der Stelle des Öffnen-Knopfs.
+Ein Gespräch blättert mit Bestätigen weiter. Nach einem Sieg führen Bestätigen
+und Schließen zur Karte, nach einer Niederlage startet Bestätigen neu und Zurück
+führt zur Karte. Enter und Esc setzen aus dem Pausenfenster das Spiel fort;
+„Level verlassen“ öffnet gesondert die Rückfrage.
 
 Im Untergrund: ↑ zum Springen, dann ↓ in der Luft für den Hammer-Landungsschlag.
 
@@ -117,15 +119,22 @@ und beim Landungsschlag. Der Landungsschlag bricht auch Erde direkt unter dem
 Ritter auf. Geduckte Schläge treffen nur die untere Blockreihe auf Fußhöhe, auch
 bei aktiviertem Auto-Anvisieren. Schwarze Begrenzungskacheln bleiben unzerstörbar.
 
+Das Schwert reicht im Jump-and-run 50,4 Pixel nach vorn und benötigt 120 ms pro
+Schlag. Die Wüstenansicht behält ihre Perspektivskalierung; die Pause zwischen
+zwei Schwertangriffen beträgt dort 300 ms. Trefferbereich und sichtbare
+Schlagfolge verwenden dieselben Werte. Schaden und Hammerwerte bleiben erhalten.
+
 **Hammer aufladen:** Leertaste kurz antippen behält den normalen Schlag.
 Gedrückthalten zieht den Hammer zurück: gelbe, rote und schließlich blaue
-Blitze zeigen die steigende Kraft. Beim Loslassen saust der Hammer bis zum Boden;
+Blitze zeigen die steigende Kraft. Stehend saust der Hammer beim Loslassen bis zum Boden;
 volle blaue Ladung erzeugt eine kleine Druckwelle. Während des Haltens bleibt
 das Bewegungstempo bei 80 %. Das Schwert schlägt weiterhin sofort zu.
 Im Touch-Profil wird der Angriffsknopf entsprechend gehalten und losgelassen.
 
-Beim ersten Kauf führt **Meister Muck** fünf kurze Übungen vor: normaler Schlag,
-gelbe, rote und blaue Ladung sowie Sprung-Landungsschlag. Der Spieler kann schon
+Beim ersten Kauf führt **Meister Muck** drei kurze Übungen vor: normaler Schlag,
+volle blaue Ladung und Sprung-Landungsschlag. Getrennte Tastenbilder bei Ritter
+und Muck leuchten beim Drücken gelb und beim Loslassen kurz grün. Beim Sprung
+zeigt Muck zuerst die Sprungtaste und erst oben in der Luft die Abwärtstaste. Der Spieler kann schon
 während der Vorführung laufen, springen und mitüben. Ein gelungener Versuch zählt
 sofort und beendet die Vorführung; nach dem Lob folgt die nächste Übung. Ein
 Fehlversuch während der Vorführung gibt einen Hinweis, ohne den Spieler anzuhalten.
@@ -260,7 +269,11 @@ Im Inventar umgeben unabhängige Plätze das Ritterbild: Primärwaffe, Sekundär
 Rückenschild, Schuhe, Helm und Begleiter. Der feste Gürtel fasst die beiden
 Trankplätze (T/G) zusammen und ist kein ausrüstbarer Gegenstand. Bogen,
 Schild und Schuhe können gleichzeitig angelegt werden. Beide Trankslots nutzen
-den gemeinsamen Honigvorrat. Vorhandene Spielstände übernehmen die Ausrüstung;
+den gemeinsamen Honigvorrat. Ein ausgewählter Platz zeigt rechts alle
+verfügbaren Alternativen; Antippen rüstet direkt aus. Gegenstände lassen sich
+auch dorthin ziehen. Passende Plätze leuchten dabei grün, unpassende werden
+abgedunkelt. Ungültige oder abgebrochene Ziehvorgänge ändern nichts.
+Vorhandene Spielstände übernehmen die Ausrüstung;
 ausdrücklich geleerte Plätze bleiben leer.
 
 Der Urwaldschild blockiert wie der normale Schild und lädt sich in 20 Sekunden
@@ -286,14 +299,14 @@ Die Bedienleiste bietet dieselben Aktionen als große klickbare Knöpfe. Das
 Touchprofil ergänzt Richtungen, Springen, Angriff und beide Trankslots. Auch
 Heldenauswahl, alle Weltkarten, Shops, Experten, Dialoge und Inventar lassen sich
 antippen. WASD und Pfeiltasten funktionieren in beiden Tastaturprofilen parallel.
-Bestätigen bleibt Enter; Ja/Nein-Fragen werden ausschließlich mit J/N beantwortet.
+Enter akzeptiert und Esc schließt in jedem Profil. J/N bleiben für Ja/Nein erhalten.
 Die übrigen Tasten richten sich nach dem Profil in den
 Einstellungen. Bei unbekanntem Gerät gilt ohne zusätzliche Anzeige das
 iPad-Tastaturprofil.
 
 Beim Appwechsel werden gehaltene Tasten zurückgesetzt und laufende Level
-pausiert. Fortsetzen hat seine eigene eindeutige Aktion; Zurück aus der Pause
-öffnet stattdessen die Rückfrage zum Verlassen. Nach dem Fortsetzen gilt kurz
+pausiert. Enter, Esc und die Pausetaste schließen die Pause; der Knopf
+„Level verlassen“ öffnet die Rückfrage. Nach dem Fortsetzen gilt kurz
 Schutz vor Treffern. Ein Test mit einer echten iPad-Tastatur steht noch aus.
 
 ### Experten in allen Welten
@@ -475,6 +488,22 @@ zeigt außerdem die drei Nahaufnahmen für Ritter und Ritterin an; Greifen,
 Mitte und Ende lassen sich einzeln betrachten. Die normalen Tests sichern neben
 den Armlängen auch die Rüstungs- und Handschuhbreite anhand der Atlasmaße ab.
 
+[tests/level-animation-review.html](tests/level-animation-review.html) ergänzt
+Einzelbilder für Schwert und Hammer, beide Blickrichtungen, Ritter und Ritterin.
+„Tasten & Inventar prüfen“ testet Enter, Esc, Pause und das wiederholte Öffnen und
+Schließen des Inventars in allen drei Profilen, auf einer Weltkarte und in
+Leveln aller drei Welten. Die Eingaben gehen durch die aktuelle Spielseite mit
+echtem Phaser, einschließlich Ereignissen direkt am Fenster wie bei Tastaturcovern.
+„Hammerabläufe prüfen“ testet Stand, Ducken und Sprung in Unterwelt und Urwald.
+Die Prüfung verwendet einen eigenen Spielstand im Arbeitsspeicher.
+
+„Arme: Stand und Schlag“ zeigt die Referenzpose direkt neben drei echten
+Angriffsphasen, jeweils für Ritter und Ritterin. Waffe, Haltung und Blickrichtung
+lassen sich wechseln. Die zusätzliche Regression in
+`tests/arm-silhouette.test.cjs` misst die deckenden PNG-Pixel nach der
+Darstellungstransformation. Sie erkennt die frühere Ausdünnung durch transparente
+Texturränder und überbreite Schulterkappen.
+
 ### Levelziele und Lesbarkeit
 
 | Level | Ziel und geprüfte Klarheit |
@@ -498,8 +527,8 @@ Shopgespräche verdecken das Warenangebot vollständig, bis das Gespräch zu End
 ist. Danach erscheinen wieder die klickbaren Waren. Begrüßungen und Kauftexte
 nennen die tatsächlichen Funktionen von Schild, Hammer und Bogen. Die
 Expertentipps bleiben auf die jeweilige Welt begrenzt, der Hammertrainer erklärt
-weiterhin Antippen, gelbes, rotes und blaues Aufladen anhand der tatsächlichen
-Spielereingabe.
+Antippen, volle Aufladung und den Sprungschlag anhand der tatsächlichen
+Spielereingabe. Gelbe und rote Zwischenladungen bleiben als Spielmechanik erhalten.
 
 Die Drachenspur-Filme erzählen durch Bewegungen, Gesten und Kameraschnitte statt
 durch Untertitel. Unter Tage zeigt eine echte Aufnahme über der Schulter den
@@ -556,6 +585,12 @@ Angriffsanimationen für Ritter und Ritterin, auch geduckt. Die sichtbare Waffe
 zeigt die tatsächliche Reichweite; die rechteckige Angriffsmarkierung entfällt.
 Grafiken, vollständige Bildprompts und Details zur Animation liegen in
 [assets/common/characters/melee](assets/common/characters/melee/README.md).
+Der Hammer hat eigene rechtshändige Körperposen und feste Rüstungsbreiten:
+stehend ein Überkopfschlag durch beide Reihen bis zum Boden, geduckt ein
+niedriger Vorstoß. Auch aufgeladene geduckte Stöße bleiben unten. Der normale
+Bodenaufprall erzeugt nur einen kleinen Staub- und Tonimpuls; Druckwelle und
+Sprungschlag behalten ihre Stärke. Neue Körpergrafiken und exakter Bildprompt:
+[assets/common/characters/hammer-motion](assets/common/characters/hammer-motion/README.md).
 
 ## Geheimer Testmodus
 

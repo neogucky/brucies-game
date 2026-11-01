@@ -46,10 +46,10 @@ function setup(profile = 'ipadKeyboard', key = 'MainMenuScene') {
 }
 
 for (const profile of ['ipadKeyboard', 'pc']) {
-  test(profile + ': J means yes, N means no; Enter, Q, E, Escape and Space cannot answer', () => {
+  test(profile + ': J/N remain answers; universal Enter/Escape also accept/reject', () => {
     const { scene, controls, press } = setup(profile); let accepted = 0;
     context.showConfirmation(scene, 'Wirklich?', () => accepted++);
-    for (const code of ['Enter', 'KeyQ', 'KeyE', 'Escape', 'Space', 'Backspace']) {
+    for (const code of ['KeyE', 'Space', 'Backspace']) {
       press(code); assert.equal(scene.confirmation?.isOpen, true, code + ' must not answer');
     }
     press('KeyN'); assert.equal(scene.confirmation, null); assert.equal(accepted, 0);
@@ -57,6 +57,10 @@ for (const profile of ['ipadKeyboard', 'pc']) {
     press('KeyJ'); assert.equal(scene.confirmation, null); assert.equal(accepted, 1);
     controls.onKey({ code: 'KeyJ', repeat: true, preventDefault() {}, stopImmediatePropagation() {} }, true);
     assert.equal(accepted, 1);
+    context.showConfirmation(scene, 'Wirklich?', () => accepted++);
+    press('Escape'); assert.equal(scene.confirmation, null); assert.equal(accepted, 1);
+    context.showConfirmation(scene, 'Wirklich?', () => accepted++);
+    press('Enter'); assert.equal(scene.confirmation, null); assert.equal(accepted, 2);
   });
 
   test(profile + ': visible labels show the exact J/N bindings', () => {
@@ -80,8 +84,11 @@ for (const [key, destination] of [
     context.showExitConfirmation(scene, destination);
     press('KeyN'); assert.deepEqual(destinations, []); assert.equal(scene.isPaused, false);
     context.showExitConfirmation(scene, destination);
-    press('Enter'); assert.deepEqual(destinations, []);
     press('KeyJ'); assert.deepEqual(destinations, [destination]);
+    context.showExitConfirmation(scene, destination);
+    press('Escape'); assert.deepEqual(destinations, [destination]); assert.equal(scene.isPaused,false);
+    context.showExitConfirmation(scene, destination);
+    press('Enter'); assert.deepEqual(destinations, [destination,destination]);
   });
 }
 
