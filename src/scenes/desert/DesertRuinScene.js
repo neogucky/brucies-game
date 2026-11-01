@@ -1230,7 +1230,7 @@ export default class DesertRuinScene extends Phaser.Scene {
     this.time.delayedCall(1100, () => this.showEndScreen());
   }
 
-  openExitPrompt() { return showExitConfirmation(this, "DessertMapScene"); }
+  openExitPrompt(options) { return showExitConfirmation(this, "DessertMapScene", options); }
 
   update() {
     if (this.isGameOver || this.isPaused || this.isComplete) {

@@ -175,11 +175,12 @@ export default class CoinChallengeScene extends Phaser.Scene {
       { remainingMs: this.remainingMs, collected: [...this.collected], x: this.player.x, y: this.player.y });
     this.registry.set('saveData', next); saveProgress(next); this.lastPersist = performance.now();
   }
-  finish() {
+  finish({ showResult = true } = {}) {
     if (this.levelCompleted) return;
     this.persist(); this.running = false; this.counting = false; this.climbing = null; this.countdownText?.destroy();
     const next = finishBonus(this.registry.get('saveData') || {}, this.bonusWorld);
-    this.registry.set('saveData', next); saveProgress(next); this.showResult();
+    this.registry.set('saveData', next); saveProgress(next);
+    if (showResult) this.showResult();
   }
   showResult() {
     this.levelCompleted = true; this.isComplete = true; this.physics.pause(); this.player.setVelocity(0);
@@ -190,8 +191,9 @@ export default class CoinChallengeScene extends Phaser.Scene {
     this.panel(state.allCollected ? 'Alles eingesammelt!' : 'Deine Münzjagd', result,
       'Zur Weltkarte · {confirm}', () => this.returnToMap());
   }
-  requestExit() {
+  requestExit({ confirm = true } = {}) {
     if (this.levelCompleted || (!this.running && !this.counting)) { this.returnToMap(); return; }
+    if (!confirm) { this.finish({ showResult: false }); this.returnToMap(); return; }
     showConfirmation(this, 'Münzjagd beenden?\nDein einziger Versuch ist dann vorbei.', () => this.finish());
   }
   returnToMap() {

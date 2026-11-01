@@ -116,7 +116,7 @@ export default class PortableControls {
     this.resumeButton = document.createElement('button'); this.resumeButton.type = 'button';
     this.resumeButton.addEventListener('click', () => { this.resume(); this.focus(); });
     const exit = document.createElement('button'); this.exitButton = exit; exit.type = 'button'; exit.textContent = 'Level verlassen';
-    exit.addEventListener('click', () => { const s=this.pausedScene; this.resume(); this.dispatch('back',s); this.focus(); });
+    exit.addEventListener('click', () => this.leavePausedScene());
     this.overlay.append(title, this.resumeButton, exit); document.getElementById('play-shell')?.appendChild(this.overlay);
   }
   update() {
@@ -190,7 +190,7 @@ export default class PortableControls {
     this.buttons.inventory.textContent = actionLabel(profile, 'inventory', inventoryOpen ? 'Schließen' : 'Inventar');
     this.buttons.pause.textContent = actionLabel(profile, 'pause', this.pausedScene ? 'Fortsetzen' : 'Pause');
     this.resumeButton.textContent = actionLabel(profile, 'pause', 'Weiterspielen');
-    this.exitButton.textContent = actionLabel(profile, 'back', 'Level verlassen');
+    this.exitButton.textContent = 'Level verlassen' + (profile === 'ipadTouch' ? '' : ' · Q');
     if (intro) {
       const label = scene.canSkip === false ? '' : introSkipLabel(profile);
       if (scene.skipButton?.text !== label) scene.skipButton?.setText(label);
@@ -206,7 +206,8 @@ export default class PortableControls {
   dispatch(action, targetScene = this.activeScene()) {
     if (this.game?.debugMenu?.isOpen) return;
     if (this.pausedScene) {
-      if (['pause','back','confirm'].includes(action)) this.resume();
+      if (action === 'back') this.leavePausedScene();
+      else if (['pause','confirm'].includes(action)) this.resume();
       return;
     }
     const s = targetScene; if (!s) return;
@@ -319,7 +320,11 @@ export default class PortableControls {
       else if (code === 'KeyF') this.dispatch('fullscreen', scene);
       return;
     }
-    const profile = this.getProfile(), action = actionForKey(event, profile);
+    const profile = this.getProfile();
+    // In pause, Esc closes the overlay; Q is the displayed leave action.
+    // Keep that distinction on PC, where Esc is otherwise the Back binding.
+    const action = this.pausedScene && code === 'Escape' ? 'pause'
+      : this.pausedScene && code === 'KeyQ' && profile !== 'ipadTouch' ? 'back' : actionForKey(event, profile);
     if (!action && !GAME_KEYS.has(code)) return;
     event.preventDefault(); event.stopImmediatePropagation();
     if (down) {
@@ -356,6 +361,15 @@ export default class PortableControls {
     if (typeof s.worldTime === 'number') s.invulnerableUntil = Math.max(s.invulnerableUntil || 0, s.worldTime + 1000);
     s.player?.setData?.('invulnerableUntil', Math.max(s.player?.getData?.('invulnerableUntil') || 0, s.time.now + 1000));
     if (this.overlay) this.overlay.hidden = true; this.focus();
+  }
+  leavePausedScene() {
+    const scene = this.pausedScene; if (!scene) return;
+    this.resume();
+    // Choosing Leave in the pause menu is already an explicit decision.
+    if (scene.openExitPrompt) scene.openExitPrompt({ confirm: false });
+    else if (scene.requestExit) scene.requestExit({ confirm: false });
+    else this.dispatch('back', scene);
+    this.focus();
   }
   autoPause() {
     this.pressedKeys?.clear();

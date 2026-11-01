@@ -4005,7 +4005,7 @@ export default class UndergroundDigScene extends Phaser.Scene {
     return true;
   }
 
-  openExitPrompt() { return showExitConfirmation(this, "UndergroundMapScene"); }
+  openExitPrompt(options) { return showExitConfirmation(this, "UndergroundMapScene", options); }
 
   useConsumable() {
     if (this.isGameOver || this.isPaused || this.levelCompleted) return;

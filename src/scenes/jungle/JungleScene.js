@@ -178,9 +178,11 @@ export default class JungleScene extends Phaser.Scene {
     });
     this.input.keyboard.on("keydown-ESC", () => {
       if (this.inventoryOverlay.isOpen) { this.toggleInventory(); return; }
-      showExitConfirmation(this, "JungleMapScene");
+      this.openExitPrompt();
     });
   }
+
+  openExitPrompt(options) { return showExitConfirmation(this, "JungleMapScene", options); }
 
   saveState(extra = {}) {
     const save = this.registry.get("saveData") || {};
@@ -263,15 +265,14 @@ export default class JungleScene extends Phaser.Scene {
         m.awake = true; m.nextThrowAt = now + 800; m.nextClimbAt = now + 6000;
       }
       if (now < m.stunnedUntil) return;
-      m.sprite.setTint(m.climbing || m.chargeUntil ? MONKEY_TYPES[m.kind].color : 0xffffff);
+      m.sprite.setTint(0xffffff);
       if (m.attackPhase === 'search') {
         // Looking around may follow the hero. Raising the coconut commits to one spot.
-        m.sprite.setAngle?.(Math.sin((now - m.searchStartedAt) / 110) * 5);
         if (now >= m.searchUntil) this.prepareMonkeyThrow(m);
       } else if (m.chargeUntil) {
         m.throwPreview?.setPosition(m.x + m.throwDirection * 30, m.y - 58);
         if (now >= m.chargeUntil) {
-          const from = { x: m.x + m.throwDirection * 28, y: m.y - 48 };
+          const from = { x: m.x + m.throwDirection * (m.isBoss ? 64 : 28), y: m.y - (m.isBoss ? 62 : 48) };
           const target = m.throwTarget;
           const direction = m.throwDirection;
           this.playJungleSound("sfx-monster-attack");
@@ -281,7 +282,7 @@ export default class JungleScene extends Phaser.Scene {
           m.nextThrowAt = now + (m.isBoss ? Math.max(1500, 2400 - (18 - m.hp) * 35) : MONKEY_TYPES[m.kind].interval);
           if (m.isBoss) { m.vulnerableUntil = now + 1300; m.hitsLeft = 2; m.helperHit = false; }
           m.attackPhase = 'release'; m.releaseUntil = now + 220; m.throwDirection = direction;
-          this.setMonkeyPose(m, 'throwing'); m.sprite.setAngle?.(-direction * 12);
+          this.setMonkeyPose(m, 'throwing');
         }
       } else if (m.attackPhase === 'release') {
         if (now >= m.releaseUntil) { this.cancelCharge(m); this.setMonkeyPose(m, 'standing'); }
@@ -317,10 +318,9 @@ export default class JungleScene extends Phaser.Scene {
   }
 
   setMonkeyPose(m, pose) {
-    if (m.isBoss) return;
-    m.sprite.setTexture(pose === "standing" ? "monkey-" + m.kind : "monkey-" + pose);
-    m.sprite.setDisplaySize(70, 70);
-    if (pose !== "standing") m.sprite.setTint(MONKEY_TYPES[m.kind].color);
+    const key = m.isBoss ? 'monkey-king' : 'monkey-' + m.kind;
+    m.sprite.setTexture(key + (pose === 'standing' ? '' : '-' + pose));
+    m.sprite.setDisplaySize(m.isBoss ? 110 : 70, m.isBoss ? 100 : 70);
   }
   prepareMonkeyThrow(m) {
     const target = this.player.body.center;

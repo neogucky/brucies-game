@@ -7,6 +7,7 @@ export default class DesertMoleAI {
     this.onDig = options.onDig;
     this.digSoundKey = options.digSoundKey || null;
     this.attackTexture = options.attackTexture || "desert-mole-attacking";
+    this.digTexture = options.digTexture || 'desert-mole-digging';
     this.chargeTexture = options.chargeTexture || this.attackTexture;
     this.runTexture = options.runTexture || "desert-mole-running";
     this.stunTexture = options.stunTexture || "desert-mole-stunned";
@@ -395,8 +396,8 @@ export default class DesertMoleAI {
   }
 
   playDigAnimation() {
-    this.mole.setTexture(this.attackTexture);
-    this.attackAnimUntil = this.scene.time.now + this.attackHoldMs;
+    this.mole.setTexture(this.digTexture);
+    this.attackAnimUntil = this.scene.time.now + Math.max(400, this.attackHoldMs);
     if (this.digSoundKey) {
       this.scene.sound?.play?.(this.digSoundKey);
     }
@@ -420,6 +421,7 @@ export default class DesertMoleAI {
   }
 
   setRunTexture() {
+    if (this.scene.time.now < this.attackAnimUntil) return;
     if (this.mole.texture?.key !== this.runTexture) {
       this.mole.setTexture(this.runTexture);
     }

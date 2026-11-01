@@ -15,6 +15,7 @@ import CompanionAnimation from './CompanionAnimation.js';
 import CompanionActions from './CompanionActions.js';
 import MotionAudio from './MotionAudio.js';
 import LevelEffects from './LevelEffects.js';
+import EnemyAnimation from './EnemyAnimation.js';
 
 export function installGameSystems(game) {
   const controls = new PortableControls(game), installed = new WeakSet(), motionInstalled = new WeakSet(), potionScenes = new WeakSet(), labels = new WeakMap();
@@ -40,11 +41,13 @@ export function installGameSystems(game) {
         motionInstalled.add(scene);
         scene.motionAudio = new MotionAudio(scene); scene.playerAnimation = new PlayerAnimation(scene);
         scene.levelEffects = new LevelEffects(scene);
+        scene.enemyAnimation = new EnemyAnimation(scene);
         if (scene.companion || scene.helper) {
           scene.companionActions = new CompanionActions(scene); scene.companionAnimation = new CompanionAnimation(scene);
         }
         scene.events.once('shutdown', () => {
           scene.playerAnimation?.destroy(); scene.companionAnimation?.destroy(); scene.companionActions?.destroy(); scene.levelEffects?.destroy();
+          scene.enemyAnimation?.destroy(); scene.enemyAnimation = null;
           scene.playerAnimation = scene.companionAnimation = scene.companionActions = scene.levelEffects = scene.motionAudio = null;
           motionInstalled.delete(scene);
         });
@@ -70,6 +73,7 @@ export function installGameSystems(game) {
       scene.playerAnimation?.update(delta || 16);
       scene.companionActions?.update(delta || 16); scene.companionAnimation?.update(delta || 16);
       scene.levelEffects?.update(delta || 16);
+      scene.enemyAnimation?.update(delta || 16);
       scene.hammerCharge.drawEffects();
       scene.healthFeedback?.update(delta || game.loop.delta || 16);
     });

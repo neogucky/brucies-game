@@ -203,3 +203,22 @@ test('app switching clears stuck movement keys and pause/resume grants a short g
   const c = controls(scene); c.autoPause(); assert.equal(c.pausedScene, scene); c.resume();
   assert.equal(paused, 1); assert.equal(resumed, 1); assert.ok(resets >= 2); assert.equal(scene.invulnerableUntil, 2000);
 });
+
+for(const profile of ['ipadKeyboard','pc'])test(profile+': Q leaves pause exactly once without a second confirmation',()=>{
+ let asks=0,resumes=0,exits=0;
+ const scene={time:{now:1000},player:{body:{setVelocity(){}},setData(){}},input:{keyboard:new EventEmitter()},scene:{resume(){resumes++}},
+  openExitPrompt(options){assert.equal(options.confirm,false);exits++}};
+ scene.input.keyboard.on('keydown-ESC',()=>asks++);
+ const c=controls(scene);c.getProfile=()=>profile;c.pausedScene=scene;
+ const event={code:'KeyQ',key:'q',preventDefault(){},stopImmediatePropagation(){}};
+ c.onKey(event,true);assert.equal(exits,1);assert.equal(asks,0);assert.equal(resumes,1);assert.equal(c.pausedScene,null);
+ c.onKey(event,true);assert.equal(exits,1);assert.equal(asks,0);c.onKey(event,false);
+});
+for(const profile of ['ipadKeyboard','pc','ipadTouch'])for(const code of ['Escape','Enter'])test(profile+': '+code+' closes pause without leaving',()=>{
+ let asks=0,resumes=0;
+ const scene={time:{now:1000},player:{body:{setVelocity(){}},setData(){}},input:{keyboard:new EventEmitter()},scene:{resume(){resumes++}}};
+ scene.input.keyboard.on('keydown-ESC',()=>asks++);
+ const c=controls(scene);c.getProfile=()=>profile;c.pausedScene=scene;
+ const event={code,key:code,preventDefault(){},stopImmediatePropagation(){}};c.onKey(event,true);c.onKey(event,false);
+ assert.equal(resumes,1);assert.equal(asks,0);assert.equal(c.pausedScene,null);
+});

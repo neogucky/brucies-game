@@ -94,6 +94,20 @@ test('dialogs pause the countdown; the preparation countdown does not consume th
   s.isPaused = false; sceneCtx.now = 24000; s.update(); assert.equal(resumed, 1); assert.equal(s.running, true); assert.equal(s.remainingMs, 60000);
 });
 
+for(const world of ['desert','underground','jungle'])test(world+': leaving from pause banks the collected coins and ends the single attempt without another screen',()=>{
+  let save=bonus.beginBonus(bonus.unlockBonus(fresh(),world),world),destination;
+  const s=new sceneCtx.Challenge(),coin=bonus.createBonusLayout(world).coins[0];
+  sceneCtx.saveProgress=()=>{};
+  Object.assign(s,{bonusWorld:world,config:bonus.BONUS_CHALLENGES[world],running:true,counting:false,
+    remainingMs:48000,collected:new Set([coin.id]),player:{x:150,y:250},
+    registry:{get:()=>save,set:(key,value)=>{save=value}},scene:{start:target=>{destination=target}},
+    showResult(){throw Error('Pause-menu exit must go directly to the map')}});
+  s.requestExit({confirm:false});
+  assert.equal(destination,bonus.BONUS_CHALLENGES[world].map);
+  assert.equal(bonus.bonusState(save,world).status,'complete');assert.equal(save.coins,18);
+  assert.equal(bonus.beginBonus(save,world),null);
+});
+
 function switchFixture(world, discovered = false, gender = 'male') {
   let save = discovered ? bonus.unlockBonus(fresh(), world) : fresh(), writes = 0;
   save.playerGender = gender;

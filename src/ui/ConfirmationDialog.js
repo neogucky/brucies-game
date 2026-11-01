@@ -30,9 +30,11 @@ export function showConfirmation(scene, message, onYes, { pause = true, onClose 
   scene.confirmation = dialog; return dialog;
 }
 
-export function showExitConfirmation(scene, destination) {
+export function showExitConfirmation(scene, destination, { confirm = true } = {}) {
   if (scene.inventoryOpen || scene.inventoryOverlay?.isOpen || scene.isGameOver || scene.isComplete || scene.levelCompleted) return;
-  return showConfirmation(scene, 'Willst du das Level wirklich verlassen?', () => {
+  const leave = () => {
     scene.saveState?.(); scene.scene.start(destination, {});
-  });
+  };
+  if (!confirm) { leave(); return; }
+  return showConfirmation(scene, 'Willst du das Level wirklich verlassen?', leave);
 }

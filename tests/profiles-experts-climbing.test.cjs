@@ -51,10 +51,10 @@ test('the inventory key and Back close its overlay; Confirm equips without closi
 test('Space never doubles as dialog confirmation',()=>{
  let pages=0;const s={dialog:{container:{visible:true},pages:[{}],index:0,nextPage(){pages++}}},c=controls(s);c.onKey(event('Space'),true);assert.equal(pages,0);c.onKey(event('Enter'),true);assert.equal(pages,1);
 });
-test('Back closes pause and resumes without also opening an exit prompt',()=>{
+test('the physical Escape key closes pause without opening an exit prompt',()=>{
  const keyboard=new EventEmitter();let prompts=0;keyboard.on('keydown-ESC',()=>prompts++);
  const s={input:{keyboard},time:{now:100},scene:{resume(){}}},c=controls(s);c.pausedScene=s;c.activeScene=()=>c.pausedScene;
- c.dispatch('back');assert.equal(c.pausedScene,null);assert.equal(prompts,0);
+ c.onKey(event('Escape'),true);assert.equal(c.pausedScene,null);assert.equal(prompts,0);
 });
 for(const [sceneKey,map] of [['DesertRuinScene','DessertMapScene'],['DesertEndlessScene','DessertMapScene'],['DesertTunnelScene','DessertMapScene'],['UndergroundDigScene','UndergroundMapScene'],['JungleScene','JungleMapScene']])test(`${sceneKey}: defeated Back returns to its map with full hearts`,()=>{
  let target,saved=0;const s={sys:{settings:{key:sceneKey}},isGameOver:true,health:0,maxHealth:5,time:{paused:true},scene:{start(key){target=key}},saveInventory(){saved++}},c=controls(s);c.dispatch('back');assert.equal(target,map);assert.equal(s.health,5);assert.equal(s.companionHealth,1);assert.equal(saved,1);assert.equal(s.time.paused,false);

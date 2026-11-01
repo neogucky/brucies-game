@@ -146,6 +146,15 @@ function withShield(scene, owned = true) {
   return scene.shield;
 }
 
+test('digging keeps its own full shovel cycle instead of being overwritten by movement in the same frame',()=>{
+ const {scene}=setup(),{mole,ai}=withMole(scene);scene.time.now=1000;
+ ai.playDigAnimation();assert.equal(mole.texture.key,'desert-mole-digging');
+ ai.setRunTexture();assert.equal(mole.texture.key,'desert-mole-digging');
+ scene.time.now=1399;ai.updateAttackAnimation(1399);ai.setRunTexture();assert.equal(mole.texture.key,'desert-mole-digging');
+ scene.time.now=1400;ai.updateAttackAnimation(1400);assert.equal(mole.texture.key,'desert-mole-running');
+ ai.playDigAnimation();ai.stun(500);assert.equal(mole.texture.key,'desert-mole-stunned');
+});
+
 for (const isBoss of [false, true]) {
   for (const state of ['rolling', 'dropping']) {
     test(`active shield blocks ${isBoss ? 'boss' : 'regular'} ${state} impact without losing hearts`, () => {

@@ -107,7 +107,7 @@ Der Schließen-Knopf bleibt unten an der Stelle des Öffnen-Knopfs.
 Ein Gespräch blättert mit Bestätigen weiter. Nach einem Sieg führen Bestätigen
 und Schließen zur Karte, nach einer Niederlage startet Bestätigen neu und Zurück
 führt zur Karte. Enter und Esc setzen aus dem Pausenfenster das Spiel fort;
-„Level verlassen“ öffnet gesondert die Rückfrage.
+Q oder ein Klick auf „Level verlassen“ führt direkt zur Karte, ohne weitere Rückfrage.
 
 Im Untergrund: ↑ zum Springen, dann ↓ in der Luft für den Hammer-Landungsschlag.
 
@@ -305,8 +305,8 @@ Einstellungen. Bei unbekanntem Gerät gilt ohne zusätzliche Anzeige das
 iPad-Tastaturprofil.
 
 Beim Appwechsel werden gehaltene Tasten zurückgesetzt und laufende Level
-pausiert. Enter, Esc und die Pausetaste schließen die Pause; der Knopf
-„Level verlassen“ öffnet die Rückfrage. Nach dem Fortsetzen gilt kurz
+pausiert. Enter, Esc und die Pausetaste schließen die Pause; Q (in beiden
+Tastaturprofilen) oder der Knopf „Level verlassen“ führt direkt zurück zur Karte. Nach dem Fortsetzen gilt kurz
 Schutz vor Treffern. Ein Test mit einer echten iPad-Tastatur steht noch aus.
 
 ### Experten in allen Welten
@@ -575,6 +575,15 @@ Affen und Affenkönig schauen sich vor einem Wurf zunächst um. Sobald sie
 ausholen, werden Ziel und Wurfrichtung festgehalten; danach wird nicht mehr
 nachgezielt. Der sicht- und hörbare Wurf und ein kurzes Nachschwingen folgen
 darauf. Treffer unterbrechen einen normalen Affen weiterhin.
+
+Maulwürfe haben zusammenhängende Lauf-, Grab- und Angriffsposen in allen drei
+Wüstenleveln und im Untergrund. Affen und Affenkönig haben Lauf-, Kletter-, Wurf-
+und Ruhebewegungen. Schritte und Klettergriffe folgen der zurückgelegten Strecke;
+Betäubung, Dialoge und Pause halten die Bewegungen an. Eigene rote/blaue Bildfolgen
+erhalten Fellfarbe, warme Gesichter und Pfoten sowie braune Lederrüstung.
+Die Körpermaße und Trefferflächen bleiben beim Bildwechsel unverändert.
+Fledermäuse und Steinroller behalten ihre vorhandenen Animationen.
+[Atlanten, vollständige Prompts und Prüfhinweise](assets/common/enemies/README.md).
 
 Die neuen Hintergründe und alle Bildprompts liegen in
 [assets/worldmap](assets/worldmap/README.md), die Posen fürs Hochziehen in

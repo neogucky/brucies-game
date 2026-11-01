@@ -1,5 +1,5 @@
 import { defaultSave, unlockAllForTesting } from '../src/saveManager.js';
-import { applyWeaponAppearance, WEAPON_STATS } from '../src/utils/weapons.js?v=20261101-sword-range-1';
+import { applyWeaponAppearance, WEAPON_STATS } from '../src/utils/weapons.js?v=20261101-pause-direct-1';
 
 const frame = document.querySelector('iframe'), status = document.getElementById('status');
 const root = new URL('../', location.href).href;
@@ -28,23 +28,143 @@ async function boot() {
   await wait(()=>game.scene.isActive('IntroScene'),'Intro'); await start('JungleScene');
   const sound=game.sound,play=sound.play.bind(sound);game.motionSounds=[];sound.play=(key,...args)=>{game.motionSounds.push(key);return play(key,...args)};
   const view=new URLSearchParams(location.search).get('gallery');
-  if(view==='melee')await gallery(false);else if(view==='proportions')await gallery('proportions');else if(['sword','hands','hammer','arms'].includes(view))await gallery(view);
+  if(view==='melee')await gallery(false);else if(view==='proportions')await gallery('proportions');else if(['sword','hands','hammer','arms'].includes(view))await gallery(view);else if(view==='enemies')await enemyGallery();
 }
 async function start(name) {
+  document.getElementById('enemy-controls').hidden = true;
   galleryMode = null; document.getElementById('sword-tools').hidden = true;
   game.portableControls.resume(); release(); for(const s of game.scene.getScenes(true)) game.scene.stop(s.sys.settings.key);
+  game.registry.get('saveData').health=5;
   game.scene.start(name,name==='JungleScene'?{levelId:'Lianenpfad'}:name==='CoinChallengeScene'?{world:'underground'}:name==='UndergroundDigScene'?{levelId:'UnderDig'}:{});
   await wait(()=>game.scene.getScene(name)?.player?.active&&game.scene.isActive(name),'Level'); current=game.scene.getScene(name);await steps(3);
   if(current.startScreen?.active) await wait(()=>!current.startScreen?.active,'Startbild',8000);
   if(current.dialog?.container?.visible){current.dialog.hide?.();}
   current.isPaused=false;current.time.paused=false;current.physics.world.resume();
   if(name==='CoinChallengeScene'){ current.startAttempt();await wait(()=>current.running,'Startschuss',7000); }
-  current.player.setData('invulnerableUntil',1e12);current.player.setVelocity?.(0,0); await steps(12); show();
+  current.invulnerableUntil=1e12;current.player.setData('invulnerableUntil',1e12);current.player.setVelocity?.(0,0); await steps(12); show();
 }
 function show(extra='') {
   const s=current,p=s?.player,a=s?.playerAnimation;
   status.textContent=`${s?.sys.settings.key} · ${game.registry.get('saveData')?.playerGender||'male'} · ${s?.equipped?.weapon||'ohne Waffe'} · ${a?.state} · Bild ${a?.currentFrame?.index} · Körper ${p?.body?.width}×${p?.body?.height}\n${extra}\n${win.motionErrors.length?'FEHLER: '+win.motionErrors.join('\n'):'Keine Laufzeitfehler'}`;
 }
+
+let enemyGalleryObjects = [];
+async function enemyGallery() {
+  if (galleryMode !== 'enemies') {
+    await start('JungleScene'); current.isPaused = true; current.time.paused = true; current.physics.world.pause();
+    current.cameras.main.stopFollow(); current.cameras.main.setScroll(0,0); galleryMode = 'enemies';
+  }
+  enemyGalleryObjects.forEach(o=>o.destroy());enemyGalleryObjects=[];
+  const s=current,add=o=>{enemyGalleryObjects.push(o);return o.setScrollFactor(0).setDepth(1000);};
+  add(s.add.rectangle(480,300,960,600,0x203b3d));
+  document.getElementById('enemy-controls').hidden=false;
+  const clip=document.getElementById('enemy-clip').value,kind=document.getElementById('enemy-color').value;
+  const [family,action]=clip.split('-');let key,frames,ref,baseScale;
+  if(family==='mole'){
+    ref='desert-mole-running';baseScale=.7;
+    if(action==='attack'){key='desert-mole-charging';frames=[['desert-mole-charging',0],['desert-mole-charging',1],['desert-mole-attacking',0],['desert-mole-attacking',1]];}
+    else{key='desert-mole-'+(action==='dig'?'digging':'running');frames=[0,1,2,3].map(i=>[key,i]);}
+  }else{
+    ref=family==='king'?'monkey-king':'monkey-'+kind;baseScale=family==='king'?.68:.467;
+    key=ref+(action==='climb'?'-climbing':action==='throw'?'-throwing':'');
+    frames=(action==='idle'?[4,5,6,7]:[0,1,2,3]).map(i=>[key,i]);
+  }
+  add(s.add.text(24,14,clip+' · '+kind+' · originale Standpose + vier Produktionsbilder',{fontFamily:'Trebuchet MS',fontSize:19,color:'#fff3d1'}));
+  const rows=[{y:170,scale:baseScale,flip:false,title:'Spielgröße'},{y:365,scale:baseScale*2,flip:false,title:'Vergrößert · links'},{y:560,scale:baseScale*2,flip:true,title:'Vergrößert · rechts'}];
+  rows.forEach(row=>{
+    add(s.add.text(12,row.y-24,row.title,{fontSize:11,color:'#c1d4c5'}));
+    [[ref,null],...frames].forEach(([texture,index],i)=>{
+      const x=155+i*171;
+      add(s.add.rectangle(x,row.y-2,142,1,0x83a18a));
+      const sprite=add(s.add.image(x,row.y,texture).setOrigin(.5,1).setScale(row.scale).setFlipX(row.flip));
+      sprite.setFrame(index===null?'__BASE':s.registry.get('enemy-motion-assets')[texture][index]);
+      if(action==='throw'&&kind!=='brown'&&index!==null&&index<2){
+        const m={sprite,isBoss:family==='king',throwKind:kind,throwPreview:add(s.add.image(0,0,'coconut-'+kind)).setDepth(1001)};
+        s.enemyAnimation.actors.set(sprite,{frame:index});s.enemyAnimation.positionAmmunition(m,'windup');
+      }
+      add(s.add.text(x,row.y+6,i===0?'Unverändert':'Bild '+i,{fontSize:12,color:'#fff3d1'}).setOrigin(.5,0));
+    });
+  });
+  await steps(3);show('Gegnervergleich: '+clip+' · '+kind+' · Normalgröße und vergrößert, beide Blickrichtungen.');
+}
+document.getElementById('enemy-gallery').onclick=()=>enemyGallery().catch(fail);
+document.getElementById('enemy-clip').onchange=()=>enemyGallery().catch(fail);
+document.getElementById('enemy-color').onchange=()=>enemyGallery().catch(fail);
+document.getElementById('enemy-test').onclick=async()=>{
+ const passed=[],assert=(v,m)=>{if(!v)throw Error(m);passed.push('✓ '+m);status.textContent=passed.join('\n');};
+ try{
+  for(const name of ['DesertRuinScene','DesertEndlessScene','DesertTunnelScene','UndergroundDigScene','JungleScene']){
+   await start(name);const s=current,assets=s.registry.get('enemy-motion-assets');
+   for(const [texture,frames]of Object.entries(assets)){
+    const actor=s.add.image(480,400,texture).setOrigin(.5,1).setScale(.6);s.physics.add.existing(actor);actor.body.setAllowGravity(false).setSize(20,30,true);
+    const before=actor.getBounds(),bw=actor.body.width,bh=actor.body.height;
+    for(const flip of [false,true])for(const frame of frames){actor.setFlipX(flip).setFrame(frame);const after=actor.getBounds();
+     if(Math.abs(after.x-before.x)>.001||Math.abs(after.y-before.y)>.001||Math.abs(after.width-before.width)>.001||Math.abs(after.height-before.height)>.001||actor.body.width!==bw||actor.body.height!==bh)throw Error(name+' '+texture+' '+frame+': Trefferfläche verändert');
+    }actor.destroy();
+   }
+   assert(true,name+': alle Gegnerbilder mit unveränderten Grenzen, beiden Blickrichtungen und stabiler Physik');
+   if(name.startsWith('Desert')){
+    s.spawnMonster();const m=s.monsters.getChildren().filter(m=>m.active).at(-1);assert(m,'Maulwurf vorhanden');
+    const seen=new Set(),collect=()=>{if(m.active&&m.texture.key==='desert-mole-digging')seen.add(m.frame.name)};
+    game.events.on('poststep',collect);await wait(()=>seen.size>=3,'Maulwurf gräbt',4000);game.events.off('poststep',collect);
+    assert(seen.size>=3,name+': Graben zeigt mehrere echte Posen');
+    await wait(()=>!m.getData('emerging'),'Ausgraben',5000);const walk=new Set();
+    const collectWalk=()=>{if(m.active&&s.enemyAnimation.actors.get(m)?.state==='walk')walk.add(m.frame.name)};
+    game.events.on('poststep',collectWalk);try{await wait(()=>walk.size>=3,'Maulwurf läuft',6000)}finally{game.events.off('poststep',collectWalk)}
+    assert(walk.size>=3,name+': Laufzyklus während echter Verfolgung');
+   }
+   if(name==='UndergroundDigScene'){
+    if(!s.molesGroup.getChildren().length)outer:for(let row=1;row<s.gridRows-1;row++)for(let col=1;col<s.gridCols-1;col++){
+     if(!s.blockMap.has(col+','+row)&&s.blockMap.has(col+','+(row+1))){s.placeMoleAt(col,row);break outer;}
+    }
+    const m=s.molesGroup.getChildren().find(m=>m.active),ai=s.moleAIs.get(m);assert(Boolean(ai),'Unterwelt-Maulwurf mit KI vorhanden');
+    ai.playDigAnimation();const key=m.texture.key;ai.setRunTexture();assert(m.texture.key===key&&key==='desert-mole-digging','Laufpose überschreibt Graben nicht sofort');
+    ai.stun(500);await steps(3);assert(m.texture.key==='desert-mole-stunned','Betäubung behält Vorrang vor Lauf- und Grabposen');
+   }
+   if(name==='JungleScene'){
+    s.equipped.companion=null;
+    const m=s.monkeys.find(m=>m.active&&!m.hidden);m.nextThrowAt=s.worldTime;m.nextClimbAt=1e12;
+    s.player.setPosition(m.x+120,m.y-10);s.player.body.setVelocity(0,0);s.cameras.main.setScroll(0,Math.max(0,m.y-400));
+    await wait(()=>m.attackPhase==='windup','Affe holt aus',5000);const target={...m.throwTarget};
+    await steps(20);s.player.x+=100;await steps(3);assert(m.throwTarget.x===target.x&&m.throwTarget.y===target.y,'Wurfziel bleibt vor dem Ausholen festgelegt');
+    const seen=new Set(),collect=()=>{if(m.attackPhase==='windup'||m.attackPhase==='release')seen.add(m.sprite.frame.name)};
+    game.events.on('poststep',collect);try{await wait(()=>m.attackPhase==='release','Kokoswurf',5000);await wait(()=>m.attackPhase!=='release','Nachschwung',1500)}finally{game.events.off('poststep',collect)}
+    assert(seen.has('motion-2')&&seen.has('motion-3'),'Wurf zeigt Loslassen und Nachschwung · '+[...seen].join(', '));
+   }
+  }
+  assert(!win.motionErrors.length,'Keine Laufzeitfehler');status.textContent=passed.join('\n')+'\nALLE GEGNERPRÜFUNGEN BESTANDEN ('+passed.length+')';
+ }catch(e){status.textContent=passed.join('\n')+'\nFEHLER: '+e.stack;}
+};
+document.getElementById('pause-test').onclick=async()=>{
+ const passed=[],assert=(v,m)=>{if(!v)throw Error(m);passed.push('✓ '+m);status.textContent=passed.join('\n');};
+ const tap=async code=>{key(code);await steps(2);key(code,false);await steps(2);};
+ try{
+  for(const profile of ['ipadKeyboard','pc','ipadTouch'])for(const name of ['DesertRuinScene','UndergroundDigScene','JungleScene',...(profile==='ipadKeyboard'?['DesertEndlessScene','DesertTunnelScene','CoinChallengeScene','HammerTrainingScene']:[])]){
+   for(const method of profile==='ipadTouch'?['click']:['key','click']){
+    const save=game.registry.get('saveData');save.settings.controlProfile=profile;
+    if(name==='CoinChallengeScene')save.bonusChallenges={...save.bonusChallenges,underground:{status:'ready',remainingMs:60000,collected:[]}};
+    await start(name);const s=current,c=game.portableControls;
+    const destination=name==='JungleScene'?'JungleMapScene':name==='HammerTrainingScene'?'UndergroundShopScene':
+     ['UndergroundDigScene','CoinChallengeScene'].includes(name)?'UndergroundMapScene':'DessertMapScene';
+    const pause=async()=>{c.pause(s);await steps(3);};
+    await pause();assert(c.pausedScene===s&&!win.document.getElementById('game-pause').hidden,profile+' · '+name+': Pause sichtbar');
+    await tap('Escape');assert(!c.pausedScene&&!s.confirmation?.isOpen&&game.scene.isActive(name),'Esc schließt nur die Pause');
+    await pause();await tap('Enter');assert(!c.pausedScene&&!s.confirmation?.isOpen&&game.scene.isActive(name),'Enter setzt fort');
+    await pause();const exit=win.document.querySelector('#game-pause button:last-child');
+    assert(profile==='ipadTouch'?!exit.textContent.includes('Q'):exit.textContent.includes('Q'),'Passende Tastenanzeige');
+    let asked=false;const monitor=()=>{asked ||= Boolean(s.confirmation?.isOpen)};game.events.on('poststep',monitor);
+    try{if(method==='key')await tap('KeyQ');else{exit.click();await steps(4);}
+     await wait(()=>game.scene.isActive(destination),'Direkt zur Karte / zum Händler',5000);await steps(4);
+    }finally{game.events.off('poststep',monitor)}
+    assert(!c.pausedScene&&!game.scene.isActive(name)&&game.scene.isActive(destination),method+': direkt am richtigen Ziel');
+    assert(!asked&&!s.confirmation?.isOpen,method+': keine zweite Rückfrage, auch nicht kurzzeitig');
+    if(name==='CoinChallengeScene')assert(game.registry.get('saveData').bonusChallenges.underground.status==='complete','Der einmalige Münzjagd-Versuch bleibt abgeschlossen');
+   }
+  }
+  assert(!win.motionErrors.length,'Keine Laufzeitfehler');status.textContent=passed.join('\n')+'\nALLE PAUSENPRÜFUNGEN BESTANDEN ('+passed.length+')';
+ }catch(e){status.textContent=passed.join('\n')+'\nFEHLER: '+e.stack;}
+ finally{game.registry.get('saveData').settings.controlProfile='ipadKeyboard';}
+};
 async function inventoryReview(){
   game.registry.get('saveData').settings.controlProfile='ipadKeyboard';
   await start('JungleScene');current.toggleInventory();await steps(3);inventoryInfo();

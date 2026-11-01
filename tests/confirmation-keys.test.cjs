@@ -90,6 +90,13 @@ for (const [key, destination] of [
     context.showExitConfirmation(scene, destination);
     press('Enter'); assert.deepEqual(destinations, [destination,destination]);
   });
+  test(key + ': an explicit pause-menu exit saves and changes scenes without creating any confirmation UI',()=>{
+    const {scene,objects,destinations}=setup('ipadKeyboard',key);let saved=0;
+    scene.saveState=()=>saved++;
+    context.showExitConfirmation(scene,destination,{confirm:false});
+    assert.deepEqual(destinations,[destination]);assert.equal(saved,1);
+    assert.equal(objects.length,0);assert.ok(!scene.confirmation?.isOpen);
+  });
 }
 
 test('yes and no buttons work by click without a keyboard', () => {

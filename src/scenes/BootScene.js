@@ -8,6 +8,7 @@ import { registerHammerTrainingTextures } from "../utils/hammerTrainingAssets.js
 import { startStoryPreview } from '../utils/storyPreview.js';
 import { registerStoryTextures } from '../utils/storyAssets.js';
 import { registerLevelMotionTextures } from '../utils/levelMotionAssets.js';
+import { registerEnemyMotionTextures } from '../utils/enemyMotionAssets.js';
 import { registerSwordTextures } from '../utils/SwordAnimation.js';
 
 export default class BootScene extends Phaser.Scene {
@@ -18,7 +19,7 @@ export default class BootScene extends Phaser.Scene {
   preload() {
     for (const [name, file] of [['locomotion', 'knight-locomotion'], ['poses', 'knight-poses'], ['helper', 'helper-actions']])
       this.load.image('level-motion-' + name, 'assets/common/characters/level-motion/' + file + '.png');
-    this.load.json('level-motion-frames', 'assets/common/characters/level-motion/frames.json?v=20261101-sword-range-1');
+    this.load.json('level-motion-frames', 'assets/common/characters/level-motion/frames.json?v=20261101-pause-direct-1');
     this.load.image('level-motion-rig', 'assets/common/characters/level-motion/knight-rig.png');
     this.load.image('healing-berry', 'assets/common/scenery/healing-berry.png');
     for (const name of ['footstep-sand', 'footstep-stone', 'footstep-leaf', 'armor-cloth', 'landing-soft', 'bow-release', 'hammer-swoosh', 'helper-curious', 'helper-brave', 'helper-slurp', 'helper-bounce'])
@@ -33,7 +34,7 @@ export default class BootScene extends Phaser.Scene {
       const version = stance === 'stand' ? 'v3' : id === 'male-crouch' ? 'v2' : 'v1';
       this.load.image('sword-b-' + id, 'assets/common/characters/sword-b/' + id + '-' + version + '.png');
     }
-    this.load.json('sword-b-frames', 'assets/common/characters/sword-b/frames.json?v=20261101-sword-range-1');
+    this.load.json('sword-b-frames', 'assets/common/characters/sword-b/frames.json?v=20261101-pause-direct-1');
     this.load.image('melee-right-bodies', 'assets/common/characters/sword-b/right-bodies-v1.png');
     this.load.json('melee-right-body-frames', 'assets/common/characters/sword-b/right-bodies.json');
     this.load.image('sword-far-bodies', 'assets/common/characters/sword-b/left-far-bodies-v1.png');
@@ -70,6 +71,8 @@ export default class BootScene extends Phaser.Scene {
     this.load.image("jungle-background", "assets/jungle/jungle-background.png");
     this.load.image("jungle-tree", "assets/jungle/jungle-tree.png");
     this.load.image("jungle-monkeys", "assets/jungle/jungle-monkeys.png");
+    for (const name of ['mole','monkey','monkey-red','monkey-blue','king']) this.load.image('enemy-motion-' + name, 'assets/common/enemies/' + name + '-motion-v1.png');
+    this.load.json('enemy-motion-frames', 'assets/common/enemies/frames.json?v=20261101-pause-direct-1');
     this.load.image("jungle-coconuts", "assets/jungle/jungle-coconuts.png");
     this.load.image("jungle-shop", "assets/jungle/jungle-shop-familiar.png");
     this.load.image("jungle-bow-atlas", "assets/jungle/jungle-bow-atlas.png");
@@ -236,6 +239,7 @@ export default class BootScene extends Phaser.Scene {
     this.createHammerTextures();
     this.createBatTextures();
     this.createJungleTextures();
+    registerEnemyMotionTextures(this);
     registerMeleeTextures(this);
     registerSwordTextures(this);
     registerLevelMotionTextures(this);

@@ -1650,7 +1650,7 @@ export default class DesertTunnelScene extends Phaser.Scene {
     image.setScale(targetScale);
   }
 
-  openExitPrompt() { return showExitConfirmation(this, "DessertMapScene"); }
+  openExitPrompt(options) { return showExitConfirmation(this, "DessertMapScene", options); }
 
   update() {
     if (this.isGameOver || this.isPaused || this.isComplete) {
